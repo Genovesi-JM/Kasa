@@ -3215,6 +3215,7 @@ function Rent({
   role: Role;
   notify: (message: string) => void;
 }) {
+  const { tr } = useKasaI18n();
   const [proofSubmitted, setProofSubmitted] = useState(false);
   const [rentStatus, setRentStatus] = useState("All statuses");
   const [rentProperty, setRentProperty] = useState("All properties");
@@ -3280,11 +3281,8 @@ function Rent({
           <ShieldCheck />
         </div>
         <div>
-          <strong>Direct payments, clear records</strong>
-          <p>
-            Tenants pay landlords directly. Kasa sends reminders and keeps proof
-            and reconciliation together — it never receives or forwards funds.
-          </p>
+          <strong>{tr("rentPage.title")}</strong>
+          <p>{tr("rentPage.directNote")}</p>
         </div>
         {role === "tenant" && (
           <ActionButton
@@ -3296,23 +3294,24 @@ function Rent({
               );
             }}
           >
-            {proofSubmitted ? "Proof submitted" : "Upload proof"}
+            {proofSubmitted
+              ? tr("rentPage.proofSubmitted")
+              : tr("rentPage.uploadProof")}
           </ActionButton>
         )}
       </section>
       {role === "tenant" && (
         <section className="bank-instructions">
           <div className="bank-copy">
-            <span className="eyebrow light">PAY YOUR LANDLORD DIRECTLY</span>
-            <h2>September rent · {formatEuro(1850)}</h2>
-            <p>
-              Use your own bank. Kasa will never ask you to transfer rent to a
-              Kasa account.
-            </p>
+            <span className="eyebrow light">{tr("rentPage.payLandlord")}</span>
+            <h2>
+              {tr("rentPage.septemberRent")} · {formatEuro(1850)}
+            </h2>
+            <p>{tr("rentPage.useBank")}</p>
           </div>
           <div className="bank-details">
             <span>
-              <small>Account holder</small>
+              <small>{tr("rentPage.accountHolder")}</small>
               <strong>Olivia Martín</strong>
             </span>
             <span>
@@ -3320,47 +3319,51 @@ function Rent({
               <strong>ES12 ···· ···· ···· 4821</strong>
             </span>
             <span>
-              <small>Payment reference</small>
+              <small>{tr("rentPage.paymentReference")}</small>
               <strong>KASA-ES-1042-SEP</strong>
             </span>
             <button
               className="soft-button"
               onClick={() => notify("Payment instructions copied.")}
             >
-              Copy details
+              {tr("rentPage.copyDetails")}
             </button>
           </div>
           <div className="transfer-flow">
             <span className="done">
-              <Check /> Transfer directly
+              <Check /> {tr("rentPage.transferDirectly")}
             </span>
             <i />
             <span className={proofSubmitted ? "done" : ""}>
-              {proofSubmitted && <Check />} Submit proof
+              {proofSubmitted && <Check />} {tr("rentPage.submitProof")}
             </span>
             <i />
-            <span>Landlord confirms</span>
+            <span>{tr("rentPage.landlordConfirms")}</span>
           </div>
         </section>
       )}
       <section className="metrics-grid tenant-metrics">
         <Metric
-          label={role === "landlord" ? "Recorded in August" : "August rent"}
+          label={
+            role === "landlord"
+              ? tr("rentPage.recordedAugust")
+              : tr("rentPage.augustRent")
+          }
           value={role === "landlord" ? "€6,730" : "€1,850"}
-          note="All direct transfers checked"
+          note={tr("rentPage.allChecked")}
           icon={CheckCircle2}
         />
         <Metric
-          label="Next reminder"
-          value="28 Aug"
-          note="For September rent"
+          label={tr("rentPage.nextReminder")}
+          value={tr("rentPage.augustDate")}
+          note={tr("rentPage.forSeptember")}
           icon={Bell}
           tone="blue"
         />
         <Metric
-          label="Missing proof"
+          label={tr("rentPage.missingProof")}
           value="0"
-          note="Nothing needs attention"
+          note={tr("rentPage.nothingAttention")}
           icon={FileCheck2}
           tone="lilac"
         />
@@ -3373,27 +3376,29 @@ function Rent({
           setRentSort("Most recently updated");
         }}
       >
-        <select aria-label="Rent record period">
-          <option>August 2026</option>
+        <select aria-label={tr("rentPage.periodLabel")}>
+          <option>{tr("dashboard.august")} 2026</option>
         </select>
         <select
-          aria-label="Rent record status"
+          aria-label={tr("rentPage.statusLabel")}
           value={rentStatus}
           onChange={(event) => setRentStatus(event.target.value)}
         >
-          <option>All statuses</option>
-          <option>Confirmed</option>
-          <option>Awaiting proof</option>
-          <option>Awaiting landlord confirmation</option>
-          <option>Overdue</option>
-          <option>Discrepancy</option>
+          <option value="All statuses">{tr("rentPage.allStatuses")}</option>
+          <option value="Confirmed">{tr("rentPage.confirmed")}</option>
+          <option value="Awaiting proof">{tr("rentPage.awaitingProof")}</option>
+          <option value="Awaiting landlord confirmation">
+            {tr("rentPage.awaitingLandlord")}
+          </option>
+          <option value="Overdue">{tr("rentPage.overdue")}</option>
+          <option value="Discrepancy">{tr("rentPage.discrepancy")}</option>
         </select>
         <select
-          aria-label="Rent record property"
+          aria-label={tr("rentPage.propertyLabel")}
           value={rentProperty}
           onChange={(event) => setRentProperty(event.target.value)}
         >
-          <option>All properties</option>
+          <option value="All properties">{tr("rentPage.allProperties")}</option>
           {[...new Set(baseRecords.map((record) => record.property))].map(
             (property) => (
               <option key={property}>{property}</option>
@@ -3401,20 +3406,22 @@ function Rent({
           )}
         </select>
         <select
-          aria-label="Sort rent records"
+          aria-label={tr("rentPage.sortLabel")}
           value={rentSort}
           onChange={(event) => setRentSort(event.target.value)}
         >
-          <option>Most recently updated</option>
-          <option>Amount: high to low</option>
-          <option>Property name</option>
+          <option value="Most recently updated">{tr("rentPage.recent")}</option>
+          <option value="Amount: high to low">
+            {tr("rentPage.amountHigh")}
+          </option>
+          <option value="Property name">{tr("rentPage.propertyName")}</option>
         </select>
       </FilterToolbar>
       <section className="card rent-table-card">
         <div className="table-card-title">
           <div>
-            <h2>Payment records</h2>
-            <p>Proof matched to direct bank transfers</p>
+            <h2>{tr("rentPage.paymentRecords")}</h2>
+            <p>{tr("rentPage.proofMatched")}</p>
           </div>
           <button
             className="soft-button"
@@ -3422,36 +3429,38 @@ function Rent({
               notify("Rent records exported as a reconciliation report.")
             }
           >
-            <Download size={16} /> Export
+            <Download size={16} /> {tr("rentPage.export")}
           </button>
         </div>
         <div className="rent-record-head">
-          <span>Period</span>
-          {role === "landlord" && <span>Tenant</span>}
-          <span>Property</span>
-          <span>Amount</span>
-          <span>Transferred</span>
-          <span>Status</span>
+          <span>{tr("rentPage.period")}</span>
+          {role === "landlord" && <span>{tr("rentPage.tenant")}</span>}
+          <span>{tr("rentPage.property")}</span>
+          <span>{tr("rentPage.amount")}</span>
+          <span>{tr("rentPage.transferred")}</span>
+          <span>{tr("rentPage.status")}</span>
         </div>
         {visibleRecords.map((record, index) => (
           <div className="rent-record" key={record.tenant}>
             <span>
-              <strong>{record.month}</strong>
-              <small>Receipt #AUG-{1024 + index}</small>
+              <strong>{tr("dashboard.august")} 2026</strong>
+              <small>
+                {tr("rentPage.receipt")} #AUG-{1024 + index}
+              </small>
             </span>
             {role === "landlord" && <span>{record.tenant}</span>}
             <span>{record.property}</span>
             <strong>{formatEuro(record.amount)}</strong>
             <span>{record.date}</span>
             <StatusPill tone="mint">
-              <Check size={13} /> {record.status}
+              <Check size={13} /> {tr("rentPage.confirmed")}
             </StatusPill>
           </div>
         ))}
         {visibleRecords.length === 0 && (
           <div className="table-empty">
             <Search size={22} />
-            <span>No rent records match these filters.</span>
+            <span>{tr("rentPage.noMatches")}</span>
           </div>
         )}
       </section>
