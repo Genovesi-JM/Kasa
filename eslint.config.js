@@ -19,4 +19,8 @@ export default tseslint.config(
       ],
     },
   },
+  {
+    files: ["server/**/*.ts"],
+    languageOptions: { ecmaVersion: 2023, globals: globals.node },
+  },
 );

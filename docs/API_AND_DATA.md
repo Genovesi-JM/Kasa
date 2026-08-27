@@ -17,6 +17,22 @@ The proposed deployment has six replaceable boundaries:
 
 The browser foundation is in `src/platform/config.ts` and `src/platform/api.ts`. Runtime responses are validated before entering the interface. `.env.example` contains only public configuration; every variable prefixed with `VITE_` is visible to the browser and must never contain a private key.
 
+## Usable local API
+
+The repository now includes a versioned Express API in `server/` and an OpenAPI 3.1 contract in `docs/openapi.yaml`. Run `cp .env.example .env.local`, `cp .env.api.example .env.api`, then `npm run dev:all`. The frontend loads property and Spaces catalogues from the API when `VITE_KASA_API_URL` is set and falls back to local seed data if the API is unavailable.
+
+Available endpoints:
+
+- `GET /api/v1/health`
+- `GET /api/v1/config?country=demo`
+- `GET /api/v1/properties` and `GET /api/v1/properties/:id`
+- `GET /api/v1/spaces` and `GET /api/v1/spaces/:id`
+- `POST /api/v1/space-reservations` for a demo reservation record
+- `POST /api/v1/rent-records/proofs` for proof metadata only
+- `GET /api/v1/openapi.yaml`
+
+The two write routes are in-memory development adapters, disabled by default, protected by a local demo key and an `Idempotency-Key` header. They are not production storage or authentication. Replace them with reviewed identity, PostgreSQL transactions, object storage and audit logging before accepting real personal data, documents or reservations.
+
 ## Maps and drawn-area search
 
 The demo uses Leaflet with OpenStreetMap tiles, visible attribution, price pins and a customer-drawn polygon. The polygon is applied to both property and Spaces results. In production, send the polygon to the search API and perform the authoritative point-in-polygon query server-side; browser filtering is only a demo and usability layer.

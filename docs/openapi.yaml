@@ -1,0 +1,220 @@
+openapi: 3.1.0
+info:
+  title: Kasa API
+  version: 0.1.0
+  description: >-
+    Versioned API for the Kasa non-brokerage property, property-operations,
+    services and sports/event-spaces platform. Demo write endpoints never hold
+    rent, deposits or venue funds.
+servers:
+  - url: http://127.0.0.1:8787/api/v1
+    description: Local development
+paths:
+  /health:
+    get:
+      operationId: getHealth
+      summary: Check API availability
+      responses:
+        "200":
+          description: API is available
+  /config:
+    get:
+      operationId: getCountryConfig
+      summary: Read server-enforced country and feature configuration
+      parameters:
+        - in: query
+          name: country
+          schema: { type: string, maxLength: 12 }
+      responses:
+        "200":
+          description: Country configuration
+  /properties:
+    get:
+      operationId: listProperties
+      summary: Search long-term rental and sale listings
+      parameters:
+        - in: query
+          name: q
+          schema: { type: string, maxLength: 120 }
+        - in: query
+          name: intent
+          schema: { type: string, enum: [rent, buy] }
+        - in: query
+          name: propertyType
+          schema: { type: string, enum: [Apartment, House, Studio, Loft] }
+        - in: query
+          name: minPrice
+          schema: { type: number, minimum: 0 }
+        - in: query
+          name: maxPrice
+          schema: { type: number, exclusiveMinimum: 0 }
+        - in: query
+          name: minBeds
+          schema: { type: integer, minimum: 0 }
+        - in: query
+          name: minBaths
+          schema: { type: integer, minimum: 0 }
+        - in: query
+          name: verified
+          schema: { type: boolean }
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Offset"
+      responses:
+        "200":
+          description: Paginated property results
+        "400":
+          $ref: "#/components/responses/BadRequest"
+  /properties/{id}:
+    get:
+      operationId: getProperty
+      summary: Read one property listing
+      parameters:
+        - $ref: "#/components/parameters/NumericId"
+      responses:
+        "200": { description: Property listing }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /spaces:
+    get:
+      operationId: listSpaces
+      summary: Search sports and event spaces
+      parameters:
+        - in: query
+          name: q
+          schema: { type: string, maxLength: 120 }
+        - in: query
+          name: category
+          schema: { type: string, enum: [sports, events] }
+        - in: query
+          name: availableToday
+          schema: { type: boolean }
+        - in: query
+          name: bookingMode
+          schema: { type: string, enum: [instant, request] }
+        - in: query
+          name: maxPrice
+          schema: { type: number, exclusiveMinimum: 0 }
+        - in: query
+          name: minCapacity
+          schema: { type: integer, minimum: 0 }
+        - in: query
+          name: amenities
+          description: Comma-separated amenity names
+          schema: { type: string, maxLength: 300 }
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Offset"
+      responses:
+        "200": { description: Paginated space results }
+        "400": { $ref: "#/components/responses/BadRequest" }
+  /spaces/{id}:
+    get:
+      operationId: getSpaceVenue
+      summary: Read one venue and its schedulable spaces
+      parameters:
+        - $ref: "#/components/parameters/NumericId"
+      responses:
+        "200": { description: Space venue }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /space-reservations:
+    post:
+      operationId: createSpaceReservation
+      summary: Record a sports/event reservation request
+      description: >-
+        Demo-only write. The venue remains the payment recipient and Kasa does
+        not hold funds. Production requires authenticated workspace access,
+        persistence, concurrency control and an approved payment provider.
+      security: [{ DemoKey: [] }]
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [venueId, spaceId, date, startTime, endTime]
+              properties:
+                venueId: { type: integer, minimum: 1 }
+                spaceId: { type: integer, minimum: 1 }
+                date: { type: string, format: date }
+                startTime:
+                  { type: string, pattern: "^([01]\\d|2[0-3]):[0-5]\\d$" }
+                endTime:
+                  { type: string, pattern: "^([01]\\d|2[0-3]):[0-5]\\d$" }
+                bookingMode: { type: string, enum: [request, instant] }
+                notes: { type: string, maxLength: 1000 }
+      responses:
+        "201": { description: Reservation request recorded }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "503": { description: Demo writes are disabled }
+  /rent-records/proofs:
+    post:
+      operationId: recordRentProof
+      summary: Record proof metadata for a direct tenant-to-landlord transfer
+      description: >-
+        Does not transfer money or upload raw files. Production file upload must
+        use a private signed-upload flow with malware and access checks.
+      security: [{ DemoKey: [] }]
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - rentRecordId
+                - amount
+                - currency
+                - transferReference
+                - documentReference
+                - transferredAt
+              properties:
+                rentRecordId: { type: string, format: uuid }
+                amount: { type: number, exclusiveMinimum: 0 }
+                currency: { type: string, minLength: 3, maxLength: 3 }
+                transferReference:
+                  { type: string, minLength: 3, maxLength: 120 }
+                documentReference:
+                  { type: string, minLength: 3, maxLength: 240 }
+                transferredAt: { type: string, format: date-time }
+      responses:
+        "201":
+          { description: Proof metadata recorded for landlord confirmation }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "503": { description: Demo writes are disabled }
+components:
+  securitySchemes:
+    DemoKey:
+      type: apiKey
+      in: header
+      name: x-kasa-demo-key
+      description: Local demo only; replace with reviewed authentication.
+  parameters:
+    NumericId:
+      in: path
+      name: id
+      required: true
+      schema: { type: integer, minimum: 1 }
+    Limit:
+      in: query
+      name: limit
+      schema: { type: integer, minimum: 1, maximum: 100, default: 24 }
+    Offset:
+      in: query
+      name: offset
+      schema: { type: integer, minimum: 0, default: 0 }
+    IdempotencyKey:
+      in: header
+      name: Idempotency-Key
+      required: true
+      schema: { type: string, minLength: 16, maxLength: 200 }
+  responses:
+    BadRequest:
+      description: Invalid request
+    Unauthorized:
+      description: Missing or invalid demo API key
+    NotFound:
+      description: Resource not found

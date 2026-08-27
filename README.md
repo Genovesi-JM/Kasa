@@ -10,8 +10,14 @@ The definitive product guardrails and the list of still-open decisions are recor
 
 ```bash
 npm install
-npm run dev
+cp .env.example .env.local
+cp .env.api.example .env.api
+npm run dev:all
 ```
+
+The web app runs at `http://127.0.0.1:5173` and the versioned API at `http://127.0.0.1:8787/api/v1`. Public catalogue reads work immediately. Demo writes are deliberately disabled until `KASA_API_DEMO_WRITES=true` and a private `KASA_API_DEMO_KEY` of at least 16 characters are set in `.env.api`; never commit that file or use the demo key as production authentication.
+
+API contract: [docs/openapi.yaml](./docs/openapi.yaml). Start only the API with `npm run dev:api`; verify it with `curl http://127.0.0.1:8787/api/v1/health`.
 
 ## MVP architecture
 

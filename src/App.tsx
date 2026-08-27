@@ -83,6 +83,8 @@ import type {
   SpaceVenue,
   View,
 } from "./types";
+import { appConfig } from "./platform/config";
+import { listProperties, listSpaces } from "./platform/catalog";
 
 const formatEuro = (value: number) =>
   new Intl.NumberFormat("en", {
@@ -104,6 +106,17 @@ const roleValues: Role[] = [
   "spaceOperator",
   "admin",
 ];
+
+const shownApiFallbackWarnings = new Set<string>();
+
+function warnApiFallbackOnce(catalogue: "property" | "space", error: unknown) {
+  if (shownApiFallbackWarnings.has(catalogue)) return;
+  shownApiFallbackWarnings.add(catalogue);
+  console.warn(
+    `Kasa API ${catalogue} catalogue unavailable; using demo data.`,
+    error,
+  );
+}
 
 function useKasaI18n() {
   const { t, i18n } = useTranslation();
@@ -1415,6 +1428,7 @@ function Discover({
   initialIntent: "Rent" | "Buy";
 }) {
   const { tr } = useKasaI18n();
+  const [catalogProperties, setCatalogProperties] = useState(properties);
   const [query, setQuery] = useState("");
   const [maxPrice, setMaxPrice] = useState("Any price");
   const [minPrice, setMinPrice] = useState("0");
@@ -1446,7 +1460,22 @@ function Discover({
         ? current.filter((item) => item !== feature)
         : [...current, feature],
     );
-  const filtered = properties
+  useEffect(() => {
+    if (!appConfig.apiUrl) return;
+    let active = true;
+    void listProperties()
+      .then((items) => {
+        if (active) setCatalogProperties(items);
+      })
+      .catch((error: unknown) => {
+        warnApiFallbackOnce("property", error);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const filtered = catalogProperties
     .filter((property) => {
       const matchQuery =
         `${property.title} ${property.address} ${property.city} ${property.neighbourhood} ${property.amenities.join(" ")}`
@@ -1828,7 +1857,9 @@ function Discover({
               zone={drawnZone}
               onZoneChange={setDrawnZone}
               onOpen={(id) => {
-                const property = properties.find((item) => item.id === id);
+                const property = catalogProperties.find(
+                  (item) => item.id === id,
+                );
                 if (property) onOpen(property);
               }}
               labels={{
@@ -4351,6 +4382,7 @@ function SpacesMarketplace({
   onListSpace: () => void;
 }) {
   const { tr } = useKasaI18n();
+  const [catalogVenues, setCatalogVenues] = useState(spaceVenues);
   type SpaceStage =
     | "browse"
     | "venue"
@@ -4377,6 +4409,24 @@ function SpacesMarketplace({
   const [customStart, setCustomStart] = useState("18:00");
   const [customEnd, setCustomEnd] = useState("19:30");
   const [customRequest, setCustomRequest] = useState(false);
+  useEffect(() => {
+    if (!appConfig.apiUrl) return;
+    let active = true;
+    void listSpaces()
+      .then((items) => {
+        if (!active || items.length === 0) return;
+        setCatalogVenues(items);
+        setVenue(items[0]);
+        setSpace(items[0].spaces[0]);
+        setSlot(items[0].spaces[0].slots[0]);
+      })
+      .catch((error: unknown) => {
+        warnApiFallbackOnce("space", error);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
   const categories: Array<[string, LucideIcon, string]> = [
     ["Sports", Zap, tr("space.sportsNote")],
     ["Events", Sparkles, tr("space.eventsNote")],
@@ -4441,7 +4491,7 @@ function SpacesMarketplace({
         ? current.filter((item) => item !== value)
         : [...current, value],
     );
-  const visibleVenues = spaceVenues
+  const visibleVenues = catalogVenues
     .filter((item) => {
       const matchQuery =
         `${item.name} ${item.neighbourhood} ${item.category} ${item.description} ${item.amenities.join(" ")} ${item.spaces.map((unit) => unit.activity).join(" ")}`
@@ -5300,7 +5350,7 @@ function SpacesMarketplace({
               zone={drawnZone}
               onZoneChange={setDrawnZone}
               onOpen={(id) => {
-                const nextVenue = spaceVenues.find((item) => item.id === id);
+                const nextVenue = catalogVenues.find((item) => item.id === id);
                 if (nextVenue) openVenue(nextVenue);
               }}
               labels={{
