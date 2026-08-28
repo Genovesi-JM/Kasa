@@ -84,7 +84,12 @@ import type {
   View,
 } from "./types";
 import { appConfig } from "./platform/config";
-import { listProperties, listSpaces } from "./platform/catalog";
+import {
+  getApiHealth,
+  getCountryConfig,
+  listProperties,
+  listSpaces,
+} from "./platform/catalog";
 
 const formatEuro = (value: number) =>
   new Intl.NumberFormat("en", {
@@ -187,6 +192,7 @@ const viewTitles: Record<View, { title: string; eyebrow: string }> = {
   spacesPlan: { title: "Kasa Spaces plans", eyebrow: "BUSINESS MODEL" },
   provider: { title: "Service business", eyebrow: "PROVIDER WORKSPACE" },
   admin: { title: "Trust & platform controls", eyebrow: "ADMIN" },
+  diagnostics: { title: "System status", eyebrow: "FUNCTION CHECK" },
   insights: { title: "Portfolio insights", eyebrow: "ANALYTICS" },
   plan: { title: "Commercial model", eyebrow: "AGREED DIRECTION" },
 };
@@ -306,6 +312,12 @@ const navItems: NavItem[] = [
     id: "admin",
     label: "Moderation & flags",
     icon: ShieldCheck,
+    roles: ["admin"],
+  },
+  {
+    id: "diagnostics",
+    label: "System status",
+    icon: CheckCircle2,
     roles: ["admin"],
   },
   { id: "insights", label: "Insights", icon: BarChart3, roles: ["landlord"] },
@@ -6560,6 +6572,255 @@ function ProviderDashboard({ notify }: { notify: (message: string) => void }) {
   );
 }
 
+type DiagnosticState =
+  "checking" | "operational" | "demo" | "pending" | "failed";
+
+interface DiagnosticCheck {
+  id: string;
+  state: DiagnosticState;
+  detail?: string;
+}
+
+async function performLiveDiagnostics(): Promise<DiagnosticCheck[]> {
+  const results = await Promise.allSettled([
+    getApiHealth(),
+    listProperties(),
+    listSpaces(),
+    getCountryConfig(),
+  ]);
+  const health = results[0];
+  const propertyCatalogue = results[1];
+  const spacesCatalogue = results[2];
+  const countryRules = results[3];
+
+  const safeCountryRules =
+    countryRules.status === "fulfilled" &&
+    !countryRules.value.features.rentCustody &&
+    !countryRules.value.features.overnightSpaces &&
+    !countryRules.value.features.mortgageIntermediation;
+
+  return [
+    {
+      id: "apiHealth",
+      state: health.status === "fulfilled" ? "operational" : "failed",
+      detail:
+        health.status === "fulfilled"
+          ? `API v${health.value.version}`
+          : undefined,
+    },
+    {
+      id: "propertyCatalogue",
+      state:
+        propertyCatalogue.status === "fulfilled" ? "operational" : "failed",
+      detail:
+        propertyCatalogue.status === "fulfilled"
+          ? String(propertyCatalogue.value.length)
+          : undefined,
+    },
+    {
+      id: "spacesCatalogue",
+      state: spacesCatalogue.status === "fulfilled" ? "operational" : "failed",
+      detail:
+        spacesCatalogue.status === "fulfilled"
+          ? String(spacesCatalogue.value.length)
+          : undefined,
+    },
+    {
+      id: "countryRules",
+      state: safeCountryRules ? "operational" : "failed",
+      detail: safeCountryRules ? "safe" : "unsafe",
+    },
+  ];
+}
+
+function Diagnostics() {
+  const { tr, language } = useKasaI18n();
+  const [runId, setRunId] = useState(0);
+  const [running, setRunning] = useState(true);
+  const [lastChecked, setLastChecked] = useState<Date | null>(null);
+  const [liveChecks, setLiveChecks] = useState<DiagnosticCheck[]>([
+    { id: "apiHealth", state: "checking" },
+    { id: "propertyCatalogue", state: "checking" },
+    { id: "spacesCatalogue", state: "checking" },
+    { id: "countryRules", state: "checking" },
+  ]);
+
+  useEffect(() => {
+    let active = true;
+    void performLiveDiagnostics().then((checks) => {
+      if (!active) return;
+      setLiveChecks(checks);
+      setLastChecked(new Date());
+      setRunning(false);
+    });
+    return () => {
+      active = false;
+    };
+  }, [runId]);
+
+  const staticChecks: DiagnosticCheck[] = [
+    { id: "webRuntime", state: "operational" },
+    { id: "map", state: appConfig.mapTileUrl ? "operational" : "failed" },
+    { id: "localization", state: "operational" },
+    { id: "mortgage", state: "operational" },
+    { id: "propertyOps", state: "demo" },
+    { id: "rentRecords", state: "demo" },
+    { id: "privateChat", state: "demo" },
+    { id: "documents", state: "pending" },
+    { id: "database", state: "pending" },
+    { id: "auth", state: "pending" },
+    { id: "notifications", state: "pending" },
+    { id: "externalPayments", state: "pending" },
+  ];
+  const checks = [...liveChecks, ...staticChecks];
+  const count = (state: DiagnosticState) =>
+    checks.filter((check) => check.state === state).length;
+  const stateLabels: Record<DiagnosticState, string> = {
+    checking: tr("diagnostics.checking"),
+    operational: tr("diagnostics.operational"),
+    demo: tr("diagnostics.demo"),
+    pending: tr("diagnostics.pending"),
+    failed: tr("diagnostics.failed"),
+  };
+  const stateIcons: Record<string, LucideIcon> = {
+    apiHealth: Zap,
+    propertyCatalogue: Building2,
+    spacesCatalogue: CalendarDays,
+    countryRules: ShieldCheck,
+    webRuntime: Smartphone,
+    map: Map,
+    localization: Globe2,
+    mortgage: CircleDollarSign,
+    propertyOps: Settings,
+    rentRecords: WalletCards,
+    privateChat: MessageCircle,
+    documents: FileText,
+    database: BarChart3,
+    auth: LockKeyhole,
+    notifications: Bell,
+    externalPayments: WalletCards,
+  };
+
+  const checkDetail = (check: DiagnosticCheck) => {
+    if (check.state === "failed") return tr("diagnostics.unavailable");
+    if (check.id === "countryRules")
+      return tr(
+        check.detail === "safe"
+          ? "diagnostics.safeRules"
+          : "diagnostics.unsafeRules",
+      );
+    if (
+      (check.id === "propertyCatalogue" || check.id === "spacesCatalogue") &&
+      check.detail
+    )
+      return `${check.detail} ${tr("diagnostics.resourcesLoaded")}`;
+    if (check.id === "apiHealth" && check.detail) return check.detail;
+    return tr(`diagnostics.${check.id}Note`);
+  };
+
+  return (
+    <div className="page-stack diagnostics-page">
+      <section className="diagnostics-hero">
+        <div>
+          <span className="eyebrow light">{tr("diagnostics.eyebrow")}</span>
+          <h2>{tr("diagnostics.title")}</h2>
+          <p>{tr("diagnostics.subtitle")}</p>
+          <small>
+            {tr("diagnostics.lastChecked")}:{" "}
+            {lastChecked
+              ? new Intl.DateTimeFormat(language, {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                  second: "2-digit",
+                }).format(lastChecked)
+              : tr("diagnostics.checking")}
+          </small>
+        </div>
+        <button
+          className="button light-button"
+          disabled={running}
+          onClick={() => {
+            setRunning(true);
+            setLiveChecks((checks) =>
+              checks.map((check) => ({ ...check, state: "checking" })),
+            );
+            setRunId((current) => current + 1);
+          }}
+        >
+          <Repeat2 size={16} />
+          {running ? tr("diagnostics.checking") : tr("diagnostics.runAgain")}
+        </button>
+      </section>
+
+      <section className="diagnostics-summary" aria-label="Status summary">
+        <article>
+          <CheckCircle2 size={20} />
+          <strong>{count("operational")}</strong>
+          <span>{tr("diagnostics.operational")}</span>
+        </article>
+        <article>
+          <Sparkles size={20} />
+          <strong>{count("demo")}</strong>
+          <span>{tr("diagnostics.demo")}</span>
+        </article>
+        <article>
+          <Clock3 size={20} />
+          <strong>{count("pending")}</strong>
+          <span>{tr("diagnostics.pending")}</span>
+        </article>
+        <article className={count("failed") ? "has-failure" : ""}>
+          <Zap size={20} />
+          <strong>{count("failed")}</strong>
+          <span>{tr("diagnostics.failed")}</span>
+        </article>
+      </section>
+
+      <section className="card diagnostics-board">
+        <div className="diagnostics-board-heading">
+          <h2>{tr("diagnostics.currentFunctions")}</h2>
+          <p>{tr("diagnostics.currentFunctionsNote")}</p>
+        </div>
+        <div className="diagnostics-grid">
+          {checks.map((check) => {
+            const Icon = stateIcons[check.id] || CheckCircle2;
+            return (
+              <article
+                className={`diagnostic-card diagnostic-${check.state}`}
+                key={check.id}
+              >
+                <span className="diagnostic-icon">
+                  <Icon size={18} />
+                </span>
+                <div>
+                  <strong>{tr(`diagnostics.${check.id}`)}</strong>
+                  <small>{checkDetail(check)}</small>
+                </div>
+                <StatusPill
+                  tone={
+                    check.state === "operational"
+                      ? "mint"
+                      : check.state === "demo"
+                        ? "blue"
+                        : check.state === "failed"
+                          ? "coral"
+                          : "amber"
+                  }
+                >
+                  {stateLabels[check.state]}
+                </StatusPill>
+              </article>
+            );
+          })}
+        </div>
+      </section>
+      <div className="scope-note">
+        <ShieldCheck size={17} />
+        <span>{tr("diagnostics.guardrail")}</span>
+      </div>
+    </div>
+  );
+}
+
 function AdminConsole({ notify }: { notify: (message: string) => void }) {
   const [flags, setFlags] = useState({
     buy: false,
@@ -7246,6 +7507,11 @@ function App() {
                   label: tr("nav.moderation"),
                   icon: ShieldCheck,
                 },
+                {
+                  id: "diagnostics",
+                  label: tr("diagnostics.title"),
+                  icon: CheckCircle2,
+                },
               ];
   const navKeyByView: Partial<Record<View, string>> = {
     overview: "common.overview",
@@ -7265,6 +7531,7 @@ function App() {
     spacesPlan: "nav.plans",
     provider: "nav.jobs",
     admin: "nav.moderation",
+    diagnostics: "diagnostics.title",
     insights: "nav.insights",
     plan: "nav.commercial",
   };
@@ -7518,6 +7785,8 @@ function App() {
         return <ProviderDashboard notify={notify} />;
       case "admin":
         return <AdminConsole notify={notify} />;
+      case "diagnostics":
+        return <Diagnostics />;
       case "insights":
         return <Insights />;
       case "plan":

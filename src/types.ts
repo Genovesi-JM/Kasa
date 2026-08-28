@@ -21,6 +21,7 @@ export type View =
   | "spacesPlan"
   | "provider"
   | "admin"
+  | "diagnostics"
   | "insights"
   | "plan";
 

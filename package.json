@@ -12,6 +12,8 @@
     "build": "npm run typecheck && vite build",
     "lint": "eslint .",
     "typecheck": "tsc -b && tsc -p server/tsconfig.json",
+    "test:api": "tsx server/smoke.ts",
+    "check": "npm run format:check && npm run lint && npm run typecheck && npm run build && npm run test:api",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "preview": "vite preview"

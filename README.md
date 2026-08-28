@@ -19,6 +19,8 @@ The web app runs at `http://127.0.0.1:5173` and the versioned API at `http://127
 
 API contract: [docs/openapi.yaml](./docs/openapi.yaml). Start only the API with `npm run dev:api`; verify it with `curl http://127.0.0.1:8787/api/v1/health`.
 
+Run the complete repeatable quality gate with `npm run check`. It verifies formatting, lint, client/server types, the production build and the API guardrails. The honest operational/demo/pending matrix is documented in [docs/FUNCTION_STATUS.md](./docs/FUNCTION_STATUS.md) and is also shown live in **Admin → System status**.
+
 ## MVP architecture
 
 - React + TypeScript + Vite
