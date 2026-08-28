@@ -4017,6 +4017,11 @@ function Documents({
 
 function Services({ notify }: { notify: (message: string) => void }) {
   const [selectedCategory, setSelectedCategory] = useState("All");
+  const [serviceSection, setServiceSection] = useState<"discover" | "tasks">(
+    "discover",
+  );
+  const [taskTab, setTaskTab] = useState<"Active" | "Completed">("Active");
+  const [requestingService, setRequestingService] = useState(false);
   const [booking, setBooking] = useState<(typeof providers)[number] | null>(
     null,
   );
@@ -4077,8 +4082,37 @@ function Services({ notify }: { notify: (message: string) => void }) {
     Number(providerKind !== "Any provider") +
     Number(serviceAvailability !== "Any availability") +
     Number(minimumRating !== "Any rating");
+  const serviceTasks = [
+    {
+      title: "Kitchen tap leaking",
+      category: "Plumbing",
+      provider: "Aigua Pro",
+      status: "Provider replied",
+      date: "Today · 16:30",
+      completed: false,
+    },
+    {
+      title: "Deep home cleaning",
+      category: "Cleaning",
+      provider: "Casa Clara",
+      status: "Quote received",
+      date: "Tomorrow · 09:00",
+      completed: false,
+    },
+    {
+      title: "Air conditioning service",
+      category: "AC & climate",
+      provider: "Clima BCN",
+      status: "Completed",
+      date: "12 August",
+      completed: true,
+    },
+  ];
+  const visibleTasks = serviceTasks.filter(
+    (task) => task.completed === (taskTab === "Completed"),
+  );
   return (
-    <div className="page-stack">
+    <div className="page-stack services-page">
       <section className="services-hero">
         <div>
           <span className="eyebrow light">VERIFIED HOME & PROPERTY HELP</span>
@@ -4095,174 +4129,293 @@ function Services({ notify }: { notify: (message: string) => void }) {
           <span>Independent professionals & companies</span>
         </div>
       </section>
-      <section className="service-search">
-        <div>
-          <Search size={20} />
-          <input
-            placeholder="What do you need help with?"
-            aria-label="Search service providers"
-            value={serviceQuery}
-            onChange={(event) => setServiceQuery(event.target.value)}
-          />
-        </div>
-        <select aria-label="Service location">
-          <option>Barcelona</option>
-        </select>
-        <ActionButton
-          onClick={() =>
-            notify(`${visible.length} matching provider profiles shown.`)
-          }
+      <section className="service-section-switch" aria-label="Services view">
+        <button
+          className={serviceSection === "discover" ? "active" : ""}
+          onClick={() => setServiceSection("discover")}
         >
-          Search
-        </ActionButton>
+          <Search size={17} /> Find help
+        </button>
+        <button
+          className={serviceSection === "tasks" ? "active" : ""}
+          onClick={() => setServiceSection("tasks")}
+        >
+          <BriefcaseBusiness size={17} /> My requests <i>2</i>
+        </button>
       </section>
-      <div className="category-row five">
-        {categories.map(([label, Icon]) => (
-          <button
-            className={selectedCategory === label ? "active" : ""}
-            key={label}
-            onClick={() => {
-              setSelectedCategory(selectedCategory === label ? "All" : label);
+      {serviceSection === "tasks" ? (
+        <section className="service-tasks-card card">
+          <header>
+            <div>
+              <span className="eyebrow">SERVICE REQUESTS</span>
+              <h2>My tasks</h2>
+            </div>
+            <button
+              className="text-button"
+              onClick={() => setRequestingService(true)}
+            >
+              <Plus size={16} /> Post a request
+            </button>
+          </header>
+          <div className="service-task-tabs">
+            {(["Active", "Completed"] as const).map((tab) => (
+              <button
+                key={tab}
+                className={taskTab === tab ? "active" : ""}
+                onClick={() => setTaskTab(tab)}
+              >
+                {tab}
+              </button>
+            ))}
+          </div>
+          <div className="service-task-list">
+            {visibleTasks.map((task) => (
+              <button
+                key={task.title}
+                onClick={() =>
+                  notify(`${task.title} tracking and service chat opened.`)
+                }
+              >
+                <span className="service-task-icon">
+                  {task.category === "Cleaning" ? (
+                    <Sparkles />
+                  ) : task.category === "Plumbing" ? (
+                    <Wrench />
+                  ) : (
+                    <Settings />
+                  )}
+                </span>
+                <span>
+                  <strong>{task.title}</strong>
+                  <small>
+                    {task.category} · {task.provider}
+                  </small>
+                  <b>{task.status}</b>
+                </span>
+                <time>{task.date}</time>
+                <ChevronRight size={18} />
+              </button>
+            ))}
+          </div>
+          {visibleTasks.length === 0 && (
+            <div className="service-task-empty">
+              <CheckCircle2 size={28} />
+              <strong>No completed requests yet</strong>
+              <span>Completed service records will stay here.</span>
+            </div>
+          )}
+          <div className="service-task-prompt">
+            <div>
+              <strong>What needs to be done?</strong>
+              <span>
+                Describe the task once and receive suitable responses.
+              </span>
+            </div>
+            <ActionButton onClick={() => setRequestingService(true)}>
+              Post a service request
+            </ActionButton>
+          </div>
+        </section>
+      ) : (
+        <>
+          <section className="service-search">
+            <div>
+              <Search size={20} />
+              <input
+                placeholder="What do you need help with?"
+                aria-label="Search service providers"
+                value={serviceQuery}
+                onChange={(event) => setServiceQuery(event.target.value)}
+              />
+            </div>
+            <select aria-label="Service location">
+              <option>Barcelona</option>
+            </select>
+            <ActionButton
+              onClick={() =>
+                notify(`${visible.length} matching provider profiles shown.`)
+              }
+            >
+              Search
+            </ActionButton>
+          </section>
+          <section className="service-category-block">
+            <div className="service-mobile-section-title">
+              <div>
+                <span className="eyebrow">BROWSE</span>
+                <h2>Home services</h2>
+              </div>
+              <ChevronRight size={20} />
+            </div>
+            <div className="category-row five">
+              {categories.map(([label, Icon]) => (
+                <button
+                  className={selectedCategory === label ? "active" : ""}
+                  key={label}
+                  onClick={() => {
+                    setSelectedCategory(
+                      selectedCategory === label ? "All" : label,
+                    );
+                    setServiceNeed("");
+                  }}
+                >
+                  <Icon size={19} /> {label}
+                </button>
+              ))}
+            </div>
+          </section>
+          {selectedCategory !== "All" && (
+            <div className="service-subfilters">
+              <span>What kind?</span>
+              {serviceNeeds[selectedCategory].map((need) => (
+                <button
+                  key={need}
+                  className={serviceNeed === need ? "active" : ""}
+                  onClick={() =>
+                    setServiceNeed(serviceNeed === need ? "" : need)
+                  }
+                >
+                  {need}
+                </button>
+              ))}
+            </div>
+          )}
+          <FilterToolbar
+            activeCount={activeServiceFilters}
+            onReset={() => {
+              setSelectedCategory("All");
+              setServiceQuery("");
+              setPricingFilter("Any pricing");
+              setProviderKind("Any provider");
+              setServiceAvailability("Any availability");
+              setMinimumRating("Any rating");
+              setServiceSort("Recommended");
               setServiceNeed("");
             }}
           >
-            <Icon size={19} /> {label}
-          </button>
-        ))}
-      </div>
-      {selectedCategory !== "All" && (
-        <div className="service-subfilters">
-          <span>What kind?</span>
-          {serviceNeeds[selectedCategory].map((need) => (
-            <button
-              key={need}
-              className={serviceNeed === need ? "active" : ""}
-              onClick={() => setServiceNeed(serviceNeed === need ? "" : need)}
+            <select
+              aria-label="Service pricing type"
+              value={pricingFilter}
+              onChange={(event) => setPricingFilter(event.target.value)}
             >
-              {need}
-            </button>
-          ))}
-        </div>
-      )}
-      <FilterToolbar
-        activeCount={activeServiceFilters}
-        onReset={() => {
-          setSelectedCategory("All");
-          setServiceQuery("");
-          setPricingFilter("Any pricing");
-          setProviderKind("Any provider");
-          setServiceAvailability("Any availability");
-          setMinimumRating("Any rating");
-          setServiceSort("Recommended");
-          setServiceNeed("");
-        }}
-      >
-        <select
-          aria-label="Service pricing type"
-          value={pricingFilter}
-          onChange={(event) => setPricingFilter(event.target.value)}
-        >
-          <option>Any pricing</option>
-          <option>Fixed price</option>
-          <option>Quote available</option>
-        </select>
-        <select
-          aria-label="Provider type"
-          value={providerKind}
-          onChange={(event) => setProviderKind(event.target.value)}
-        >
-          <option>Any provider</option>
-          <option>Independent</option>
-          <option>Company</option>
-        </select>
-        <select
-          aria-label="Provider availability"
-          value={serviceAvailability}
-          onChange={(event) => setServiceAvailability(event.target.value)}
-        >
-          <option>Any availability</option>
-          <option>Today</option>
-          <option>Tomorrow</option>
-          <option>This week</option>
-        </select>
-        <select
-          aria-label="Minimum provider rating"
-          value={minimumRating}
-          onChange={(event) => setMinimumRating(event.target.value)}
-        >
-          <option>Any rating</option>
-          <option value="4.8">4.8+ rating</option>
-          <option value="4.9">4.9+ rating</option>
-        </select>
-        <select
-          aria-label="Sort service providers"
-          value={serviceSort}
-          onChange={(event) => setServiceSort(event.target.value)}
-        >
-          <option>Recommended</option>
-          <option>Highest rated</option>
-          <option>Most completed jobs</option>
-          <option>Price: low to high</option>
-          <option>Price: high to low</option>
-        </select>
-      </FilterToolbar>
-      <SectionHeading
-        title={
-          selectedCategory === "All"
-            ? "Recommended near your properties"
-            : `${selectedCategory}${serviceNeed ? ` · ${serviceNeed}` : ""}`
-        }
-      />
-      <section className="provider-grid">
-        {visible.map((provider) => (
-          <article className="provider-card" key={provider.name}>
-            <div className="provider-card-top">
-              <div className={`provider-logo ${provider.tone}`}>
-                {provider.initials}
-              </div>
-              <StatusPill tone="mint">
-                <BadgeCheck size={12} /> Verified
-              </StatusPill>
+              <option>Any pricing</option>
+              <option>Fixed price</option>
+              <option>Quote available</option>
+            </select>
+            <select
+              aria-label="Provider type"
+              value={providerKind}
+              onChange={(event) => setProviderKind(event.target.value)}
+            >
+              <option>Any provider</option>
+              <option>Independent</option>
+              <option>Company</option>
+            </select>
+            <select
+              aria-label="Provider availability"
+              value={serviceAvailability}
+              onChange={(event) => setServiceAvailability(event.target.value)}
+            >
+              <option>Any availability</option>
+              <option>Today</option>
+              <option>Tomorrow</option>
+              <option>This week</option>
+            </select>
+            <select
+              aria-label="Minimum provider rating"
+              value={minimumRating}
+              onChange={(event) => setMinimumRating(event.target.value)}
+            >
+              <option>Any rating</option>
+              <option value="4.8">4.8+ rating</option>
+              <option value="4.9">4.9+ rating</option>
+            </select>
+            <select
+              aria-label="Sort service providers"
+              value={serviceSort}
+              onChange={(event) => setServiceSort(event.target.value)}
+            >
+              <option>Recommended</option>
+              <option>Highest rated</option>
+              <option>Most completed jobs</option>
+              <option>Price: low to high</option>
+              <option>Price: high to low</option>
+            </select>
+          </FilterToolbar>
+          <section className="service-request-cta">
+            <div className="service-request-illustration">
+              <Wrench size={28} />
             </div>
             <div>
-              <h3>{provider.name}</h3>
+              <span className="eyebrow">NOT SURE WHO TO CHOOSE?</span>
+              <h2>Tell us what needs doing.</h2>
               <p>
-                {provider.type} · {provider.providerKind} · {provider.mode}
+                Send one request and let suitable verified providers respond.
               </p>
             </div>
-            <div className="provider-rating">
-              <Star size={16} fill="currentColor" />{" "}
-              <strong>{provider.rating}</strong>
-              <span>({provider.jobs} completed)</span>
-            </div>
-            <div className="provider-price">
-              <strong>{provider.price}</strong>
-              <span>
-                <Clock3 size={14} /> {provider.availability} · replies{" "}
-                {provider.response}
-              </span>
-            </div>
-            <ActionButton secondary onClick={() => setBooking(provider)}>
-              View & book
+            <ActionButton onClick={() => setRequestingService(true)}>
+              Post a request
             </ActionButton>
-          </article>
-        ))}
-      </section>
-      {visible.length === 0 && (
-        <div className="empty-state">
-          <Store size={28} />
-          <h3>No provider profiles match</h3>
-          <p>Reset a filter or choose another service category.</p>
-        </div>
+          </section>
+          <SectionHeading
+            title={
+              selectedCategory === "All"
+                ? "Recommended near your properties"
+                : `${selectedCategory}${serviceNeed ? ` · ${serviceNeed}` : ""}`
+            }
+          />
+          <section className="provider-grid">
+            {visible.map((provider) => (
+              <article className="provider-card" key={provider.name}>
+                <div className="provider-card-top">
+                  <div className={`provider-logo ${provider.tone}`}>
+                    {provider.initials}
+                  </div>
+                  <StatusPill tone="mint">
+                    <BadgeCheck size={12} /> Verified
+                  </StatusPill>
+                </div>
+                <div>
+                  <h3>{provider.name}</h3>
+                  <p>
+                    {provider.type} · {provider.providerKind} · {provider.mode}
+                  </p>
+                </div>
+                <div className="provider-rating">
+                  <Star size={16} fill="currentColor" />{" "}
+                  <strong>{provider.rating}</strong>
+                  <span>({provider.jobs} completed)</span>
+                </div>
+                <div className="provider-price">
+                  <strong>{provider.price}</strong>
+                  <span>
+                    <Clock3 size={14} /> {provider.availability} · replies{" "}
+                    {provider.response}
+                  </span>
+                </div>
+                <ActionButton secondary onClick={() => setBooking(provider)}>
+                  View & book
+                </ActionButton>
+              </article>
+            ))}
+          </section>
+          {visible.length === 0 && (
+            <div className="empty-state">
+              <Store size={28} />
+              <h3>No provider profiles match</h3>
+              <p>Reset a filter or choose another service category.</p>
+            </div>
+          )}
+          <div className="scope-note">
+            <Store size={17} />
+            <span>
+              Providers publish their own service details and quotes.
+              Service-payment processing is separate from rent and will depend
+              on the supported payment providers in each country.
+            </span>
+          </div>
+        </>
       )}
-      <div className="scope-note">
-        <Store size={17} />
-        <span>
-          Providers publish their own service details and quotes.
-          Service-payment processing is separate from rent and will depend on
-          the supported payment providers in each country.
-        </span>
-      </div>
       {booking && (
         <Modal title={`Book ${booking.name}`} onClose={() => setBooking(null)}>
           <div className="modal-body">
@@ -4316,6 +4469,65 @@ function Services({ notify }: { notify: (message: string) => void }) {
                 onClick={() => {
                   notify(`Request sent directly to ${booking.name}.`);
                   setBooking(null);
+                }}
+              >
+                Send request
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+      {requestingService && (
+        <Modal
+          title="Post a service request"
+          onClose={() => setRequestingService(false)}
+        >
+          <div className="modal-body">
+            <div className="form-grid">
+              <label>
+                Service category
+                <select defaultValue="Cleaning">
+                  {categories.map(([label]) => (
+                    <option key={label}>{label}</option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Preferred date
+                <input type="date" defaultValue="2026-08-31" />
+              </label>
+              <label className="full">
+                What needs to be done?
+                <textarea placeholder="Describe the task, property area and anything the provider should know…" />
+              </label>
+              <label className="full photo-drop compact-drop">
+                <Camera size={22} />
+                <strong>Add useful photos</strong>
+                <small>Optional · keep private information out of images</small>
+              </label>
+            </div>
+            <div className="scope-note">
+              <ShieldCheck size={16} />
+              <span>
+                Your contact details stay private. Providers respond through
+                Kasa Chat and you choose whether to accept any quote.
+              </span>
+            </div>
+            <div className="modal-actions">
+              <button
+                className="button button-secondary"
+                onClick={() => setRequestingService(false)}
+              >
+                Cancel
+              </button>
+              <button
+                className="button"
+                onClick={() => {
+                  setRequestingService(false);
+                  setServiceSection("tasks");
+                  notify(
+                    "Service request saved and shared with matching providers.",
+                  );
                 }}
               >
                 Send request
