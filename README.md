@@ -47,6 +47,7 @@ The market-entry gates, trustworthy-interface requirements and EU/Spain and Ango
 - Landlord operations with portfolio analytics, applications, property records, rent reconciliation, and a maintenance board
 - Three-step owner-controlled property creation flow with photos, listing details, review, and moderation submission
 - Kasa Services with five launch categories, verified provider profiles, fixed-price/quote positioning, booking requests, tracking, and service records
+- Kasa Work with direct job and freelance-opportunity discovery, private applications, business hiring posts and the four entry actions Get a job, Hire staff, Find a Pro and Offer services; Kasa is a neutral job-board technology provider, not the employer or recruitment representative
 - Kasa Spaces Phase 2, deliberately limited to sports courts/pitches and event venues, with location-first discovery, operator-suggested or customer-requested times, instant/request reservation modes, external-payment handoff, confirmations, QR booking records, reviews and related-service suggestions
 - Direct-to-venue Spaces payments: each operator receives customer funds through its own regulated provider; Kasa never receives the gross amount, and any approved commission is invoiced to the operator separately after settlement
 - Venue-operator workspace with a simple multi-space calendar, flexible availability, custom-time requests, explicit customer acceptance of operator-proposed changes, messages, reviews, onboarding and optional later-stage business tools

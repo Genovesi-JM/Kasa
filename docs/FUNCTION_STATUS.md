@@ -24,6 +24,7 @@ These flows can be reviewed end to end in the UI, but their records are not yet 
 - Property applications, landlord review and tenant status tracking.
 - Direct tenant-to-landlord rent instructions, proof upload and reconciliation records.
 - Private Kasa chat, maintenance, provider jobs, venue reservations and operator calendars.
+- Kasa Work job and freelance discovery, private applications, hiring posts and candidate conversations.
 - Admin moderation, verification queues, feature switches and analytics.
 
 ## Production integrations still required

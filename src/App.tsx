@@ -4015,13 +4015,25 @@ function Documents({
   );
 }
 
-function Services({ notify }: { notify: (message: string) => void }) {
+function Services({
+  notify,
+  onOfferServices,
+}: {
+  notify: (message: string) => void;
+  onOfferServices: () => void;
+}) {
   const [selectedCategory, setSelectedCategory] = useState("All");
-  const [serviceSection, setServiceSection] = useState<"discover" | "tasks">(
-    "discover",
-  );
+  const [serviceSection, setServiceSection] = useState<
+    "discover" | "tasks" | "work"
+  >("discover");
   const [taskTab, setTaskTab] = useState<"Active" | "Completed">("Active");
   const [requestingService, setRequestingService] = useState(false);
+  const [actionChooserOpen, setActionChooserOpen] = useState(false);
+  const [workMode, setWorkMode] = useState<"jobs" | "hire">("jobs");
+  const [jobQuery, setJobQuery] = useState("");
+  const [jobType, setJobType] = useState("All opportunities");
+  const [hiringOpen, setHiringOpen] = useState(false);
+  const [applyingJob, setApplyingJob] = useState<string | null>(null);
   const [booking, setBooking] = useState<(typeof providers)[number] | null>(
     null,
   );
@@ -4111,6 +4123,74 @@ function Services({ notify }: { notify: (message: string) => void }) {
   const visibleTasks = serviceTasks.filter(
     (task) => task.completed === (taskTab === "Completed"),
   );
+  const workOpportunities = [
+    {
+      title: "Property maintenance assistant",
+      business: "Habitat Norte",
+      location: "Barcelona · On site",
+      type: "Part time",
+      pay: "€14–€17 / hour",
+      skills: ["Basic repairs", "Customer care"],
+      posted: "Today",
+    },
+    {
+      title: "Freelance move-out cleaner",
+      business: "Casa Clara",
+      location: "Barcelona · Multiple areas",
+      type: "Freelance",
+      pay: "€80–€110 / task",
+      skills: ["Cleaning", "Own equipment"],
+      posted: "2 hours ago",
+    },
+    {
+      title: "Electrical technician",
+      business: "Volt & Co.",
+      location: "Barcelona · On site",
+      type: "Full time",
+      pay: "€28,000–€34,000 / year",
+      skills: ["Electrical", "Certification required"],
+      posted: "Yesterday",
+    },
+    {
+      title: "Event setup crew",
+      business: "Poblenou Events",
+      location: "Barcelona · Flexible locations",
+      type: "Project",
+      pay: "€120 / event",
+      skills: ["Event setup", "Evening availability"],
+      posted: "Yesterday",
+    },
+  ];
+  const visibleOpportunities = workOpportunities.filter(
+    (job) =>
+      (jobType === "All opportunities" || job.type === jobType) &&
+      `${job.title} ${job.business} ${job.skills.join(" ")}`
+        .toLowerCase()
+        .includes(jobQuery.toLowerCase()),
+  );
+  const talentProfiles = [
+    {
+      initials: "LM",
+      name: "Lucía M.",
+      role: "Electrical technician",
+      availability: "Available from September",
+      skills: ["Electrical", "Maintenance", "Spanish"],
+    },
+    {
+      initials: "BR",
+      name: "Bruno R.",
+      role: "Property services assistant",
+      availability: "Available part time",
+      skills: ["Handyman", "Cleaning", "Portuguese"],
+    },
+    {
+      initials: "NA",
+      name: "Nadia A.",
+      role: "Event and customer support",
+      availability: "Freelance projects",
+      skills: ["Events", "Customer care", "French"],
+    },
+  ];
   return (
     <div className="page-stack services-page">
       <section className="services-hero">
@@ -4142,7 +4222,26 @@ function Services({ notify }: { notify: (message: string) => void }) {
         >
           <BriefcaseBusiness size={17} /> My requests <i>2</i>
         </button>
+        <button
+          className={serviceSection === "work" ? "active" : ""}
+          onClick={() => setServiceSection("work")}
+        >
+          <Users size={17} /> Work
+        </button>
       </section>
+      <button
+        className="service-action-menu-button"
+        onClick={() => setActionChooserOpen(true)}
+      >
+        <span>
+          <Sparkles size={18} />
+          <span>
+            <small>WORK & SERVICES</small>
+            <strong>What would you like to do today?</strong>
+          </span>
+        </span>
+        <ChevronRight size={20} />
+      </button>
       {serviceSection === "tasks" ? (
         <section className="service-tasks-card card">
           <header>
@@ -4214,6 +4313,164 @@ function Services({ notify }: { notify: (message: string) => void }) {
             <ActionButton onClick={() => setRequestingService(true)}>
               Post a service request
             </ActionButton>
+          </div>
+        </section>
+      ) : serviceSection === "work" ? (
+        <section className="kasa-work-page">
+          <header className="kasa-work-hero">
+            <div>
+              <span className="eyebrow light">DIRECT OPPORTUNITIES</span>
+              <h2>Kasa Work</h2>
+              <p>
+                Find flexible work or publish an opportunity. People and
+                businesses communicate and decide directly through Kasa.
+              </p>
+            </div>
+            <div className="work-mode-switch">
+              <button
+                className={workMode === "jobs" ? "active" : ""}
+                onClick={() => setWorkMode("jobs")}
+              >
+                Get a job
+              </button>
+              <button
+                className={workMode === "hire" ? "active" : ""}
+                onClick={() => setWorkMode("hire")}
+              >
+                Hire staff
+              </button>
+            </div>
+          </header>
+          {workMode === "jobs" ? (
+            <>
+              <section className="work-search-card">
+                <label>
+                  <Search size={18} />
+                  <input
+                    aria-label="Search work opportunities"
+                    placeholder="Role, skill or business"
+                    value={jobQuery}
+                    onChange={(event) => setJobQuery(event.target.value)}
+                  />
+                </label>
+                <select
+                  aria-label="Opportunity type"
+                  value={jobType}
+                  onChange={(event) => setJobType(event.target.value)}
+                >
+                  <option>All opportunities</option>
+                  <option>Freelance</option>
+                  <option>Project</option>
+                  <option>Part time</option>
+                  <option>Full time</option>
+                </select>
+                <span>
+                  <MapPin size={15} /> Barcelona
+                </span>
+              </section>
+              <div className="work-results-heading">
+                <div>
+                  <span className="eyebrow">OPPORTUNITIES NEAR YOU</span>
+                  <h2>{visibleOpportunities.length} direct opportunities</h2>
+                </div>
+                <StatusPill tone="mint">Freelance + employment</StatusPill>
+              </div>
+              <section className="work-opportunity-list">
+                {visibleOpportunities.map((job) => (
+                  <article className="work-opportunity-card" key={job.title}>
+                    <div className="work-business-mark">
+                      {job.business
+                        .split(" ")
+                        .map((word) => word[0])
+                        .join("")
+                        .slice(0, 2)}
+                    </div>
+                    <div className="work-opportunity-main">
+                      <div>
+                        <h3>{job.title}</h3>
+                        <p>
+                          {job.business} · {job.location}
+                        </p>
+                      </div>
+                      <div className="work-tags">
+                        <span>{job.type}</span>
+                        {job.skills.map((skill) => (
+                          <span key={skill}>{skill}</span>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="work-opportunity-side">
+                      <small>{job.posted}</small>
+                      <strong>{job.pay}</strong>
+                      <button
+                        className="soft-button"
+                        onClick={() => setApplyingJob(job.title)}
+                      >
+                        View & apply <ChevronRight size={14} />
+                      </button>
+                    </div>
+                  </article>
+                ))}
+              </section>
+              {visibleOpportunities.length === 0 && (
+                <div className="empty-state">
+                  <BriefcaseBusiness size={28} />
+                  <h3>No opportunities match</h3>
+                  <p>Try another role, skill or work arrangement.</p>
+                </div>
+              )}
+            </>
+          ) : (
+            <>
+              <section className="hire-staff-banner">
+                <div>
+                  <span className="eyebrow light">FOR BUSINESSES</span>
+                  <h2>Find people without losing the human connection.</h2>
+                  <p>
+                    Publish the work, review expressions of interest and speak
+                    directly with candidates in private Kasa Chat.
+                  </p>
+                </div>
+                <ActionButton onClick={() => setHiringOpen(true)}>
+                  Post an opportunity
+                </ActionButton>
+              </section>
+              <SectionHeading title="People open to opportunities" />
+              <section className="talent-grid">
+                {talentProfiles.map((talent) => (
+                  <article className="talent-card" key={talent.name}>
+                    <Avatar initials={talent.initials} />
+                    <div>
+                      <h3>{talent.name}</h3>
+                      <p>{talent.role}</p>
+                    </div>
+                    <StatusPill tone="mint">{talent.availability}</StatusPill>
+                    <div className="work-tags">
+                      {talent.skills.map((skill) => (
+                        <span key={skill}>{skill}</span>
+                      ))}
+                    </div>
+                    <button
+                      className="soft-button"
+                      onClick={() =>
+                        notify(`Private Kasa Chat with ${talent.name} opened.`)
+                      }
+                    >
+                      Message privately <MessageCircle size={14} />
+                    </button>
+                  </article>
+                ))}
+              </section>
+            </>
+          )}
+          <div className="scope-note">
+            <ShieldCheck size={17} />
+            <span>
+              Kasa provides a neutral job board, applications and private
+              communication. Businesses and candidates decide directly. Kasa is
+              not the employer, does not represent either side and does not
+              determine employment status, payroll, visas or legal eligibility.
+            </span>
           </div>
         </section>
       ) : (
@@ -4531,6 +4788,196 @@ function Services({ notify }: { notify: (message: string) => void }) {
                 }}
               >
                 Send request
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+      {actionChooserOpen && (
+        <Modal
+          title="What would you like to do today?"
+          onClose={() => setActionChooserOpen(false)}
+        >
+          <div className="modal-body service-action-grid">
+            <button
+              onClick={() => {
+                setServiceSection("work");
+                setWorkMode("jobs");
+                setActionChooserOpen(false);
+              }}
+            >
+              <span className="service-action-icon work">
+                <BriefcaseBusiness />
+              </span>
+              <span>
+                <small>Find opportunities</small>
+                <strong>Get a job</strong>
+              </span>
+              <ChevronRight />
+            </button>
+            <button
+              onClick={() => {
+                setServiceSection("work");
+                setWorkMode("hire");
+                setActionChooserOpen(false);
+              }}
+            >
+              <span className="service-action-icon hire">
+                <Users />
+              </span>
+              <span>
+                <small>For your business</small>
+                <strong>Hire staff</strong>
+              </span>
+              <ChevronRight />
+            </button>
+            <button
+              onClick={() => {
+                setServiceSection("discover");
+                setActionChooserOpen(false);
+              }}
+            >
+              <span className="service-action-icon pro">
+                <Wrench />
+              </span>
+              <span>
+                <small>For your home or property</small>
+                <strong>Find a Pro</strong>
+              </span>
+              <ChevronRight />
+            </button>
+            <button
+              onClick={() => {
+                setActionChooserOpen(false);
+                onOfferServices();
+              }}
+            >
+              <span className="service-action-icon offer">
+                <CircleDollarSign />
+              </span>
+              <span>
+                <small>Build your service business</small>
+                <strong>Offer services</strong>
+              </span>
+              <ChevronRight />
+            </button>
+            <div className="scope-note">
+              <ShieldCheck size={16} />
+              <span>
+                One Kasa identity can use several areas, while provider and
+                business records remain separated by role and permission.
+              </span>
+            </div>
+          </div>
+        </Modal>
+      )}
+      {hiringOpen && (
+        <Modal title="Post an opportunity" onClose={() => setHiringOpen(false)}>
+          <div className="modal-body">
+            <div className="form-grid">
+              <label>
+                Opportunity title
+                <input placeholder="e.g. Freelance maintenance assistant" />
+              </label>
+              <label>
+                Work arrangement
+                <select>
+                  <option>Freelance</option>
+                  <option>Project</option>
+                  <option>Part time</option>
+                  <option>Full time</option>
+                </select>
+              </label>
+              <label>
+                Location
+                <input defaultValue="Barcelona" />
+              </label>
+              <label>
+                Pay or budget
+                <input placeholder="Show a clear range" />
+              </label>
+              <label className="full">
+                Responsibilities and requirements
+                <textarea placeholder="Describe the work, schedule, required skills and who will contract the person…" />
+              </label>
+              <label className="full check-label">
+                <input type="checkbox" /> I confirm that my business is
+                responsible for lawful hiring, contracts, worker classification,
+                payroll, tax, insurance and right-to-work checks where
+                applicable.
+              </label>
+            </div>
+            <div className="modal-actions">
+              <button
+                className="button button-secondary"
+                onClick={() => setHiringOpen(false)}
+              >
+                Cancel
+              </button>
+              <button
+                className="button"
+                onClick={() => {
+                  setHiringOpen(false);
+                  notify("Opportunity saved and submitted for moderation.");
+                }}
+              >
+                Review opportunity
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+      {applyingJob && (
+        <Modal
+          title={`Apply · ${applyingJob}`}
+          onClose={() => setApplyingJob(null)}
+        >
+          <div className="modal-body">
+            <div className="application-privacy-card">
+              <LockKeyhole size={22} />
+              <div>
+                <strong>Apply with a private Kasa profile</strong>
+                <p>
+                  Choose which experience and documents to share. Your phone
+                  number and email are not displayed publicly.
+                </p>
+              </div>
+            </div>
+            <div className="form-grid">
+              <label className="full">
+                Short introduction
+                <textarea placeholder="Explain your relevant experience and availability…" />
+              </label>
+              <label>
+                Availability
+                <select>
+                  <option>Immediately</option>
+                  <option>Within 2 weeks</option>
+                  <option>Choose a date</option>
+                </select>
+              </label>
+              <label>
+                Profile to share
+                <select>
+                  <option>Work profile · Basic</option>
+                </select>
+              </label>
+            </div>
+            <div className="modal-actions">
+              <button
+                className="button button-secondary"
+                onClick={() => setApplyingJob(null)}
+              >
+                Cancel
+              </button>
+              <button
+                className="button"
+                onClick={() => {
+                  setApplyingJob(null);
+                  notify("Application sent directly to the business.");
+                }}
+              >
+                Send application
               </button>
             </div>
           </div>
@@ -6878,6 +7325,7 @@ function Diagnostics() {
     { id: "propertyOps", state: "demo" },
     { id: "rentRecords", state: "demo" },
     { id: "privateChat", state: "demo" },
+    { id: "workMarketplace", state: "demo" },
     { id: "documents", state: "pending" },
     { id: "database", state: "pending" },
     { id: "auth", state: "pending" },
@@ -6906,6 +7354,7 @@ function Diagnostics() {
     propertyOps: Settings,
     rentRecords: WalletCards,
     privateChat: MessageCircle,
+    workMarketplace: Users,
     documents: FileText,
     database: BarChart3,
     auth: LockKeyhole,
@@ -7962,7 +8411,15 @@ function App() {
       case "documents":
         return <Documents role={role} notify={notify} />;
       case "services":
-        return <Services notify={notify} />;
+        return (
+          <Services
+            notify={notify}
+            onOfferServices={() => {
+              setRole("provider");
+              go("provider");
+            }}
+          />
+        );
       case "spaces":
         return (
           <SpacesMarketplace

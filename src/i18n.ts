@@ -563,6 +563,9 @@ const en = {
     rentRecordsNote: "Tenant-to-landlord flow; Kasa never holds rent",
     privateChat: "Private Kasa chat",
     privateChatNote: "No public email or telephone on property profiles",
+    workMarketplace: "Kasa Work marketplace",
+    workMarketplaceNote:
+      "Jobs, freelance opportunities, hiring posts and private applications use demo records",
     documents: "Private document storage",
     documentsNote:
       "Production object storage and access rules are not connected",
@@ -1132,6 +1135,9 @@ const pt = {
     rentRecordsNote: "Fluxo inquilino-senhorio; a Kasa nunca detém a renda",
     privateChat: "Chat privado Kasa",
     privateChatNote: "Sem email ou telefone público no perfil do imóvel",
+    workMarketplace: "Marketplace Kasa Work",
+    workMarketplaceNote:
+      "Empregos, trabalho freelance, anúncios e candidaturas privadas usam registos demonstrativos",
     documents: "Armazenamento privado de documentos",
     documentsNote:
       "O armazenamento e as regras de acesso de produção não estão ligados",
@@ -2266,6 +2272,9 @@ const esComplete = merge(es, {
       "Flujo inquilino-propietario; Kasa nunca retiene el alquiler",
     privateChat: "Chat privado de Kasa",
     privateChatNote: "Sin correo ni teléfono público en el perfil del inmueble",
+    workMarketplace: "Marketplace Kasa Work",
+    workMarketplaceNote:
+      "Empleos, oportunidades freelance, anuncios y solicitudes privadas usan datos de demostración",
     documents: "Almacenamiento privado de documentos",
     documentsNote:
       "Falta conectar el almacenamiento y los permisos de producción",
@@ -2609,6 +2618,9 @@ const frComplete = merge(fr, {
       "Flux locataire-propriétaire ; Kasa ne détient jamais le loyer",
     privateChat: "Messagerie privée Kasa",
     privateChatNote: "Aucun e-mail ou téléphone public sur le profil du bien",
+    workMarketplace: "Marché Kasa Work",
+    workMarketplaceNote:
+      "Emplois, missions freelance, annonces et candidatures privées utilisent des données de démonstration",
     documents: "Stockage privé des documents",
     documentsNote:
       "Le stockage et les droits de production ne sont pas connectés",
@@ -2937,6 +2949,9 @@ const arComplete = merge(ar, {
     rentRecordsNote: "من المستأجر إلى المالك؛ لا تحتفظ Kasa بالإيجار",
     privateChat: "محادثة Kasa الخاصة",
     privateChatNote: "لا يظهر البريد أو الهاتف في ملف العقار العام",
+    workMarketplace: "سوق Kasa Work",
+    workMarketplaceNote:
+      "تستخدم الوظائف وفرص العمل الحر وإعلانات التوظيف والطلبات الخاصة سجلات تجريبية",
     documents: "تخزين المستندات الخاصة",
     documentsNote: "لم يتم ربط تخزين الإنتاج وقواعد الوصول",
     database: "قاعدة بيانات الإنتاج",
@@ -3256,6 +3271,8 @@ const zhComplete = merge(zh, {
     rentRecordsNote: "租客直接向房东付款；Kasa 从不持有租金",
     privateChat: "Kasa 私密聊天",
     privateChatNote: "房产资料不公开电子邮件或电话号码",
+    workMarketplace: "Kasa Work 工作市场",
+    workMarketplaceNote: "职位、自由职业机会、招聘发布和私密申请使用演示记录",
     documents: "私密文件存储",
     documentsNote: "尚未连接生产存储和访问规则",
     database: "生产数据库",

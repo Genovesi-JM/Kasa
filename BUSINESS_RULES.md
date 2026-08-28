@@ -7,7 +7,7 @@ This file records the product and business decisions already agreed in the Kasa 
 ### Positioning
 
 - Kasa is a **non-brokerage PropTech and Property Operations Platform**.
-- The product has three connected pillars: **Properties + Property Operations + Kasa Services**.
+- The product ecosystem connects **Properties + Property Operations + Kasa Services + Kasa Spaces + Kasa Work**. Spaces remains Phase 2, and Work launches only where its job-board model and local requirements have been approved.
 - Kasa provides technology, records, communication and workflows. It does not act as an estate agent or accept a regulated property-management mandate by default.
 
 ### Property transactions
@@ -83,6 +83,19 @@ This file records the product and business decisions already agreed in the Kasa 
 - Home-service payments are separate from rent. Any processing must use supported regulated payment providers rather than Kasa safeguarding customer funds itself.
 - Marketplace fees may apply to completed home-service jobs; they are not property brokerage commissions.
 
+### Kasa Work
+
+- Kasa Work is an approved direct opportunity and job-board layer connecting people seeking work with businesses seeking staff or freelancers.
+- The four clear entry actions are **Get a job**, **Hire staff**, **Find a Pro** and **Offer services**. Find a Pro and Offer services remain Kasa Services journeys; Get a job and Hire staff open Kasa Work.
+- Supported opportunity types may include freelance tasks, defined projects, part-time roles and full-time roles, subject to country configuration.
+- Businesses publish and control their own opportunities. Candidates choose what profile information and documents to share, apply directly and communicate through private Kasa Chat.
+- Kasa supplies discovery, filters, opportunity records, applications, private communication, moderation and optional business software. Kasa does not employ candidates, act for either side, select the successful candidate, negotiate work terms or make hiring decisions.
+- The hiring business and worker remain responsible for contracts, worker classification, payroll, tax, social security, insurance, licences, qualifications, immigration/right-to-work checks, health and safety, and all applicable employment obligations.
+- Public candidate profiles do not display personal email addresses or phone numbers. Any sensitive identity or eligibility documents remain private and role-restricted.
+- Kasa must not label a worker as legally eligible, certified, background-checked or verified unless the exact underlying check has been completed and named.
+- The safest initial monetisation is business subscriptions, fixed-fee opportunity promotion and provider software. A placement-success commission is not part of the approved default model and would require a separate legal and commercial decision.
+- Launching Kasa Work in any country requires review of job-board, recruitment-agency, employment, anti-discrimination, platform-work, tax, immigration, consumer and data-protection requirements.
+
 ### Kasa Spaces · Phase 2
 
 - Kasa Spaces is an approved marketplace and scheduling vertical for reservable physical spaces.
@@ -139,6 +152,7 @@ These are readiness requirements **if Angola is selected as a launch market**; t
 - Fixed-fee promoted listings and advertising visibility.
 - Provider Pro and service-business subscriptions.
 - Kasa Services marketplace fees.
+- Kasa Work business subscriptions and fixed-fee promoted opportunities; no placement-success commission by default.
 - Kasa Spaces operator subscriptions, promoted venues and—only if approved—a separately invoiced commission based on completed reservations.
 - Larger portfolio/business accounts.
 - Optional verification cost recovery where it represents a real check.
