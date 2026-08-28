@@ -17,6 +17,7 @@ import {
   ChevronDown,
   ChevronRight,
   CircleDollarSign,
+  CircleUserRound,
   Clock3,
   Download,
   FileCheck2,
@@ -174,6 +175,8 @@ const viewTitles: Record<View, { title: string; eyebrow: string }> = {
   portfolio: { title: "Your homes, in one place", eyebrow: "PORTFOLIO" },
   applications: { title: "Applications", eyebrow: "WORKFLOW" },
   messages: { title: "Messages", eyebrow: "INBOX" },
+  notifications: { title: "Notifications", eyebrow: "UPDATES" },
+  profile: { title: "Profile", eyebrow: "ACCOUNT" },
   rent: { title: "Rent records", eyebrow: "RECONCILIATION" },
   maintenance: { title: "Maintenance", eyebrow: "COORDINATION" },
   documents: { title: "Documents", eyebrow: "RECORDS" },
@@ -330,6 +333,8 @@ const navItems: NavItem[] = [
 ];
 
 function navigationSection(role: Role, view: View): string {
+  if (view === "notifications" || view === "profile")
+    return "shell.sectionHome";
   if (view === "overview" || view === "spaceOperator")
     return "shell.sectionHome";
   if (view === "discover" || view === "saved") return "shell.sectionFind";
@@ -1253,6 +1258,397 @@ function LandlordOverview({
           <span>{tr("dashboard.rentScope")}</span>
         </div>
       </section>
+    </div>
+  );
+}
+
+type ServiceLaunchMode = "discover" | "tasks" | "jobs" | "hire";
+
+function UniversalHome({
+  go,
+  openServices,
+  setDiscoveryIntent,
+}: {
+  go: (view: View) => void;
+  openServices: (mode: ServiceLaunchMode) => void;
+  setDiscoveryIntent: (intent: "Rent" | "Buy") => void;
+}) {
+  const { tr } = useKasaI18n();
+  const [chooserOpen, setChooserOpen] = useState(false);
+  const [scope, setScope] = useState<
+    "all" | "homes" | "work" | "services" | "spaces"
+  >("all");
+  const [query, setQuery] = useState("");
+
+  const launchSearch = () => {
+    if (scope === "work") return openServices("jobs");
+    if (scope === "services") return openServices("discover");
+    if (scope === "spaces") return go("spaces");
+    go("discover");
+  };
+
+  const choose = (action: () => void) => {
+    setChooserOpen(false);
+    action();
+  };
+
+  return (
+    <div className="universal-home">
+      <section className="universal-welcome">
+        <button
+          className="home-intent-trigger"
+          onClick={() => setChooserOpen(true)}
+          aria-haspopup="dialog"
+        >
+          <span>
+            <small>{tr("universalHome.welcomeLabel")}</small>
+            <strong>{tr("universalHome.question")}</strong>
+          </span>
+          <ChevronDown size={22} />
+        </button>
+        <form
+          className="universal-search"
+          onSubmit={(event) => {
+            event.preventDefault();
+            launchSearch();
+          }}
+        >
+          <label>
+            <Search size={21} />
+            <input
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder={tr("universalHome.searchPlaceholder")}
+              aria-label={tr("universalHome.searchPlaceholder")}
+            />
+          </label>
+          <button className="button" type="submit">
+            {tr("common.search")}
+          </button>
+        </form>
+        <div
+          className="universal-scopes"
+          aria-label={tr("universalHome.searchIn")}
+        >
+          {(
+            [
+              ["all", tr("universalHome.everything")],
+              ["homes", tr("common.properties")],
+              ["work", tr("universalHome.work")],
+              ["services", tr("common.services")],
+              ["spaces", tr("common.spaces")],
+            ] as const
+          ).map(([id, label]) => (
+            <button
+              key={id}
+              className={scope === id ? "active" : ""}
+              onClick={() => setScope(id)}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </section>
+
+      <section className="universal-area-grid">
+        <button
+          className="universal-area-card properties"
+          onClick={() => go("discover")}
+        >
+          <span className="universal-area-icon">
+            <Home />
+          </span>
+          <span>
+            <small>{tr("universalHome.live")}</small>
+            <strong>{tr("common.properties")}</strong>
+            <b>{tr("universalHome.propertiesNote")}</b>
+          </span>
+          <ChevronRight />
+        </button>
+        <button
+          className="universal-area-card work"
+          onClick={() => openServices("jobs")}
+        >
+          <span className="universal-area-icon">
+            <BriefcaseBusiness />
+          </span>
+          <span>
+            <small>{tr("universalHome.earn")}</small>
+            <strong>{tr("universalHome.work")}</strong>
+            <b>{tr("universalHome.workNote")}</b>
+          </span>
+          <ChevronRight />
+        </button>
+        <button
+          className="universal-area-card services"
+          onClick={() => openServices("discover")}
+        >
+          <span className="universal-area-icon">
+            <Wrench />
+          </span>
+          <span>
+            <small>{tr("universalHome.getHelp")}</small>
+            <strong>{tr("common.services")}</strong>
+            <b>{tr("universalHome.servicesNote")}</b>
+          </span>
+          <ChevronRight />
+        </button>
+        <button
+          className="universal-area-card spaces"
+          onClick={() => go("spaces")}
+        >
+          <span className="universal-area-icon">
+            <CalendarDays />
+          </span>
+          <span>
+            <small>{tr("universalHome.reserve")}</small>
+            <strong>{tr("common.spaces")}</strong>
+            <b>{tr("universalHome.spacesNote")}</b>
+          </span>
+          <ChevronRight />
+        </button>
+      </section>
+
+      <section className="home-continue">
+        <header>
+          <div>
+            <span className="eyebrow">{tr("universalHome.forYou")}</span>
+            <h2>{tr("universalHome.continue")}</h2>
+          </div>
+        </header>
+        <div>
+          <button onClick={() => go("rent")}>
+            <span className="continue-icon mint">
+              <WalletCards />
+            </span>
+            <span>
+              <strong>{tr("universalHome.rentReady")}</strong>
+              <small>{tr("universalHome.rentNote")}</small>
+            </span>
+            <ChevronRight />
+          </button>
+          <button onClick={() => openServices("tasks")}>
+            <span className="continue-icon gold">
+              <Wrench />
+            </span>
+            <span>
+              <strong>{tr("universalHome.repairUpdate")}</strong>
+              <small>{tr("universalHome.repairNote")}</small>
+            </span>
+            <ChevronRight />
+          </button>
+        </div>
+      </section>
+
+      {chooserOpen && (
+        <Modal
+          title={tr("universalHome.question")}
+          onClose={() => setChooserOpen(false)}
+        >
+          <div className="modal-body universal-action-grid">
+            <button
+              onClick={() =>
+                choose(() => {
+                  setDiscoveryIntent("Rent");
+                  go("discover");
+                })
+              }
+            >
+              <span className="service-action-icon pro">
+                <Home />
+              </span>
+              <span>
+                <small>{tr("universalHome.forYourLife")}</small>
+                <strong>{tr("universalHome.findHome")}</strong>
+              </span>
+              <ChevronRight />
+            </button>
+            <button
+              onClick={() =>
+                choose(() => {
+                  setDiscoveryIntent("Buy");
+                  go("discover");
+                })
+              }
+            >
+              <span className="service-action-icon hire">
+                <Building2 />
+              </span>
+              <span>
+                <small>{tr("universalHome.forYourFuture")}</small>
+                <strong>{tr("universalHome.buyProperty")}</strong>
+              </span>
+              <ChevronRight />
+            </button>
+            <button onClick={() => choose(() => openServices("jobs"))}>
+              <span className="service-action-icon work">
+                <BriefcaseBusiness />
+              </span>
+              <span>
+                <small>{tr("universalHome.earn")}</small>
+                <strong>{tr("universalHome.getJob")}</strong>
+              </span>
+              <ChevronRight />
+            </button>
+            <button onClick={() => choose(() => openServices("hire"))}>
+              <span className="service-action-icon hire">
+                <Users />
+              </span>
+              <span>
+                <small>{tr("universalHome.forBusiness")}</small>
+                <strong>{tr("universalHome.hireStaff")}</strong>
+              </span>
+              <ChevronRight />
+            </button>
+            <button onClick={() => choose(() => openServices("discover"))}>
+              <span className="service-action-icon pro">
+                <Wrench />
+              </span>
+              <span>
+                <small>{tr("universalHome.getHelp")}</small>
+                <strong>{tr("universalHome.findPro")}</strong>
+              </span>
+              <ChevronRight />
+            </button>
+            <button onClick={() => choose(() => go("spaces"))}>
+              <span className="service-action-icon offer">
+                <CalendarDays />
+              </span>
+              <span>
+                <small>{tr("universalHome.sportsEvents")}</small>
+                <strong>{tr("universalHome.reserveSpace")}</strong>
+              </span>
+              <ChevronRight />
+            </button>
+          </div>
+        </Modal>
+      )}
+    </div>
+  );
+}
+
+function NotificationsView({ notify }: { notify: (message: string) => void }) {
+  const { tr } = useKasaI18n();
+  const items = [
+    {
+      icon: BriefcaseBusiness,
+      title: tr("universalHome.jobMatch"),
+      note: tr("universalHome.jobMatchNote"),
+      time: tr("common.today"),
+      fresh: true,
+    },
+    {
+      icon: MessageCircle,
+      title: tr("universalHome.newMessage"),
+      note: tr("universalHome.newMessageNote"),
+      time: "12 min",
+      fresh: true,
+    },
+    {
+      icon: Wrench,
+      title: tr("universalHome.repairUpdate"),
+      note: tr("universalHome.repairNote"),
+      time: tr("shell.yesterday"),
+      fresh: false,
+    },
+    {
+      icon: CalendarDays,
+      title: tr("universalHome.spaceReminder"),
+      note: tr("universalHome.spaceReminderNote"),
+      time: "19 Aug",
+      fresh: false,
+    },
+  ];
+  return (
+    <div className="simple-mobile-page notification-page">
+      <header>
+        <div>
+          <span className="eyebrow">{tr("universalHome.yourUpdates")}</span>
+          <h2>{tr("common.notifications")}</h2>
+        </div>
+        <button
+          className="text-button"
+          onClick={() => notify(tr("shell.notificationsRead"))}
+        >
+          {tr("shell.markAllRead")}
+        </button>
+      </header>
+      <section className="notification-feed">
+        {items.map(({ icon: Icon, title, note, time, fresh }) => (
+          <button key={title} onClick={() => notify(title)}>
+            {fresh && <i />}
+            <span className="notification-feed-icon">
+              <Icon />
+            </span>
+            <span>
+              <strong>{title}</strong>
+              <small>{note}</small>
+            </span>
+            <time>{time}</time>
+          </button>
+        ))}
+      </section>
+    </div>
+  );
+}
+
+function ProfileView({
+  onSwitch,
+  go,
+  notify,
+}: {
+  onSwitch: () => void;
+  go: (view: View) => void;
+  notify: (message: string) => void;
+}) {
+  const { tr } = useKasaI18n();
+  return (
+    <div className="simple-mobile-page profile-page">
+      <section className="profile-identity-card">
+        <Avatar initials="ID" />
+        <span>
+          <strong>Inês Duarte</strong>
+          <small>{tr("shell.tenant")}</small>
+        </span>
+        <ChevronRight />
+      </section>
+      <section className="profile-menu-card">
+        <button onClick={() => go("saved")}>
+          <Heart />
+          <span>{tr("nav.savedHomes")}</span>
+          <ChevronRight />
+        </button>
+        <button onClick={() => go("documents")}>
+          <FileText />
+          <span>{tr("common.documents")}</span>
+          <ChevronRight />
+        </button>
+        <button onClick={() => go("notifications")}>
+          <Bell />
+          <span>{tr("common.notifications")}</span>
+          <ChevronRight />
+        </button>
+        <button onClick={() => notify(tr("shell.settingsOpened"))}>
+          <Settings />
+          <span>{tr("common.settings")}</span>
+          <ChevronRight />
+        </button>
+      </section>
+      <section className="profile-menu-card">
+        <header>
+          <small>{tr("universalHome.oneAccount")}</small>
+          <strong>{tr("universalHome.chooseWorkspace")}</strong>
+        </header>
+        <button onClick={onSwitch}>
+          <Repeat2 />
+          <span>{tr("nav.switchWorkspace")}</span>
+          <ChevronRight />
+        </button>
+      </section>
+      <div className="scope-note">
+        <LockKeyhole size={17} />
+        <span>{tr("universalHome.privacyNote")}</span>
+      </div>
     </div>
   );
 }
@@ -4018,18 +4414,27 @@ function Documents({
 function Services({
   notify,
   onOfferServices,
+  launchMode = "discover",
+  onAreaChange,
 }: {
   notify: (message: string) => void;
   onOfferServices: () => void;
+  launchMode?: ServiceLaunchMode;
+  onAreaChange?: (
+    area: "discover" | "tasks" | "work",
+    workMode: "jobs" | "hire",
+  ) => void;
 }) {
   const [selectedCategory, setSelectedCategory] = useState("All");
   const [serviceSection, setServiceSection] = useState<
     "discover" | "tasks" | "work"
-  >("discover");
+  >(launchMode === "jobs" || launchMode === "hire" ? "work" : launchMode);
   const [taskTab, setTaskTab] = useState<"Active" | "Completed">("Active");
   const [requestingService, setRequestingService] = useState(false);
   const [actionChooserOpen, setActionChooserOpen] = useState(false);
-  const [workMode, setWorkMode] = useState<"jobs" | "hire">("jobs");
+  const [workMode, setWorkMode] = useState<"jobs" | "hire">(
+    launchMode === "hire" ? "hire" : "jobs",
+  );
   const [jobQuery, setJobQuery] = useState("");
   const [jobType, setJobType] = useState("All opportunities");
   const [hiringOpen, setHiringOpen] = useState(false);
@@ -4045,6 +4450,9 @@ function Services({
   const [minimumRating, setMinimumRating] = useState("Any rating");
   const [serviceSort, setServiceSort] = useState("Recommended");
   const [serviceNeed, setServiceNeed] = useState("");
+  useEffect(() => {
+    onAreaChange?.(serviceSection, workMode);
+  }, [onAreaChange, serviceSection, workMode]);
   const categories: [string, LucideIcon][] = [
     ["Cleaning", Sparkles],
     ["Plumbing", Wrench],
@@ -8043,6 +8451,7 @@ function App() {
   const [showOnboarding, setShowOnboarding] = useState(
     () =>
       !isDevicePreview &&
+      previewParams.get("simulator") !== "1" &&
       window.sessionStorage.getItem("kasa-demo-entered") !== "1",
   );
   const [selectedProperty, setSelectedProperty] = useState<Property>(
@@ -8059,11 +8468,58 @@ function App() {
   const [discoveryIntent, setDiscoveryIntent] = useState<"Rent" | "Buy">(
     "Rent",
   );
+  const [serviceLaunch, setServiceLaunch] =
+    useState<ServiceLaunchMode>("discover");
+  const [serviceArea, setServiceArea] = useState<"discover" | "tasks" | "work">(
+    "discover",
+  );
 
   const visibleNav = useMemo(
     () => navItems.filter((item) => !item.roles || item.roles.includes(role)),
     [role],
   );
+  const tenantContextItem: {
+    id: View;
+    label: string;
+    icon: LucideIcon;
+    activeViews: View[];
+  } =
+    view === "spaces" || view === "spaceVenue" || view === "spaceBookings"
+      ? {
+          id: "spaceBookings",
+          label: tr("nav.myBookings"),
+          icon: CalendarDays,
+          activeViews: ["spaces", "spaceVenue", "spaceBookings"],
+        }
+      : view === "services" && serviceArea === "work"
+        ? {
+            id: "services",
+            label: tr("universalHome.work"),
+            icon: BriefcaseBusiness,
+            activeViews: ["services"],
+          }
+        : view === "services"
+          ? {
+              id: "services",
+              label: tr("universalHome.requests"),
+              icon: Wrench,
+              activeViews: ["services"],
+            }
+          : {
+              id: "portfolio",
+              label: tr("nav.myHome"),
+              icon: Building2,
+              activeViews: [
+                "discover",
+                "saved",
+                "property",
+                "portfolio",
+                "applications",
+                "rent",
+                "maintenance",
+                "documents",
+              ],
+            };
   const mobileDockItems: Array<{
     id: View;
     label: string;
@@ -8072,20 +8528,27 @@ function App() {
   }> =
     role === "tenant"
       ? [
-          { id: "overview", label: tr("common.home"), icon: Home },
           {
-            id: "discover",
+            id: "overview",
             label: tr("common.search"),
             icon: Search,
-            activeViews: ["discover", "property"],
+            activeViews: ["overview"],
           },
-          { id: "portfolio", label: tr("nav.myHome"), icon: Building2 },
-          { id: "services", label: tr("common.services"), icon: Wrench },
           {
-            id: "spaces",
-            label: tr("common.spaces"),
-            icon: CalendarDays,
-            activeViews: ["spaces", "spaceVenue", "spaceBookings"],
+            id: "messages",
+            label: tr("common.messages"),
+            icon: MessageCircle,
+          },
+          tenantContextItem,
+          {
+            id: "notifications",
+            label: tr("common.notifications"),
+            icon: Bell,
+          },
+          {
+            id: "profile",
+            label: tr("universalHome.profile"),
+            icon: CircleUserRound,
           },
         ]
       : role === "landlord"
@@ -8181,6 +8644,8 @@ function App() {
     portfolio: role === "tenant" ? "nav.myHome" : "nav.myProperties",
     applications: "common.applications",
     messages: "common.messages",
+    notifications: "common.notifications",
+    profile: "universalHome.profile",
     rent: "nav.rentRecords",
     maintenance: "common.maintenance",
     documents: "common.documents",
@@ -8273,6 +8738,11 @@ function App() {
     setWorkspaceMenuOpen(false);
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
+  const openServices = (mode: ServiceLaunchMode) => {
+    setServiceLaunch(mode);
+    setServiceArea(mode === "jobs" || mode === "hire" ? "work" : mode);
+    go("services");
+  };
   useEffect(() => {
     const handleKeyboardNavigation = (event: KeyboardEvent) => {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
@@ -8344,7 +8814,11 @@ function App() {
         return role === "landlord" ? (
           <LandlordOverview go={go} notify={notify} />
         ) : role === "tenant" ? (
-          <TenantOverview go={go} notify={notify} />
+          <UniversalHome
+            go={go}
+            openServices={openServices}
+            setDiscoveryIntent={setDiscoveryIntent}
+          />
         ) : role === "provider" ? (
           <ProviderDashboard notify={notify} />
         ) : role === "spaceOperator" ? (
@@ -8389,7 +8863,9 @@ function App() {
           />
         );
       case "portfolio":
-        return (
+        return role === "tenant" ? (
+          <TenantOverview go={go} notify={notify} />
+        ) : (
           <Portfolio
             role={role}
             notify={notify}
@@ -8404,6 +8880,19 @@ function App() {
         return <Applications role={role} notify={notify} />;
       case "messages":
         return <Messages notify={notify} />;
+      case "notifications":
+        return <NotificationsView notify={notify} />;
+      case "profile":
+        return (
+          <ProfileView
+            go={go}
+            notify={notify}
+            onSwitch={() => {
+              setWorkspaceMenuOpen(true);
+              setMobileOpen(true);
+            }}
+          />
+        );
       case "rent":
         return <Rent role={role} notify={notify} />;
       case "maintenance":
@@ -8414,6 +8903,8 @@ function App() {
         return (
           <Services
             notify={notify}
+            launchMode={serviceLaunch}
+            onAreaChange={setServiceArea}
             onOfferServices={() => {
               setRole("provider");
               go("provider");

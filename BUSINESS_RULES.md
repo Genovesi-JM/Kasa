@@ -71,7 +71,8 @@ This file records the product and business decisions already agreed in the Kasa 
 
 ### Navigation and creation actions
 
-- The primary mobile navigation is role-specific and uses named destinations. It does not use an unexplained global “+” whose meaning changes between roles.
+- The customer Home is a universal, intent-first entry across **Properties, Kasa Work, Kasa Services and Kasa Spaces**. Its primary question is “What would you like to do today?” and its search can change scope without mixing the underlying workflows or role permissions.
+- The primary customer mobile navigation keeps **Search, Kasa Chat, Notifications and Profile** stable. One clearly named contextual destination changes with the active area—for example My home, Work, Requests or Bookings. It never uses an unexplained global “+” whose meaning changes between roles.
 - Creation actions such as Add property, Report maintenance, Add venue or Add schedulable space live inside the relevant workflow and use explicit labels.
 - Supply uses one named action—**Advertise property or space**—with explicit branches for long-term rent, sale and reservable sports/event space. Users should never see space reservation without an equally clear route to advertise a space.
 

@@ -16,7 +16,7 @@ Kasa should feel warm, premium, calm, trustworthy, modern, residential, spacious
 - Selective gold action: `#E7B94F`
 - Muted supporting tones: sage, dusty blue, lilac and pale amber
 
-Gold is reserved for the logo mark, the raised mobile create action and occasional priority accents. It is not a general-purpose primary button colour.
+Gold is reserved for the logo mark, selected category icons and occasional priority accents. It is not a general-purpose primary button colour or a global mobile action.
 
 ## Components
 
@@ -27,7 +27,7 @@ Gold is reserved for the logo mark, the raised mobile create action and occasion
 - Icons are clean outlines. Active states use muted tinted containers rather than saturated blocks.
 - Photography is warm, realistic and residential, with natural light and uncluttered interiors.
 - Desktop dashboards should normally show no more than four headline KPIs and one primary chart at a time.
-- The mobile dock is deep forest green with a lighter active state and a single raised gold create action where appropriate.
+- The customer mobile dock is a calm white navigation surface. Search, Kasa Chat, Notifications and Profile remain visually stable; one named destination changes with the active area. Creation belongs inside explicit workflows, never in an ambiguous raised “+” action.
 
 ## Role expression
 

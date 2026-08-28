@@ -43,6 +43,7 @@ The market-entry gates, trustworthy-interface requirements and EU/Spain and Ango
 - One unified **Advertise property or space** entry branches into long-term rental, property sale, or hourly/session/day sports and event-space publishing; the selected use then opens the correct operational workflow
 - Buy listings include an interactive mortgage estimate with editable down payment, term, interest and purchase-cost assumptions, total-cost breakdown and rate-sensitivity scenarios. It is an illustrative planning calculator only: Kasa does not provide, arrange or approve credit, match users to banks, request financial documents, transmit calculator data to lenders or earn lender-referral commissions in the approved MVP.
 - Mobile-first welcome, account creation, phone verification, and landlord/tenant journey selection adapted from the supplied Kasa mock boards
+- Universal customer Home with one welcoming intent chooser, global scoped search across Properties, Work, Services and Spaces, and a simple mobile dock whose fifth destination follows the active area
 - Tenant operations with a home dashboard, documents, maintenance, direct landlord bank instructions, proof submission, and confirmed rent history
 - Landlord operations with portfolio analytics, applications, property records, rent reconciliation, and a maintenance board
 - Three-step owner-controlled property creation flow with photos, listing details, review, and moderation submission
@@ -55,7 +56,7 @@ The market-entry gates, trustworthy-interface requirements and EU/Spain and Ango
 - Provider workspace with availability, job inbox, quote actions, earnings, ratings, and team view
 - Admin workspace with listing/provider moderation, fraud signals, verification coverage, country configuration, and feature flags
 - Market-readiness guardrails for privacy, payments, property-mediation boundaries and Angola-specific pre-launch checks without presenting Angola as the selected launch market
-- Responsive desktop and mobile navigation built from the same design system
+- Responsive desktop navigation plus a stable mobile foundation of Search, Kasa Chat, Notifications and Profile with one named contextual destination
 - Interactive iOS and Android device lab that runs the real current Kasa screen at distinct reference sizes—iPhone 15 (393 × 852) and Pixel 8 (412 × 915)—including safe areas, maps and zone drawing
 
 All payment copy and flows preserve the hard rule: rent moves directly from tenant to landlord. Kasa only records proof, reconciles, and stores confirmation status.

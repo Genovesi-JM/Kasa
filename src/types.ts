@@ -9,6 +9,8 @@ export type View =
   | "portfolio"
   | "applications"
   | "messages"
+  | "notifications"
+  | "profile"
   | "rent"
   | "maintenance"
   | "documents"
