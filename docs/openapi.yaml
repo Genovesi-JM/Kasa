@@ -17,6 +17,18 @@ paths:
       responses:
         "200":
           description: API is available
+  /ready:
+    get:
+      operationId: getReadiness
+      summary: Check synthetic demo API and optional web bundle readiness
+      description: >-
+        This is not a production database or identity readiness check.
+        Responses explicitly identify synthetic data and productionReady=false.
+      responses:
+        "200":
+          description: Synthetic demo runtime is ready
+        "503":
+          description: Required web bundle is missing
   /config:
     get:
       operationId: getCountryConfig

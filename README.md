@@ -21,6 +21,10 @@ API contract: [docs/openapi.yaml](./docs/openapi.yaml). Start only the API with 
 
 Run the complete repeatable quality gate with `npm run check`. It verifies formatting, lint, client/server types, the production build and the API guardrails. The honest operational/demo/pending matrix is documented in [docs/FUNCTION_STATUS.md](./docs/FUNCTION_STATUS.md) and is also shown live in **Admin → System status**.
 
+For the bounded Azure pilot, [the container guide](./docs/AZURE_PILOT_CONTAINER.md)
+packages the web app and API together. Public deployments remain read-only,
+use synthetic catalogue data and explicitly do not claim production readiness.
+
 ## MVP architecture
 
 - React + TypeScript + Vite

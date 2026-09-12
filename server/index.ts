@@ -1,4 +1,5 @@
 import { randomUUID, timingSafeEqual } from "node:crypto";
+import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import cors from "cors";
 import express, {
@@ -19,9 +20,23 @@ import {
 
 const app = express();
 const idempotentResponses = new Map<string, unknown>();
+const webRoot = resolve("dist");
+const webEntry = resolve(webRoot, "index.html");
 
 app.disable("x-powered-by");
-app.use(helmet({ crossOriginResourcePolicy: { policy: "cross-origin" } }));
+app.set("query parser", "simple");
+app.use(
+  helmet({
+    crossOriginResourcePolicy: { policy: "cross-origin" },
+    contentSecurityPolicy: {
+      directives: {
+        // The synthetic catalogue uses HTTPS photos and configurable map tiles.
+        imgSrc: ["'self'", "data:", "blob:", "https:"],
+        connectSrc: ["'self'"],
+      },
+    },
+  }),
+);
 app.use(
   cors({
     credentials: true,
@@ -36,17 +51,24 @@ app.use(
 );
 app.use(express.json({ limit: "250kb", strict: true }));
 app.use(
+  "/api",
   rateLimit({
     windowMs: 15 * 60 * 1000,
     limit: 300,
     standardHeaders: "draft-8",
     legacyHeaders: false,
+    // Platform probes and static assets must not exhaust the API's user quota.
+    skip: (request) =>
+      ["/api/v1/health", "/api/v1/ready"].includes(
+        request.originalUrl.split("?")[0],
+      ),
   }),
 );
 app.use((request, response, next) => {
   const requestId =
     request.header("x-request-id")?.slice(0, 100) || randomUUID();
   response.setHeader("x-request-id", requestId);
+  response.setHeader("x-kasa-data-mode", "synthetic-demo");
   response.locals.requestId = requestId;
   next();
 });
@@ -117,6 +139,18 @@ app.get("/api/v1/health", (_request, response) => {
     version: "0.1.0",
     time: new Date().toISOString(),
     demoWrites: apiConfig.demoWrites,
+  });
+});
+
+app.get("/api/v1/ready", (_request, response) => {
+  const ready = !apiConfig.serveWeb || existsSync(webEntry);
+  response.status(ready ? 200 : 503).json({
+    status: ready ? "ready" : "unavailable",
+    mode: apiConfig.publicPilot ? "read_only_demo" : "local_demo",
+    data: "synthetic",
+    persistence: "not_configured",
+    productionReady: false,
+    web: apiConfig.serveWeb ? (ready ? "available" : "missing") : "not_served",
   });
 });
 
@@ -327,6 +361,30 @@ app.get("/api/v1/openapi.yaml", (_request, response) => {
   response.type("application/yaml").sendFile(resolve("docs/openapi.yaml"));
 });
 
+// Keep unknown API routes as JSON 404s, never the SPA's successful HTML page.
+app.use("/api", (_request, response) => {
+  response.status(404).json({ message: "API route not found." });
+});
+
+if (apiConfig.serveWeb) {
+  app.use(express.static(webRoot, { index: false, dotfiles: "deny" }));
+  app.get(["/", "/{*path}"], (request, response, next) => {
+    if (
+      !request.accepts("html") ||
+      request.path.split("/").some((part) => part.includes("."))
+    ) {
+      next();
+      return;
+    }
+    response.setHeader("cache-control", "no-store");
+    response.sendFile(webEntry);
+  });
+}
+
+app.use((_request, response) => {
+  response.status(404).json({ message: "Not found." });
+});
+
 app.use(
   (
     error: Error,
@@ -343,8 +401,15 @@ app.use(
   },
 );
 
-app.listen(apiConfig.port, apiConfig.host, () => {
+const server = app.listen(apiConfig.port, apiConfig.host, () => {
   console.log(
     `Kasa API listening on http://${apiConfig.host}:${apiConfig.port}/api/v1`,
   );
 });
+
+for (const signal of ["SIGTERM", "SIGINT"] as const) {
+  process.once(signal, () => {
+    server.close(() => process.exit(0));
+    setTimeout(() => process.exit(1), 10_000).unref();
+  });
+}

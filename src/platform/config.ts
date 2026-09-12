@@ -1,7 +1,9 @@
 import { z } from "zod";
 
 const publicConfigSchema = z.object({
-  VITE_KASA_API_URL: z.union([z.url(), z.literal("")]).optional(),
+  VITE_KASA_API_URL: z
+    .union([z.url(), z.literal("/api/v1/"), z.literal("")])
+    .optional(),
   VITE_KASA_COUNTRY: z.string().min(2).max(12).default("demo"),
   VITE_KASA_CURRENCY: z.string().length(3).default("EUR"),
   VITE_KASA_DEMO_MODE: z
@@ -23,7 +25,9 @@ if (!parsed.success) {
 }
 
 export const appConfig = {
-  apiUrl: parsed.data.VITE_KASA_API_URL || null,
+  apiUrl: parsed.data.VITE_KASA_API_URL
+    ? new URL(parsed.data.VITE_KASA_API_URL, window.location.origin).href
+    : null,
   country: parsed.data.VITE_KASA_COUNTRY,
   currency: parsed.data.VITE_KASA_CURRENCY.toUpperCase(),
   demoMode: parsed.data.VITE_KASA_DEMO_MODE,

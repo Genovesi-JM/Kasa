@@ -43,6 +43,12 @@ These flows can be reviewed end to end in the UI, but their records are not yet 
 
 ## Repeatable engineering check
 
+A single-image Azure pilot package now serves the existing web build and API
+on one origin. Its production-mode startup refuses demo writes; `/api/v1/ready`
+checks only the synthetic runtime and web build, explicitly returning
+`productionReady: false`. This packaging does not change any production
+integration status above. See [the container guide](./AZURE_PILOT_CONTAINER.md).
+
 Run the complete local quality gate:
 
 ```bash

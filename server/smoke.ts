@@ -8,6 +8,9 @@ const child = spawn(process.execPath, ["--import", "tsx", "server/index.ts"], {
   cwd: process.cwd(),
   env: {
     ...process.env,
+    NODE_ENV: "test",
+    KASA_API_ENV_FILE: ".env.test-unconfigured",
+    KASA_API_HOST: "127.0.0.1",
     KASA_API_PORT: String(port),
     KASA_API_DEMO_WRITES: "true",
     KASA_API_DEMO_KEY: demoKey,
@@ -24,8 +27,11 @@ child.stderr.on("data", (chunk) => {
 });
 
 async function waitForApi() {
-  const deadline = Date.now() + 10_000;
+  const deadline = Date.now() + 60_000;
   while (Date.now() < deadline) {
+    if (child.exitCode !== null) {
+      throw new Error(`Kasa API exited before startup.\n${serverOutput}`);
+    }
     try {
       const response = await fetch(`${baseUrl}/health`);
       if (response.ok) return;

@@ -4,6 +4,9 @@ import { z } from "zod";
 loadEnv({ path: process.env.KASA_API_ENV_FILE || ".env.api", quiet: true });
 
 const envSchema = z.object({
+  NODE_ENV: z
+    .enum(["development", "test", "production"])
+    .default("development"),
   KASA_API_PORT: z.coerce.number().int().min(1024).max(65535).default(8787),
   KASA_API_HOST: z.string().default("127.0.0.1"),
   KASA_API_ALLOWED_ORIGINS: z
@@ -18,6 +21,10 @@ const envSchema = z.object({
     z.string().min(16).optional(),
   ),
   KASA_API_COUNTRY: z.string().min(2).max(12).default("demo"),
+  KASA_API_SERVE_WEB: z
+    .enum(["true", "false"])
+    .default("false")
+    .transform((value) => value === "true"),
 });
 
 const parsed = envSchema.safeParse(process.env);
@@ -28,6 +35,7 @@ if (!parsed.success) {
 }
 
 export const apiConfig = {
+  publicPilot: parsed.data.NODE_ENV === "production",
   port: parsed.data.KASA_API_PORT,
   host: parsed.data.KASA_API_HOST,
   allowedOrigins: parsed.data.KASA_API_ALLOWED_ORIGINS.split(",")
@@ -36,7 +44,15 @@ export const apiConfig = {
   demoWrites: parsed.data.KASA_API_DEMO_WRITES,
   demoKey: parsed.data.KASA_API_DEMO_KEY,
   country: parsed.data.KASA_API_COUNTRY,
+  serveWeb: parsed.data.KASA_API_SERVE_WEB,
 } as const;
+
+if (apiConfig.publicPilot && apiConfig.demoWrites) {
+  console.error(
+    "Public Kasa deployments must keep KASA_API_DEMO_WRITES=false. Production authentication and persistence are not implemented.",
+  );
+  process.exit(1);
+}
 
 if (apiConfig.demoWrites && !apiConfig.demoKey) {
   console.error(

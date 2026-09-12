@@ -4,7 +4,7 @@ import type {
   Property,
   SpaceBooking,
   SpaceVenue,
-} from "./types";
+} from "./types.js";
 
 export const properties: Property[] = [
   {
