@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { appConfig } from "./config";
+import { fetchConfiguredApi } from "./api-transport";
 
 export class ApiError extends Error {
   constructor(
@@ -33,20 +34,27 @@ export async function apiRequest<T>(
   );
 
   try {
-    const response = await fetch(new URL(path, appConfig.apiUrl), {
-      ...options,
-      body:
-        options.body === undefined ? undefined : JSON.stringify(options.body),
-      credentials: "include",
-      headers: {
-        Accept: "application/json",
-        ...(options.body === undefined
-          ? {}
-          : { "Content-Type": "application/json" }),
-        ...options.headers,
+    const response = await fetchConfiguredApi(
+      appConfig.apiUrl,
+      path,
+      {
+        ...options,
+        body:
+          options.body === undefined ? undefined : JSON.stringify(options.body),
+        headers: {
+          Accept: "application/json",
+          ...(options.body === undefined
+            ? {}
+            : { "Content-Type": "application/json" }),
+          ...options.headers,
+        },
+        signal: controller.signal,
       },
-      signal: controller.signal,
-    });
+      {
+        origin: window.location.origin,
+        development: import.meta.env.DEV,
+      },
+    );
 
     const requestId = response.headers.get("x-request-id") || undefined;
     if (!response.ok) {

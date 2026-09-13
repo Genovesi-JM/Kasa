@@ -26,6 +26,7 @@ src/**
 !src/platform/catalog.ts
 !src/platform/config.ts
 !src/platform/api.ts
+!src/platform/api-transport.ts
 !server/
 server/**
 !server/index.ts
@@ -34,6 +35,7 @@ server/**
 !server/tsconfig.json
 !server/smoke.ts
 !server/deployment-smoke.ts
+!server/api-client-smoke.ts
 !docs/
 docs/**
 !docs/openapi.yaml

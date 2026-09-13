@@ -29,6 +29,7 @@ SOURCE_FILES = {
     "src/platform/catalog.ts",
     "src/platform/config.ts",
     "src/platform/api.ts",
+    "src/platform/api-transport.ts",
 }
 OTHER_ALLOWED_FILES = {
     "Dockerfile",
@@ -49,6 +50,7 @@ OTHER_ALLOWED_FILES = {
     "server/tsconfig.json",
     "server/smoke.ts",
     "server/deployment-smoke.ts",
+    "server/api-client-smoke.ts",
     "docs/openapi.yaml",
 }
 EXCLUDED_FIXTURES = {
@@ -133,7 +135,7 @@ def main():
                 + "; unexpected=" + repr(sorted(actual - expected))
             )
         print(
-            "PASS: all 15 reviewed source files and required build inputs included; "
+            f"PASS: all {len(SOURCE_FILES)} reviewed source files and required build inputs included; "
             + str(len(EXCLUDED_FIXTURES))
             + " invented private/nested artifacts excluded by Docker."
         )

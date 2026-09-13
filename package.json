@@ -16,8 +16,9 @@
     "lint": "eslint .",
     "typecheck": "tsc -b && tsc -p server/tsconfig.json",
     "test:api": "tsx server/smoke.ts",
+    "test:api-client": "tsx server/api-client-smoke.ts",
     "test:deployment": "tsx server/deployment-smoke.ts",
-    "check": "npm run format:check && npm run lint && npm run typecheck && npm run build:pilot && npm run test:api && npm run test:deployment",
+    "check": "npm run format:check && npm run lint && npm run typecheck && npm run build:pilot && npm run test:api && npm run test:api-client && npm run test:deployment",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "preview": "vite preview"

@@ -25,9 +25,8 @@ if (!parsed.success) {
 }
 
 export const appConfig = {
-  apiUrl: parsed.data.VITE_KASA_API_URL
-    ? new URL(parsed.data.VITE_KASA_API_URL, window.location.origin).href
-    : null,
+  // Keep the original value so the transport validates it before URL normalization.
+  apiUrl: parsed.data.VITE_KASA_API_URL || null,
   country: parsed.data.VITE_KASA_COUNTRY,
   currency: parsed.data.VITE_KASA_CURRENCY.toUpperCase(),
   demoMode: parsed.data.VITE_KASA_DEMO_MODE,
