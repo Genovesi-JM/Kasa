@@ -31,7 +31,7 @@ The following frontend workflows update shared state in the current open tab:
 - Saved searches and homes: separate collections per workspace, exact search/filter snapshots, reopening, rename, delete and undo. Saved searches do not generate notifications.
 - Applications: validated rental submissions retain move-in date, household size and introduction, prevent duplicate tenant/property records and appear in the Applications list. Record details, document summaries, explicit owner review/status changes and activity history remain local. Tenants see only their own records and owners can review only their own properties; no real approval or document request is issued.
 - Notifications: header and full-page feed share per-workspace unread counts. Individual/read-all actions update both surfaces; opening an update marks it read and opens the relevant screen.
-- Bookings: status filters, details, local acceptance of proposed times, keeping the original request and local cancellation reasons. No venue is contacted, reservation made or refund processed.
+- Spaces requests: customer forms retain the actual venue/unit, date, times, participant count and notes. The selected venue operator can review scoped requests and propose complete terms; customer acceptance is explicit. Original requests, proposal versions and decisions remain in history. Saved venues are isolated by workspace and can be filtered in discovery. No venue is contacted, real reservation guaranteed, payment collected or refund processed.
 - Property details: accessible galleries and shareable links; validated viewing requests retain the entered date, time and note, support editing/cancellation, and remain visible when revisiting the property.
 - Maintenance: validated issue reports, keyboard-accessible board/list/details, date/time/provider arrangements, explicit owner start/resolve/reopen actions and request history. Records and mutations are limited to the sample owner's properties and tenant's home. Sidebar counts reflect open records. Controls, validation, searchable categories and dates support all six languages. Saving an unchanged visit is a no-op; revised visits preserve work in progress.
 - Services: property-scoped customer requests and retained drafts feed the selected sample provider inbox. Versioned exact-cent quotes require explicit customer acceptance before work can start, with refusal/cancellation reasons, completion notes and history. Customer roles and other providers remain isolated. Portuguese/English controls are available; no request, appointment or payment is delivered externally.
@@ -45,7 +45,7 @@ Other product areas remain illustrative UI flows, including:
 
 - External bank verification and persistent proof storage.
 - Property moderation and public listing publication.
-- Provider commercial analytics, team management and operator calendars.
+- Provider commercial analytics, team management and editable operator availability calendars.
 - Kasa Work job and freelance discovery, private applications, hiring posts and candidate conversations.
 - Admin moderation, verification queues, feature switches and analytics.
 

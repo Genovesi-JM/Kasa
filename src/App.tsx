@@ -119,6 +119,7 @@ import {
 import {
   createInitialWorkspaceSavedState,
   updateWorkspaceFavourites,
+  toggleWorkspaceSpaceFavourite,
   updateWorkspaceSavedSearches,
   type FavouriteUpdate,
   type SavedSearchStateUpdate,
@@ -137,8 +138,11 @@ import {
   updateWorkspaceMessageState,
   type MessageStateUpdate,
 } from "./components/messageState";
-import { createInitialSpaceBookingsState } from "./components/spaceBookingsState";
-import { SpaceBookingsView } from "./components/SpaceBookings";
+import {
+  createInitialSpaceBookingsState,
+  type SpaceBookingsState,
+} from "./components/spaceBookingsState";
+
 import { useDialogFocus } from "./components/useDialogFocus";
 import { useMediaQuery } from "./components/useMediaQuery";
 import {
@@ -169,6 +173,21 @@ const formatEuro = (value: number) =>
 
 type ServiceLaunchMode = AppRoute["service"];
 
+const SpaceBookingsView = lazy(() =>
+  import("./components/SpaceBookings").then((module) => ({
+    default: module.SpaceBookingsView,
+  })),
+);
+const SpaceBookingRequest = lazy(() =>
+  import("./components/SpaceBookingRequest").then((module) => ({
+    default: module.SpaceBookingRequest,
+  })),
+);
+const SpaceOperatorInbox = lazy(() =>
+  import("./components/SpaceOperatorInbox").then((module) => ({
+    default: module.SpaceOperatorInbox,
+  })),
+);
 const ServiceRequestComposer = lazy(() =>
   import("./components/ServiceRequests").then((module) => ({
     default: module.ServiceRequestComposer,
@@ -3375,11 +3394,15 @@ function Services({
 function SpaceVenueCard({
   venue,
   onOpen,
+  saved,
+  onSave,
 }: {
   venue: SpaceVenue;
   onOpen: () => void;
+  saved: boolean;
+  onSave: () => void;
 }) {
-  const { tr } = useKasaI18n();
+  const { tr, language } = useKasaI18n();
   return (
     <article className="space-venue-card">
       <div className="space-venue-image">
@@ -3388,10 +3411,12 @@ function SpaceVenueCard({
           <StatusPill tone="mint">{tr("space.availableToday")}</StatusPill>
         )}
         <button
-          className="heart-button"
-          aria-label={`${tr("common.save")} ${venue.name}`}
+          className={`heart-button ${saved ? "is-active" : ""}`}
+          aria-label={`${saved ? (language.startsWith("pt") ? "Remover dos guardados" : "Remove from saved") : tr("common.save")} ${venue.name}`}
+          aria-pressed={saved}
+          onClick={onSave}
         >
-          <Heart size={18} />
+          <Heart size={18} fill={saved ? "currentColor" : "none"} />
         </button>
       </div>
       <div className="space-venue-copy">
@@ -3404,7 +3429,7 @@ function SpaceVenueCard({
           </span>
           {venue.verified && (
             <StatusPill tone="mint">
-              <BadgeCheck size={11} /> {tr("common.verified")}
+              {language.startsWith("pt") ? "Exemplo" : "Sample"}
             </StatusPill>
           )}
         </div>
@@ -3429,33 +3454,39 @@ function SpaceVenueCard({
 }
 
 function SpacesMarketplace({
-  notify,
+  role,
+  bookingsState,
+  savedVenueIds,
+  onToggleSavedVenue,
+  setBookingsState,
   onGoBookings,
   onListSpace,
   initialQuery = "",
   onQueryChange,
 }: {
-  notify: (message: string) => void;
+  role: Role;
+  bookingsState: SpaceBookingsState;
+  savedVenueIds: number[];
+  onToggleSavedVenue: (venueId: number) => void;
+  setBookingsState: React.Dispatch<React.SetStateAction<SpaceBookingsState>>;
   onGoBookings: () => void;
   onListSpace: () => void;
   initialQuery?: string;
   onQueryChange?: (query: string) => void;
 }) {
-  const { tr } = useKasaI18n();
+  const { tr, language } = useKasaI18n();
+  const copy = (en: string, pt: string) =>
+    language.startsWith("pt") ? pt : en;
+  const canRequest = role === "tenant" || role === "landlord";
+  const [requestOpen, setRequestOpen] = useState(false);
   const [catalogVenues, setCatalogVenues] = useState(spaceVenues);
-  type SpaceStage =
-    | "browse"
-    | "venue"
-    | "availability"
-    | "summary"
-    | "confirmed"
-    | "request"
-    | "requestSent";
+  type SpaceStage = "browse" | "venue";
   const [stage, setStage] = useState<SpaceStage>("browse");
   const [category, setCategory] = useState(initialQuery ? "All" : "Sports");
   const [query, setQuery] = useState(initialQuery);
   useEffect(() => onQueryChange?.(query), [query, onQueryChange]);
   const [sort, setSort] = useState("Recommended");
+  const [savedOnly, setSavedOnly] = useState(false);
   const [mapView, setMapView] = useState(false);
   const [activity, setActivity] = useState("Any activity");
   const [availableToday, setAvailableToday] = useState(false);
@@ -3467,9 +3498,6 @@ function SpacesMarketplace({
   const [venue, setVenue] = useState<SpaceVenue>(spaceVenues[0]);
   const [space, setSpace] = useState<SpaceUnit>(spaceVenues[0].spaces[0]);
   const [slot, setSlot] = useState(spaceVenues[0].spaces[0].slots[0]);
-  const [customStart, setCustomStart] = useState("18:00");
-  const [customEnd, setCustomEnd] = useState("19:30");
-  const [customRequest, setCustomRequest] = useState(false);
   useEffect(() => {
     if (!appConfig.apiUrl) return;
     let active = true;
@@ -3477,9 +3505,7 @@ function SpacesMarketplace({
       .then((items) => {
         if (!active || items.length === 0) return;
         setCatalogVenues(items);
-        setVenue(items[0]);
-        setSpace(items[0].spaces[0]);
-        setSlot(items[0].spaces[0].slots[0]);
+        // Catalogue refreshes must not replace a venue or request already selected.
       })
       .catch((error: unknown) => {
         warnApiFallbackOnce("space", error);
@@ -3605,6 +3631,7 @@ function SpacesMarketplace({
       );
       const matchDrawnZone = isPointInsideZone([item.lat, item.lng], drawnZone);
       return (
+        (!savedOnly || savedVenueIds.includes(item.id)) &&
         (category === "All" || item.category === category) &&
         matchQuery &&
         matchActivity &&
@@ -3628,6 +3655,7 @@ function SpacesMarketplace({
             : Number(b.availableToday) - Number(a.availableToday),
     );
   const activeSpaceFilters =
+    Number(savedOnly) +
     Number(activity !== "Any activity") +
     Number(availableToday) +
     Number(bookingMode !== "Any booking mode") +
@@ -3636,6 +3664,7 @@ function SpacesMarketplace({
     Number(drawnZone.length >= 3) +
     spaceAmenities.length;
   const resetSpaceFilters = () => {
+    setSavedOnly(false);
     setActivity("Any activity");
     setAvailableToday(false);
     setBookingMode("Any booking mode");
@@ -3652,434 +3681,31 @@ function SpacesMarketplace({
       nextVenue.spaces[0].slots.find((item) => item.status !== "Booked") ??
         nextVenue.spaces[0].slots[0],
     );
-    setCustomRequest(false);
     setStage("venue");
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
-  const requestCustomTime = () => {
-    setSlot({
-      time: `${customStart}–${customEnd}`,
-      status: "Available",
-      price: space.price,
-    });
-    setCustomRequest(true);
-    setStage("summary");
-  };
-
-  if (stage === "requestSent")
-    return (
-      <div className="page-stack">
-        <section className="space-confirmed card">
-          <span className="confirmation-orbit">
-            <Check size={38} />
-          </span>
-          <span className="eyebrow">RESERVATION REQUEST</span>
-          <h2>Request sent to {venue.name}</h2>
-          <p>
-            The operator can accept your time, decline it or propose another
-            one. A changed time is confirmed only after you accept it. No
-            payment has been taken.
-          </p>
-          <div className="request-steps">
-            <span className="done">
-              <Check size={14} />
-              <strong>Requested</strong>
-            </span>
-            <i />
-            <span>
-              <Clock3 size={14} />
-              <strong>Operator response</strong>
-            </span>
-            <i />
-            <span>
-              <CheckCircle2 size={14} />
-              <strong>Your acceptance</strong>
-            </span>
-          </div>
-          <div className="confirmation-code">
-            <small>Request code</small>
-            <strong>KSR-9H31C</strong>
-          </div>
-          <div className="confirmation-actions">
-            <ActionButton onClick={onGoBookings}>View request</ActionButton>
-            <ActionButton secondary onClick={() => setStage("venue")}>
-              Back to venue
-            </ActionButton>
-          </div>
-        </section>
-        <div className="scope-note">
-          <ShieldCheck size={17} />
-          <span>
-            The venue controls availability and any proposed modification. Kasa
-            records the request and acceptance; it does not own, operate or
-            represent the venue.
-          </span>
-        </div>
-      </div>
-    );
-  if (stage === "confirmed")
-    return (
-      <div className="page-stack">
-        <section className="space-confirmed card">
-          <span className="confirmation-orbit">
-            <Check size={38} />
-          </span>
-          <span className="eyebrow">INSTANT BOOK</span>
-          <h2>Your session is confirmed.</h2>
-          <p>
-            {venue.name} · {space.name} — {space.activity}
-            <br />
-            24 Aug · {slot.time}
-          </p>
-          <div className="confirmation-code">
-            <small>Confirmation code</small>
-            <strong>KSA7-M52X</strong>
-          </div>
-          <div className="confirmation-actions">
-            <ActionButton onClick={onGoBookings}>
-              View booking & QR
-            </ActionButton>
-            <ActionButton
-              secondary
-              onClick={() => {
-                setStage("browse");
-                notify("Calendar reminder added.");
-              }}
-            >
-              Add to calendar
-            </ActionButton>
-          </div>
-        </section>
-        <div className="scope-note">
-          <ShieldCheck size={17} />
-          <span>
-            Payment settles directly to the venue through its own supported
-            provider. Kasa never receives the gross reservation amount.
-          </span>
-        </div>
-      </div>
-    );
-  if (stage === "request")
-    return (
-      <div className="page-stack">
-        <button className="back-link" onClick={() => setStage("venue")}>
-          <ArrowLeft size={16} /> Back to venue
-        </button>
-        <div className="space-checkout-layout">
-          <section className="card padded">
-            <span className="eyebrow">REQUEST AVAILABILITY</span>
-            <h2>Tell the operator about your event</h2>
-            <p className="muted">
-              The operator will check the date, capacity and event details
-              before confirming.
-            </p>
-            <div className="form-grid">
-              <label>
-                Event type
-                <select>
-                  <option>Birthday celebration</option>
-                  <option>Community event</option>
-                  <option>Workshop</option>
-                  <option>Private reception</option>
-                </select>
-              </label>
-              <label>
-                Guest count
-                <input type="number" defaultValue="80" />
-              </label>
-              <label>
-                Date
-                <input type="date" defaultValue="2026-09-12" />
-              </label>
-              <label>
-                Time
-                <select>
-                  <option>18:00–23:00</option>
-                  <option>10:00–14:00</option>
-                </select>
-              </label>
-              <label className="full">
-                Notes
-                <textarea defaultValue="We would like space for a DJ area and simple table decoration." />
-              </label>
-            </div>
-            <div className="modal-actions">
-              <ActionButton secondary onClick={() => setStage("venue")}>
-                Cancel
-              </ActionButton>
-              <ActionButton onClick={() => setStage("requestSent")}>
-                Send request
-              </ActionButton>
-            </div>
-          </section>
-          <aside className="card padded booking-side">
-            <img src={venue.image} alt="" />
-            <h3>{venue.name}</h3>
-            <p>{venue.address}</p>
-            <div className="booking-line">
-              <span>Venue price from</span>
-              <strong>{formatEuro(venue.priceFrom)}</strong>
-            </div>
-            <div className="booking-line">
-              <span>Cleaning fee</span>
-              <strong>{formatEuro(venue.cleaningFee ?? 0)}</strong>
-            </div>
-            <div className="booking-line">
-              <span>Refundable operator deposit</span>
-              <strong>{formatEuro(venue.deposit ?? 0)}</strong>
-            </div>
-            <div className="scope-note">
-              <Clock3 size={16} />
-              <span>This is a request, not an instant confirmation.</span>
-            </div>
-            <div className="scope-note">
-              <ShieldCheck size={16} />
-              <span>
-                Any venue price, cleaning fee or operator deposit is paid
-                directly to the venue through its approved external provider
-                after confirmation. Kasa does not hold these funds.
-              </span>
-            </div>
-          </aside>
-        </div>
-      </div>
-    );
-  if (stage === "summary") {
-    const needsOperatorReply =
-      customRequest || venue.bookingMode === "Request to Book";
-    return (
-      <div className="page-stack">
-        <button className="back-link" onClick={() => setStage("availability")}>
-          <ArrowLeft size={16} /> Change time
-        </button>
-        <div className="space-checkout-layout">
-          <section className="card padded">
-            <span className="eyebrow">
-              {needsOperatorReply ? "RESERVATION REQUEST" : "BOOKING SUMMARY"}
-            </span>
-            <h2>
-              {needsOperatorReply
-                ? "Review your requested time"
-                : "Review your session"}
-            </h2>
-            <div className="booking-main">
-              <img src={space.image} alt="" />
-              <div>
-                <StatusPill tone={needsOperatorReply ? "amber" : "mint"}>
-                  {needsOperatorReply
-                    ? "Operator confirmation needed"
-                    : "Instant Reserve"}
-                </StatusPill>
-                <h3>{venue.name}</h3>
-                <p>
-                  {space.name} — {space.activity}
-                </p>
-              </div>
-            </div>
-            <div className="booking-facts">
-              <span>
-                <small>Date</small>
-                <strong>24 Aug</strong>
-              </span>
-              <span>
-                <small>Time</small>
-                <strong>{slot.time}</strong>
-              </span>
-              <span>
-                <small>Duration</small>
-                <strong>
-                  {customRequest ? "Your requested range" : "Venue suggestion"}
-                </strong>
-              </span>
-              <span>
-                <small>Players</small>
-                <strong>Up to {space.capacity}</strong>
-              </span>
-            </div>
-            <SectionHeading title="Optional extras" />
-            <label className="booking-extra">
-              <span>
-                <Wrench size={17} />
-                <span>
-                  <strong>Equipment rental</strong>
-                  <small>Rackets and balls</small>
-                </span>
-              </span>
-              <strong>+ €8</strong>
-              <input type="checkbox" />
-            </label>
-            <div className="scope-note">
-              <ShieldCheck size={17} />
-              <span>
-                {needsOperatorReply
-                  ? "The operator confirms availability, price and cancellation terms. If it proposes another time, you must accept before the booking is confirmed."
-                  : "Cancellation terms are shown before payment. The venue’s own supported provider handles payment directly into the venue’s account; Kasa does not receive the gross amount."}
-              </span>
-            </div>
-          </section>
-          <aside className="card padded booking-total">
-            <h3>{needsOperatorReply ? "Estimated price" : "Price details"}</h3>
-            <div className="booking-line">
-              <span>Space</span>
-              <strong>{formatEuro(slot.price)}</strong>
-            </div>
-            <div className="booking-line">
-              <span>Optional extras</span>
-              <strong>€0</strong>
-            </div>
-            <div className="booking-line total">
-              <span>{needsOperatorReply ? "Estimate" : "Total"}</span>
-              <strong>{formatEuro(slot.price)}</strong>
-            </div>
-            <ActionButton
-              onClick={() =>
-                setStage(needsOperatorReply ? "requestSent" : "confirmed")
-              }
-            >
-              {needsOperatorReply
-                ? "Send reservation request"
-                : "Continue to venue payment"}
-            </ActionButton>
-            <small>
-              <LockKeyhole size={13} /> Payment settles directly to the venue.
-              Any approved Kasa commission is invoiced to the operator
-              separately afterward.
-            </small>
-          </aside>
-        </div>
-      </div>
-    );
-  }
-  if (stage === "availability")
-    return (
-      <div className="page-stack">
-        <button className="back-link" onClick={() => setStage("venue")}>
-          <ArrowLeft size={16} /> Back to venue
-        </button>
-        <section className="space-detail-hero card">
-          <img src={space.image} alt={space.name} />
-          <div>
-            <StatusPill tone="mint">{space.activity}</StatusPill>
-            <h2>{space.name}</h2>
-            <p>
-              {venue.name} · up to {space.capacity} people · operator-managed
-              schedule
-            </p>
-            <strong>From {formatEuro(space.price)} · duration can vary</strong>
-          </div>
-        </section>
-        <div className="space-availability-layout">
-          <section className="card padded">
-            <div className="availability-heading">
-              <div>
-                <span className="eyebrow">OPERATOR-MANAGED TIMES</span>
-                <h2>Choose or request a time</h2>
-                <p>The venue—not Kasa—sets and updates availability.</p>
-              </div>
-              <div className="date-strip">
-                {["22 Thu", "23 Fri", "24 Sat", "25 Sun", "26 Mon"].map(
-                  (date) => (
-                    <button
-                      className={date === "24 Sat" ? "active" : ""}
-                      key={date}
-                    >
-                      {date}
-                    </button>
-                  ),
-                )}
-              </div>
-            </div>
-            <span className="slot-section-label">SUGGESTED BY THE VENUE</span>
-            <div className="slot-list">
-              {space.slots.map((item) => (
-                <button
-                  key={item.time}
-                  disabled={item.status === "Booked"}
-                  className={`${!customRequest && slot.time === item.time ? "selected" : ""} ${item.status.toLowerCase()}`}
-                  onClick={() => {
-                    setSlot(item);
-                    setCustomRequest(false);
-                  }}
-                >
-                  <Clock3 size={16} />
-                  <span>
-                    <strong>{item.time}</strong>
-                    <small>
-                      {item.status === "Peak"
-                        ? "Higher-demand time"
-                        : item.status}
-                    </small>
-                  </span>
-                  <b>
-                    {item.status === "Booked"
-                      ? "Unavailable"
-                      : formatEuro(item.price)}
-                  </b>
-                </button>
-              ))}
-            </div>
-            <div className="custom-time-request">
-              <div>
-                <Clock3 size={18} />
-                <span>
-                  <strong>Need another time?</strong>
-                  <small>
-                    Request any start and end time. The operator can accept it
-                    or propose an alternative.
-                  </small>
-                </span>
-              </div>
-              <div>
-                <label>
-                  Start
-                  <input
-                    type="time"
-                    value={customStart}
-                    onChange={(event) => setCustomStart(event.target.value)}
-                  />
-                </label>
-                <label>
-                  End
-                  <input
-                    type="time"
-                    value={customEnd}
-                    onChange={(event) => setCustomEnd(event.target.value)}
-                  />
-                </label>
-                <ActionButton secondary onClick={requestCustomTime}>
-                  Request this time
-                </ActionButton>
-              </div>
-            </div>
-          </section>
-          <aside className="card padded selected-slot">
-            <span className="eyebrow">
-              {customRequest ? "REQUESTED TIME" : "SELECTED SUGGESTION"}
-            </span>
-            <h3>{slot.time}</h3>
-            <p>
-              24 Aug
-              <br />
-              {space.name} — {space.activity}
-            </p>
-            <div className="booking-line total">
-              <span>{customRequest ? "Estimated from" : "Price"}</span>
-              <strong>{formatEuro(slot.price)}</strong>
-            </div>
-            <ActionButton onClick={() => setStage("summary")}>
-              {customRequest || venue.bookingMode === "Request to Book"
-                ? "Review request"
-                : "Reserve this time"}
-            </ActionButton>
-          </aside>
-        </div>
-      </div>
-    );
+  const requestComposer =
+    requestOpen && canRequest ? (
+      <SpaceBookingRequest
+        role={role}
+        state={bookingsState}
+        setState={setBookingsState}
+        venueId={venue.id}
+        spaceId={space.id}
+        initialStart={slot.time.split("–")[0]}
+        initialEnd={slot.time.split("–")[1]}
+        onClose={() => setRequestOpen(false)}
+        onSaved={() => {
+          setRequestOpen(false);
+          onGoBookings();
+        }}
+      />
+    ) : null;
   if (stage === "venue")
     return (
       <div className="page-stack">
         <button className="back-link" onClick={() => setStage("browse")}>
-          <ArrowLeft size={16} /> Back to spaces
+          <ArrowLeft size={16} /> {copy("Back to spaces", "Voltar aos espaços")}
         </button>
         <div className="space-gallery">
           <img src={venue.gallery[0]} alt={venue.name} />
@@ -4087,17 +3713,13 @@ function SpacesMarketplace({
           <img src={venue.gallery[2]} alt="" />
         </div>
         <div className="space-venue-layout">
-          <main>
+          <section className="space-venue-main">
             <section className="card padded">
               <div className="detail-heading">
                 <div>
                   <span className="trust-line">
-                    {venue.verified && (
-                      <>
-                        <BadgeCheck size={16} /> Verified operator
-                      </>
-                    )}{" "}
-                    · {venue.bookingMode}
+                    {copy("Sample venue", "Espaço de exemplo")} ·{" "}
+                    {copy("Time requests", "Pedidos de horário")}
                   </span>
                   <h2>{venue.name}</h2>
                   <p>
@@ -4105,13 +3727,16 @@ function SpacesMarketplace({
                   </p>
                 </div>
                 <div className="detail-price">
-                  <strong>From {formatEuro(venue.priceFrom)}</strong>
+                  <strong>
+                    {copy("From", "Desde")} {formatEuro(venue.priceFrom)}
+                  </strong>
                   <span>{venue.priceUnit}</span>
                 </div>
               </div>
               <div className="space-rating">
                 <Star size={16} fill="currentColor" />{" "}
-                <strong>{venue.rating}</strong> ({venue.reviews} reviews)
+                <strong>{venue.rating}</strong> ({venue.reviews}{" "}
+                {copy("reviews", "avaliações")})
               </div>
               <p className="venue-description">{venue.description}</p>
             </section>
@@ -4119,8 +3744,8 @@ function SpacesMarketplace({
               <SectionHeading
                 title={
                   venue.category === "Events"
-                    ? "Venue details"
-                    : "Bookable courts and pitches"
+                    ? copy("Venue details", "Detalhes do espaço")
+                    : copy("Courts and pitches", "Campos e recintos")
                 }
               />
               {venue.category === "Events" ? (
@@ -4133,11 +3758,13 @@ function SpacesMarketplace({
                   ))}
                   <span>
                     <Clock3 size={17} />
-                    Operator hours: {venue.openingHours}
+                    {copy("Opening hours", "Horário de funcionamento")}:{" "}
+                    {venue.openingHours}
                   </span>
                   <span>
                     <Sparkles size={17} />
-                    Cleaning fee {formatEuro(venue.cleaningFee ?? 0)}
+                    {copy("Cleaning fee", "Taxa de limpeza")}{" "}
+                    {formatEuro(venue.cleaningFee ?? 0)}
                   </span>
                 </div>
               ) : (
@@ -4149,11 +3776,19 @@ function SpacesMarketplace({
                         <small>{item.activity}</small>
                         <strong>{item.name}</strong>
                         <p>
-                          Up to {item.capacity} · from {formatEuro(item.price)}
+                          {copy("Up to", "Até")} {item.capacity} ·{" "}
+                          {copy("from", "desde")} {formatEuro(item.price)}
                         </p>
                       </span>
                       <button
                         className="soft-button"
+                        aria-label={`${copy("Request a time", "Pedir horário")} · ${item.name}`}
+                        disabled={!canRequest}
+                        aria-describedby={
+                          !canRequest
+                            ? "spaces-request-workspace-hint"
+                            : undefined
+                        }
                         onClick={() => {
                           setSpace(item);
                           setSlot(
@@ -4161,10 +3796,10 @@ function SpacesMarketplace({
                               (entry) => entry.status !== "Booked",
                             ) ?? item.slots[0],
                           );
-                          setStage("availability");
+                          setRequestOpen(true);
                         }}
                       >
-                        Choose time
+                        {copy("Request a time", "Pedir horário")}
                       </button>
                     </article>
                   ))}
@@ -4172,7 +3807,12 @@ function SpacesMarketplace({
               )}
             </section>
             <section className="card padded">
-              <SectionHeading title="Amenities & operator rules" />
+              <SectionHeading
+                title={copy(
+                  "Amenities & venue rules",
+                  "Comodidades e regras do espaço",
+                )}
+              />
               <div className="amenity-grid">
                 {venue.amenities.map((amenity) => (
                   <span key={amenity}>
@@ -4183,47 +3823,60 @@ function SpacesMarketplace({
               <div className="scope-note">
                 <ShieldCheck size={17} />
                 <span>
-                  The operator is responsible for licences, safety, insurance,
-                  capacity and local compliance.
+                  {copy(
+                    "Requests, proposed terms and decisions remain in this tab. No venue is contacted and no payment is processed.",
+                    "Os pedidos, propostas e decisões ficam neste separador. Nenhum espaço é contactado e nenhum pagamento é processado.",
+                  )}
                 </span>
               </div>
             </section>
-          </main>
+          </section>
           <aside className="card padded venue-cta">
-            <StatusPill
-              tone={venue.bookingMode === "Instant Book" ? "mint" : "amber"}
-            >
-              {venue.bookingMode}
+            <StatusPill tone="amber">
+              {copy(
+                "Operator response required",
+                "Resposta do operador necessária",
+              )}
             </StatusPill>
             <h3>
               {venue.category === "Events"
-                ? "Plan your event"
-                : "Choose a space and time"}
+                ? copy("Plan your event", "Planeie o seu evento")
+                : copy(
+                    "Choose a space and time",
+                    "Escolha um espaço e horário",
+                  )}
             </h3>
             <p>
-              {venue.category === "Events"
-                ? "Share your event details and the operator will confirm availability."
-                : "Choose an operator suggestion or request another time. The operator controls availability."}
+              {copy(
+                "Record your date, time and group size. Review any proposed change before accepting it.",
+                "Registe a data, o horário e o tamanho do grupo. Reveja qualquer alteração proposta antes de a aceitar.",
+              )}
             </p>
-            <ActionButton
-              onClick={() =>
-                venue.category === "Events"
-                  ? setStage("request")
-                  : setStage("availability")
-              }
-            >
-              {venue.category === "Events"
-                ? "Request availability"
-                : "Choose or request a time"}
-            </ActionButton>
+            <p>
+              <strong>{space.name}</strong> · {space.activity}
+            </p>
             <button
-              className="soft-button"
-              onClick={() => notify("Private venue chat opened.")}
+              className="button"
+              type="button"
+              disabled={!canRequest}
+              aria-describedby={
+                !canRequest ? "spaces-request-workspace-hint" : undefined
+              }
+              onClick={() => setRequestOpen(true)}
             >
-              <MessageCircle size={15} /> Message venue
+              {copy("Request a time", "Pedir horário")}
             </button>
+            {!canRequest && (
+              <p className="muted" id="spaces-request-workspace-hint">
+                {copy(
+                  "Switch to Tenant or Property owner to record a request.",
+                  "Mude para Inquilino ou Proprietário para registar um pedido.",
+                )}
+              </p>
+            )}
           </aside>
         </div>
+        {requestComposer}
       </div>
     );
 
@@ -4236,13 +3889,15 @@ function SpacesMarketplace({
           <p>{tr("space.subtitle")}</p>
           <div className="space-trust-row">
             <span>
-              <ShieldCheck size={15} /> {tr("space.operatorVerified")}
+              <Building2 size={15} />{" "}
+              {copy("Sample venues", "Espaços de exemplo")}
             </span>
             <span>
               <Clock3 size={15} /> {tr("space.flexible")}
             </span>
             <span>
-              <LockKeyhole size={15} /> {tr("space.externalPay")}
+              <FileText size={15} />{" "}
+              {copy("Requests and decisions", "Pedidos e decisões")}
             </span>
           </div>
           <div className="spaces-hero-actions">
@@ -4264,6 +3919,12 @@ function SpacesMarketplace({
           </div>
         </div>
       </section>
+      <div className="scope-note">
+        {copy(
+          "The venue catalogue, prices, reviews and suggested slots are sample data. Requests are retained in this tab; they do not make a real reservation or process payment.",
+          "O catálogo de espaços, preços, avaliações e horários sugeridos são dados de exemplo. Os pedidos ficam neste separador; não efetuam uma reserva real nem processam pagamentos.",
+        )}
+      </div>
       <section className="space-search card">
         <div>
           <MapPin size={19} />
@@ -4276,6 +3937,7 @@ function SpacesMarketplace({
           <Search size={18} />
           <input
             placeholder={tr("space.searchPlaceholder")}
+            aria-label={tr("space.searchPlaceholder")}
             value={query}
             onChange={(event) => setQuery(event.target.value)}
           />
@@ -4321,6 +3983,15 @@ function SpacesMarketplace({
         activeCount={activeSpaceFilters}
         onReset={resetSpaceFilters}
       >
+        <button
+          type="button"
+          className={`filter-chip-toggle ${savedOnly ? "active" : ""}`}
+          aria-pressed={savedOnly}
+          onClick={() => setSavedOnly((value) => !value)}
+        >
+          <Heart size={14} fill={savedOnly ? "currentColor" : "none"} />
+          {copy("Saved spaces", "Espaços guardados")} · {savedVenueIds.length}
+        </button>
         <select
           aria-label={tr("space.activity")}
           value={activity}
@@ -4407,7 +4078,11 @@ function SpacesMarketplace({
         <span>
           <strong>{visibleVenues.length}</strong> {tr("space.results")}{" "}
           Barcelona ·{" "}
-          {category === "Sports" ? tr("space.sports") : tr("space.events")}
+          {category === "All"
+            ? tr("universalHome.everything")
+            : category === "Sports"
+              ? tr("space.sports")
+              : tr("space.events")}
         </span>
         <div className="view-toggle">
           <button
@@ -4464,6 +4139,8 @@ function SpacesMarketplace({
               <SpaceVenueCard
                 key={item.id}
                 venue={item}
+                saved={savedVenueIds.includes(item.id)}
+                onSave={() => onToggleSavedVenue(item.id)}
                 onOpen={() => openVenue(item)}
               />
             ))}
@@ -4475,6 +4152,8 @@ function SpacesMarketplace({
             <SpaceVenueCard
               key={item.id}
               venue={item}
+              saved={savedVenueIds.includes(item.id)}
+              onSave={() => onToggleSavedVenue(item.id)}
               onOpen={() => openVenue(item)}
             />
           ))}
@@ -4485,7 +4164,14 @@ function SpacesMarketplace({
           <Search size={28} />
           <h3>{tr("space.noResults")}</h3>
           <p>{tr("space.noResultsNote")}</p>
-          <ActionButton secondary onClick={resetSpaceFilters}>
+          <ActionButton
+            secondary
+            onClick={() => {
+              resetSpaceFilters();
+              setQuery("");
+              setCategory("All");
+            }}
+          >
             {tr("common.reset")}
           </ActionButton>
         </div>
@@ -4519,241 +4205,6 @@ function SpacesMarketplace({
       <div className="scope-note">
         <ShieldCheck size={17} />
         <span>{tr("space.scope")}</span>
-      </div>
-    </div>
-  );
-}
-
-function SpaceOperatorDashboard({
-  notify,
-}: {
-  notify: (message: string) => void;
-}) {
-  const units = spaceVenues[0].spaces;
-  const days = [
-    "Mon 12",
-    "Tue 13",
-    "Wed 14",
-    "Thu 15",
-    "Fri 16",
-    "Sat 17",
-    "Sun 18",
-  ];
-  const blocks = [
-    "Team Alpha",
-    "League match",
-    "Open play",
-    "Coaching",
-    "Maintenance",
-    "Training",
-    "Customer request",
-  ];
-  return (
-    <div className="page-stack">
-      <section className="operator-hero">
-        <div>
-          <span className="eyebrow light">
-            VERIFIED OPERATOR · POBLENOU MULTISPORT CLUB
-          </span>
-          <h2>List spaces. Confirm times. Keep bookings clear.</h2>
-          <p>
-            A focused workspace for pitches, courts and event venues—without
-            forcing Kasa-defined opening hours or fixed session lengths.
-          </p>
-        </div>
-        <button
-          className="button button-cream"
-          onClick={() => notify("New reservation request opened.")}
-        >
-          <Plus size={16} /> Add reservation
-        </button>
-      </section>
-      <section className="metrics-grid">
-        <Metric
-          label="Listed spaces"
-          value="4"
-          note="Each has its own calendar"
-          icon={Building2}
-        />
-        <Metric
-          label="Today’s bookings"
-          value="18"
-          note="16 confirmed"
-          icon={CalendarDays}
-          tone="blue"
-        />
-        <Metric
-          label="Time requests"
-          value="3"
-          note="Need an operator response"
-          icon={Clock3}
-          tone="lilac"
-        />
-        <Metric
-          label="Proposed changes"
-          value="1"
-          note="Waiting for customer"
-          icon={Repeat2}
-          tone="sun"
-        />
-      </section>
-      <div className="operator-layout">
-        <section className="card operator-calendar">
-          <div className="table-card-title">
-            <div>
-              <span className="eyebrow">UNIFIED CALENDAR</span>
-              <h2>12–18 August</h2>
-              <p>Every space keeps its own flexible schedule.</p>
-            </div>
-            <div className="segment compact">
-              <button className="active">Week</button>
-              <button>Day</button>
-              <button>List</button>
-            </div>
-          </div>
-          <div className="calendar-grid">
-            <div className="calendar-corner">Space</div>
-            {days.map((day) => (
-              <div className="calendar-day" key={day}>
-                {day}
-              </div>
-            ))}
-            {units.map((unit, row) => (
-              <div className="calendar-row" key={unit.id}>
-                <div className="calendar-unit">
-                  <strong>{unit.name}</strong>
-                  <small>{unit.activity}</small>
-                </div>
-                {days.map((day, column) => {
-                  const hasBlock = (row + column) % 3 !== 1;
-                  const kind = (row + column) % 5;
-                  return (
-                    <button
-                      className={`calendar-cell tone-${kind}`}
-                      key={day}
-                      onClick={() =>
-                        notify(
-                          `${unit.name} · ${day} flexible schedule opened.`,
-                        )
-                      }
-                    >
-                      {hasBlock && (
-                        <span>
-                          <small>
-                            {column % 2 ? "18:00–19:30" : "09:00–10:30"}
-                          </small>
-                          <strong>
-                            {blocks[(row + column) % blocks.length]}
-                          </strong>
-                          {kind === 3 && <i>Proposed</i>}
-                        </span>
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
-            ))}
-          </div>
-          <div className="calendar-legend">
-            <span>
-              <i className="legend-open" />
-              Available
-            </span>
-            <span>
-              <i className="legend-booked" />
-              Confirmed
-            </span>
-            <span>
-              <i className="legend-blocked" />
-              Blocked
-            </span>
-            <span>
-              <Repeat2 />
-              Proposed change
-            </span>
-          </div>
-        </section>
-        <aside className="page-stack">
-          <section className="card padded flexible-availability">
-            <SectionHeading
-              title="Flexible availability"
-              action="Edit"
-              onAction={() => notify("Flexible availability settings opened.")}
-            />
-            <p>
-              Kasa does not preset operating hours. Add only what helps
-              customers request the right time.
-            </p>
-            {[
-              ["Opening range", "Optional"],
-              ["Suggested times", "Operator controlled"],
-              ["Custom time requests", "Enabled"],
-              ["Blocked time", "1 maintenance block"],
-            ].map(([title, note]) => (
-              <div key={title}>
-                <span>{title}</span>
-                <StatusPill tone={note === "Enabled" ? "mint" : "neutral"}>
-                  {note}
-                </StatusPill>
-              </div>
-            ))}
-          </section>
-          <section className="card padded operator-tools">
-            {[
-              ["Reservation requests", "3 need a response"],
-              ["Proposed times", "1 waiting for customer"],
-              ["Customer messages", "3 unread"],
-              ["Venue settings", "Identity, rules and policies"],
-              ["Reviews", "4.7 average"],
-            ].map(([title, note]) => (
-              <button key={title} onClick={() => notify(`${title} opened.`)}>
-                <span>
-                  <strong>{title}</strong>
-                  <small>{note}</small>
-                </span>
-                <ChevronRight />
-              </button>
-            ))}
-          </section>
-        </aside>
-      </div>
-      <section className="card padded upcoming-reservations">
-        <SectionHeading title="Reservations and requests" action="View all" />
-        <div className="performance-table">
-          <div>
-            <span>Customer / space</span>
-            <span>Time</span>
-            <span>Status</span>
-            <span>Price</span>
-          </div>
-          {[
-            ["Team Alpha · Court 1", "Today · 18:00", "Confirmed", "€36"],
-            ["Poblenou League · Pitch A", "Today · 20:00", "Confirmed", "€62"],
-            ["Rita Alves · Court 2", "Requested 09:30", "Propose time", "€28"],
-          ].map((item) => (
-            <div key={item[0]}>
-              <span>
-                <Avatar initials={item[0].slice(0, 2).toUpperCase()} small />
-                <strong>{item[0]}</strong>
-              </span>
-              <span>{item[1]}</span>
-              <span>
-                <StatusPill tone={item[2] === "Confirmed" ? "mint" : "amber"}>
-                  {item[2]}
-                </StatusPill>
-              </span>
-              <strong>{item[3]}</strong>
-            </div>
-          ))}
-        </div>
-      </section>
-      <div className="scope-note">
-        <ShieldCheck size={17} />
-        <span>
-          The operator controls the space, schedule, licences, safety, insurance
-          and customer service. Kasa records requests, proposals and
-          acceptances; it does not operate the facility.
-        </span>
       </div>
     </div>
   );
@@ -6669,7 +6120,12 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
             setState={setServiceRequestState}
           />
         ) : role === "spaceOperator" ? (
-          <SpaceOperatorDashboard notify={notify} />
+          <SpaceOperatorInbox
+            role={role}
+            state={bookingsState}
+            setState={setBookingsState}
+            onBrowseSpaces={() => go("spaces")}
+          />
         ) : (
           <AdminConsole notify={notify} />
         );
@@ -6939,7 +6395,15 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
       case "spaces":
         return (
           <SpacesMarketplace
-            notify={notify}
+            role={role}
+            bookingsState={bookingsState}
+            setBookingsState={setBookingsState}
+            savedVenueIds={workspaceSaved[role].spaceFavourites}
+            onToggleSavedVenue={(id) =>
+              setWorkspaceSaved((current) =>
+                toggleWorkspaceSpaceFavourite(current, role, id),
+              )
+            }
             initialQuery={searchQuery}
             onQueryChange={setSearchQuery}
             onGoBookings={() => go("spaceBookings")}
@@ -6952,7 +6416,15 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
       case "spaceVenue":
         return (
           <SpacesMarketplace
-            notify={notify}
+            role={role}
+            bookingsState={bookingsState}
+            setBookingsState={setBookingsState}
+            savedVenueIds={workspaceSaved[role].spaceFavourites}
+            onToggleSavedVenue={(id) =>
+              setWorkspaceSaved((current) =>
+                toggleWorkspaceSpaceFavourite(current, role, id),
+              )
+            }
             initialQuery={searchQuery}
             onQueryChange={setSearchQuery}
             onGoBookings={() => go("spaceBookings")}
@@ -6965,12 +6437,21 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
       case "spaceBookings":
         return (
           <SpaceBookingsView
+            role={role}
             state={bookingsState}
             setState={setBookingsState}
+            onBrowseSpaces={() => go("spaces")}
           />
         );
       case "spaceOperator":
-        return <SpaceOperatorDashboard notify={notify} />;
+        return (
+          <SpaceOperatorInbox
+            role={role}
+            state={bookingsState}
+            setState={setBookingsState}
+            onBrowseSpaces={() => go("spaces")}
+          />
+        );
       case "spaceOnboarding":
         return <SpaceOnboarding notify={notify} />;
       case "spacesPlan":

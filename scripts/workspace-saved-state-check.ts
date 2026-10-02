@@ -8,6 +8,7 @@ import {
 import {
   createInitialWorkspaceSavedState,
   updateWorkspaceFavourites,
+  toggleWorkspaceSpaceFavourite,
   updateWorkspaceSavedSearches,
 } from "../src/components/workspaceSavedState";
 import type { Role } from "../src/types";
@@ -91,6 +92,26 @@ assert.equal(
   tenantRemovedFavourite,
 );
 assert.deepEqual(createInitialWorkspaceSavedState().tenant.favourites, [2]);
+const savedVenue = toggleWorkspaceSpaceFavourite(initial, "tenant", 1);
+assert.deepEqual(savedVenue.tenant.spaceFavourites, [1]);
+assert.deepEqual(
+  savedVenue.tenant.favourites,
+  [2],
+  "Venue IDs do not mix with home favourites",
+);
+assert.equal(savedVenue.landlord, initial.landlord);
+const bothSaved = toggleWorkspaceSpaceFavourite(savedVenue, "landlord", 2);
+assert.deepEqual(bothSaved.tenant.spaceFavourites, [1]);
+assert.deepEqual(bothSaved.landlord.spaceFavourites, [2]);
+assert.deepEqual(
+  toggleWorkspaceSpaceFavourite(bothSaved, "tenant", 1).tenant.spaceFavourites,
+  [],
+);
+assert.equal(
+  toggleWorkspaceSpaceFavourite(bothSaved, "tenant", Number.NaN),
+  bothSaved,
+);
+assert.deepEqual(initial.tenant.spaceFavourites, [], "Saving is immutable");
 console.log(
-  "Workspace saved-state checks passed: isolated favourites/searches, rename/delete across personas and retained state after switching.",
+  "Workspace saved-state checks passed: isolated home/venue favourites and searches, rename/delete across personas and retained state after switching.",
 );

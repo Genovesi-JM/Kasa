@@ -8569,7 +8569,7 @@ select:focus-visible,
   gap: 18px;
   align-items: start;
 }
-.space-venue-layout main {
+.space-venue-main {
   display: flex;
   flex-direction: column;
   gap: 18px;

@@ -1,47 +1,125 @@
-import { useRef, useState, type Dispatch, type SetStateAction } from "react";
 import {
-  CalendarDays,
-  ChevronRight,
-  Clock3,
-  ShieldCheck,
-  X,
-} from "lucide-react";
+  useId,
+  useRef,
+  useState,
+  type Dispatch,
+  type SetStateAction,
+} from "react";
+import { createPortal } from "react-dom";
+import { CalendarDays, ChevronRight, Plus, ShieldCheck, X } from "lucide-react";
+import type { Role } from "../types";
 import { useDialogFocus } from "./useDialogFocus";
+import { SpaceBookingRequest } from "./SpaceBookingRequest";
 import {
-  acceptSpaceBookingProposal,
-  cancelSpaceBooking,
+  actOnSpaceBooking,
+  bookingTermsTotalCents,
+  discardSpaceBookingDraft,
   filterSpaceBookings,
-  keepOriginalSpaceBookingRequest,
+  isSpaceBookingCustomer,
+  scopedSpaceBookings,
   selectedSpaceBooking,
   selectSpaceBooking,
+  spaceBookingActionIssue,
+  spaceBookingDrafts,
+  spaceBookingUnit,
+  spaceBookingVenue,
+  spaceBookingView,
   visibleSpaceBookings,
   type ManagedSpaceBooking,
+  type SpaceBookingAction,
   type SpaceBookingFilter,
   type SpaceBookingsState,
 } from "./spaceBookingsState";
+import {
+  spaceBookingDate,
+  spaceBookingHistoryText,
+  spaceBookingIssueText,
+  spaceBookingMoney,
+  spaceBookingStatusText,
+  useSpaceBookingCopy,
+  type SpaceBookingCopy,
+} from "./spaceBookingCopy";
 import "./spaceBookings.css";
 
 const filters: SpaceBookingFilter[] = [
   "All",
-  "Upcoming",
   "Requested",
-  "Completed",
+  "Upcoming",
+  "Declined",
   "Cancelled",
+  "Completed",
 ];
-const currency = new Intl.NumberFormat("en", {
-  style: "currency",
-  currency: "EUR",
-  maximumFractionDigits: 0,
-});
 
-function BookingStatus({ booking }: { booking: ManagedSpaceBooking }) {
+function BookingStatus({
+  booking,
+  copy,
+}: {
+  booking: ManagedSpaceBooking;
+  copy: SpaceBookingCopy;
+}) {
   const tone =
-    booking.status === "Upcoming"
+    booking.phase === "Agreed"
       ? "mint"
-      : booking.status === "Requested"
+      : ["Requested", "Proposed"].includes(booking.phase)
         ? "amber"
         : "neutral";
-  return <span className={`pill pill-${tone}`}>{booking.status}</span>;
+  return (
+    <span className={`pill pill-${tone}`}>
+      {spaceBookingStatusText(booking.phase, copy)}
+    </span>
+  );
+}
+
+function BookingTerms({
+  terms,
+  locale,
+  copy,
+}: {
+  terms: ManagedSpaceBooking["requestedTerms"];
+  locale: string;
+  copy: SpaceBookingCopy;
+}) {
+  const total = bookingTermsTotalCents(terms);
+  return (
+    <dl className="space-booking-terms">
+      <div>
+        <dt>{copy.date}</dt>
+        <dd>
+          <time dateTime={terms.date}>
+            {spaceBookingDate(terms.date, locale)}
+          </time>
+        </dd>
+      </div>
+      <div>
+        <dt>{copy.time}</dt>
+        <dd>
+          {terms.start}–{terms.end}
+        </dd>
+      </div>
+      <div>
+        <dt>{copy.price}</dt>
+        <dd>{spaceBookingMoney(terms.priceCents, locale, copy)}</dd>
+      </div>
+      <div>
+        <dt>{copy.cleaningFee}</dt>
+        <dd>{spaceBookingMoney(terms.cleaningFeeCents, locale, copy)}</dd>
+      </div>
+      <div>
+        <dt>{copy.total}</dt>
+        <dd>
+          {spaceBookingMoney(
+            total === null ? null : total - terms.depositCents,
+            locale,
+            copy,
+          )}
+        </dd>
+      </div>
+      <div>
+        <dt>{copy.deposit}</dt>
+        <dd>{spaceBookingMoney(terms.depositCents, locale, copy)}</dd>
+      </div>
+    </dl>
+  );
 }
 
 function CancelBookingDialog({
@@ -51,18 +129,21 @@ function CancelBookingDialog({
 }: {
   booking: ManagedSpaceBooking;
   onClose: () => void;
-  onConfirm: (reason: string) => void;
+  onConfirm: (reason: string) => string | undefined;
 }) {
-  const [reason, setReason] = useState("");
+  const { copy, locale } = useSpaceBookingCopy();
+  const id = useId();
+  const [error, setError] = useState("");
   const dialogRef = useDialogFocus<HTMLDivElement>(onClose);
-  const isRequest = booking.status === "Requested";
-  return (
+  const terms = booking.agreedTerms ?? booking.requestedTerms;
+  return createPortal(
     <div
       className="modal-layer"
       ref={dialogRef}
       role="dialog"
       aria-modal="true"
-      aria-labelledby="booking-cancel-title"
+      aria-labelledby={`${id}-title`}
+      aria-describedby={`${id}-scope`}
       tabIndex={-1}
     >
       <button
@@ -74,44 +155,50 @@ function CancelBookingDialog({
       <section className="modal-card">
         <header>
           <div>
-            <span className="eyebrow">RESERVATION</span>
-            <h2 id="booking-cancel-title">
-              {isRequest ? "Withdraw this request?" : "Cancel this booking?"}
-            </h2>
+            <span className="eyebrow">KASA SPACES</span>
+            <h2 id={`${id}-title`}>{copy.cancelTitle}</h2>
           </div>
           <button
             className="icon-button"
             onClick={onClose}
-            aria-label="Close cancellation"
+            aria-label={copy.close}
           >
             <X size={20} />
           </button>
         </header>
         <form
-          className="modal-body"
+          className="modal-body space-booking-cancel-form"
+          noValidate
           onSubmit={(event) => {
             event.preventDefault();
-            onConfirm(reason);
+            const reason = String(
+              new FormData(event.currentTarget).get("reason") ?? "",
+            );
+            setError(onConfirm(reason) ?? "");
           }}
         >
           <p>
             <strong>{booking.venue}</strong>
             <br />
-            {booking.space} · {booking.date} · {booking.time}
+            {booking.space} · {spaceBookingDate(terms.date, locale)} ·{" "}
+            {terms.start}–{terms.end}
           </p>
-          <p>
-            This updates the sample record in this tab. No venue is contacted
-            and no payment or refund is processed.
-          </p>
-          <label className="booking-cancel-reason">
-            Reason (optional)
+          <p id={`${id}-scope`}>{copy.scope}</p>
+          <label className="booking-cancel-reason" htmlFor={`${id}-reason`}>
+            {copy.cancelReason}
             <textarea
-              value={reason}
+              id={`${id}-reason`}
+              name="reason"
               maxLength={500}
-              onChange={(event) => setReason(event.target.value)}
-              placeholder="Why are you cancelling?"
+              aria-invalid={Boolean(error)}
+              aria-describedby={error ? `${id}-error` : undefined}
             />
           </label>
+          {error && (
+            <p className="space-booking-error" id={`${id}-error`} role="alert">
+              {error}
+            </p>
+          )}
           <div className="modal-actions">
             <button
               className="button button-secondary"
@@ -119,243 +206,408 @@ function CancelBookingDialog({
               data-dialog-initial-focus
               onClick={onClose}
             >
-              {isRequest ? "Keep request" : "Keep booking"}
+              {copy.keep}
             </button>
             <button className="button" type="submit">
-              {isRequest ? "Withdraw request" : "Confirm cancellation"}
+              {copy.confirmCancel}
             </button>
           </div>
         </form>
       </section>
-    </div>
+    </div>,
+    document.body,
   );
 }
 
 export function SpaceBookingsView({
+  role,
   state,
   setState,
+  onBrowseSpaces,
 }: {
+  role: Role;
   state: SpaceBookingsState;
   setState: Dispatch<SetStateAction<SpaceBookingsState>>;
+  onBrowseSpaces?: () => void;
 }) {
+  const { copy, locale } = useSpaceBookingCopy();
   const [cancellingId, setCancellingId] = useState<string | null>(null);
-  const [status, setStatus] = useState("");
+  const [draftTarget, setDraftTarget] = useState<{
+    venueId: number;
+    spaceId: number;
+  } | null>(null);
+  const [status, setStatus] = useState<keyof SpaceBookingCopy | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
   const heading = useRef<HTMLHeadingElement>(null);
-  const visible = visibleSpaceBookings(state);
-  const selected = selectedSpaceBooking(state);
-  const cancelling = state.bookings.find(
-    (booking) => booking.id === cancellingId,
-  );
+  const draftsHeading = useRef<HTMLHeadingElement>(null);
+  const all = scopedSpaceBookings(state, role);
+  const visible = visibleSpaceBookings(state, role);
+  const selected = selectedSpaceBooking(state, role);
+  const view = spaceBookingView(state, role);
+  const drafts = spaceBookingDrafts(state, role);
+  const cancelling = all.find((booking) => booking.id === cancellingId);
+  const allowed = isSpaceBookingCustomer(role);
 
   function focusDetails() {
     requestAnimationFrame(() => heading.current?.focus());
   }
+  function act(
+    id: string,
+    action: SpaceBookingAction,
+    success: keyof SpaceBookingCopy,
+  ) {
+    const issue = spaceBookingActionIssue(state, role, id, action);
+    if (issue) {
+      setActionError(issue);
+      return issue;
+    }
+    const next = actOnSpaceBooking(state, role, id, action);
+    if (next === state) {
+      setActionError("status");
+      return "status";
+    }
+    setState(next);
+    setActionError(null);
+    setStatus(success);
+    focusDetails();
+    return undefined;
+  }
+
+  if (!allowed)
+    return (
+      <div className="empty-state">
+        <CalendarDays size={28} />
+        <h2>{copy.noAccess}</h2>
+      </div>
+    );
 
   return (
     <div className="page-stack space-bookings-page">
       <div className="scope-note">
         <ShieldCheck size={17} />
-        <span>
-          Sample bookings. Changes stay in this tab until you reload. No venue
-          is contacted and no payment or refund is processed.
-        </span>
+        <span>{copy.scope}</span>
       </div>
       <div className="page-actions">
-        <div className="segment" aria-label="Filter bookings">
+        <div className="segment" role="group" aria-label={copy.filter}>
           {filters.map((filter) => {
-            const count = state.bookings.filter(
-              (booking) => filter === "All" || booking.status === filter,
+            const count = all.filter((booking) =>
+              filter === "All"
+                ? true
+                : filter === "Declined"
+                  ? booking.phase === "Declined"
+                  : filter === "Cancelled"
+                    ? booking.phase === "Cancelled"
+                    : booking.status === filter && booking.phase !== "Declined",
             ).length;
             return (
               <button
                 key={filter}
-                className={state.filter === filter ? "active" : ""}
-                aria-pressed={state.filter === filter}
+                className={view.filter === filter ? "active" : ""}
+                aria-pressed={view.filter === filter}
                 onClick={() => {
-                  setState((current) => filterSpaceBookings(current, filter));
-                  setStatus("");
+                  setState((current) =>
+                    filterSpaceBookings(current, filter, role),
+                  );
+                  setStatus(null);
+                  setActionError(null);
                 }}
               >
-                {filter} <span className="booking-filter-count">{count}</span>
+                {spaceBookingStatusText(filter, copy)}{" "}
+                <span className="booking-filter-count">{count}</span>
               </button>
             );
           })}
         </div>
+        {onBrowseSpaces && (
+          <button className="button button-secondary" onClick={onBrowseSpaces}>
+            <Plus size={16} />
+            {copy.newRequest}
+          </button>
+        )}
       </div>
       {status && (
         <div className="scope-note booking-action-status" role="status">
           <ShieldCheck size={17} />
-          <span>{status}</span>
+          <span>{copy[status]}</span>
         </div>
       )}
-      <div className="space-bookings-layout">
+      {actionError && (
+        <div className="space-booking-error" role="alert">
+          {spaceBookingIssueText(actionError, copy)}
+        </div>
+      )}
+      {drafts.length > 0 && (
         <section
-          className="card space-booking-list"
-          aria-label={`${state.filter} bookings`}
+          className="card padded space-booking-drafts"
+          aria-labelledby="space-booking-drafts-title"
         >
-          {visible.map((booking) => (
-            <button
-              className={selected?.id === booking.id ? "active" : ""}
-              key={booking.id}
-              aria-current={selected?.id === booking.id ? "true" : undefined}
-              onClick={() => {
-                setState((current) => selectSpaceBooking(current, booking.id));
-                setStatus("");
-                focusDetails();
-              }}
-            >
-              <img src={booking.image} alt="" />
-              <span>
-                <BookingStatus booking={booking} />
-                <strong>{booking.venue}</strong>
+          <h2 id="space-booking-drafts-title" ref={draftsHeading} tabIndex={-1}>
+            {copy.drafts}
+          </h2>
+          <p className="muted">{copy.draftsNote}</p>
+          {drafts.map((entry) => (
+            <article key={`${entry.venueId}-${entry.spaceId}`}>
+              <div>
+                <strong>
+                  {spaceBookingVenue(entry.venueId)?.name} ·{" "}
+                  {spaceBookingUnit(entry.venueId, entry.spaceId)?.name}
+                </strong>
                 <small>
-                  {booking.space} · {booking.date} · {booking.time}
+                  {entry.draft.date
+                    ? spaceBookingDate(entry.draft.date, locale)
+                    : copy.none}{" "}
+                  · {entry.draft.start || "—"}–{entry.draft.end || "—"}
                 </small>
-              </span>
-              <ChevronRight />
-            </button>
+              </div>
+              <div>
+                <button
+                  className="soft-button"
+                  onClick={() =>
+                    setDraftTarget({
+                      venueId: entry.venueId,
+                      spaceId: entry.spaceId,
+                    })
+                  }
+                >
+                  {copy.continueDraft}
+                </button>
+                <button
+                  className="soft-button"
+                  onClick={() => {
+                    setState((current) =>
+                      discardSpaceBookingDraft(
+                        current,
+                        role,
+                        entry.venueId,
+                        entry.spaceId,
+                      ),
+                    );
+                    requestAnimationFrame(() =>
+                      (draftsHeading.current ?? heading.current)?.focus(),
+                    );
+                  }}
+                >
+                  {copy.discardDraft}
+                </button>
+              </div>
+            </article>
           ))}
+        </section>
+      )}
+      <div className="space-bookings-layout">
+        <section className="card space-booking-list" aria-label={copy.records}>
+          {visible.map((booking) => {
+            const terms = booking.agreedTerms ?? booking.requestedTerms;
+            return (
+              <button
+                className={selected?.id === booking.id ? "active" : ""}
+                key={booking.id}
+                aria-current={selected?.id === booking.id ? "true" : undefined}
+                onClick={() => {
+                  setState((current) =>
+                    selectSpaceBooking(current, booking.id, role),
+                  );
+                  setStatus(null);
+                  setActionError(null);
+                  focusDetails();
+                }}
+              >
+                <img src={booking.image} alt="" />
+                <span>
+                  <BookingStatus booking={booking} copy={copy} />
+                  <strong>{booking.venue}</strong>
+                  <small>
+                    {booking.space} · {spaceBookingDate(terms.date, locale)} ·{" "}
+                    {terms.start}–{terms.end}
+                  </small>
+                </span>
+                <ChevronRight size={18} />
+              </button>
+            );
+          })}
           {visible.length === 0 && (
             <div className="empty-state">
               <CalendarDays />
-              <h3>
-                No {state.filter === "All" ? "" : state.filter.toLowerCase()}{" "}
-                bookings
-              </h3>
-              <p>Choose another status to see your records.</p>
+              <h3>{copy.noRecords}</h3>
+              <p>{copy.noRecordsNote}</p>
             </div>
           )}
         </section>
         {selected ? (
           <aside
             className="card padded booking-detail-panel"
-            aria-label="Booking details"
+            aria-label={copy.details}
           >
             <img src={selected.image} alt="" />
             <div>
-              <BookingStatus booking={selected} />
+              <BookingStatus booking={selected} copy={copy} />
               <h2 ref={heading} tabIndex={-1}>
                 {selected.venue}
               </h2>
               <p>{selected.space}</p>
             </div>
-            <div className="booking-facts">
-              <span>
-                <small>Date</small>
-                <strong>{selected.date}</strong>
-              </span>
-              <span>
-                <small>Time</small>
-                <strong>{selected.time}</strong>
-              </span>
-              <span>
-                <small>Price</small>
-                <strong>{currency.format(selected.price)}</strong>
-              </span>
-            </div>
-            {selected.status === "Requested" &&
+            <BookingTerms
+              terms={selected.agreedTerms ?? selected.requestedTerms}
+              locale={locale}
+              copy={copy}
+            />
+            <p>
+              <strong>{copy.guests}:</strong> {selected.participants}
+            </p>
+            {selected.notes && (
+              <div>
+                <strong>{copy.notes}</strong>
+                <p className="space-booking-note">{selected.notes}</p>
+              </div>
+            )}
+            <p className="muted">
+              <strong>{copy.reference}:</strong> {selected.code}
+            </p>
+            {selected.agreedTerms && (
+              <details className="space-booking-original">
+                <summary>{copy.originalRequest}</summary>
+                <BookingTerms
+                  terms={selected.requestedTerms}
+                  locale={locale}
+                  copy={copy}
+                />
+              </details>
+            )}
+            {selected.phase === "Proposed" &&
               selected.proposal?.status === "pending" && (
-                <div className="time-proposal-card">
-                  <span className="eyebrow">OPERATOR PROPOSED A CHANGE</span>
-                  <h3>{selected.proposal.proposedTime}</h3>
-                  <p>
-                    Your original request is {selected.proposal.originalTime}.
-                    Accept the suggested time or keep your original request
-                    pending. The price stays {currency.format(selected.price)}.
-                  </p>
+                <section
+                  className="time-proposal-card"
+                  aria-label={copy.pendingProposal}
+                >
+                  <h3>{copy.pendingProposal}</h3>
+                  <p>{copy.proposalNote}</p>
+                  <BookingTerms
+                    terms={selected.proposal.proposedTerms}
+                    locale={locale}
+                    copy={copy}
+                  />
+                  {selected.proposal.note && (
+                    <p className="space-booking-note">
+                      {selected.proposal.note}
+                    </p>
+                  )}
                   <div>
                     <button
                       className="button"
-                      onClick={() => {
-                        setState((current) =>
-                          acceptSpaceBookingProposal(current, selected.id),
-                        );
-                        setStatus(
-                          "New time accepted in this tab. The booking moved to Upcoming.",
-                        );
-                        focusDetails();
-                      }}
+                      onClick={() =>
+                        act(
+                          selected.id,
+                          {
+                            type: "accept-proposal",
+                            proposalId: selected.proposal!.id,
+                          },
+                          "proposalAccepted",
+                        )
+                      }
                     >
-                      Accept new time
+                      {copy.acceptProposal}
                     </button>
                     <button
                       className="button button-secondary"
-                      onClick={() => {
-                        setState((current) =>
-                          keepOriginalSpaceBookingRequest(current, selected.id),
-                        );
-                        setStatus(
-                          "Original time kept in this tab. The request remains pending; no message was sent to the venue.",
-                        );
-                        focusDetails();
-                      }}
+                      onClick={() =>
+                        act(
+                          selected.id,
+                          {
+                            type: "keep-original",
+                            proposalId: selected.proposal!.id,
+                          },
+                          selected.agreedTerms
+                            ? "proposalDeclinedAgreement"
+                            : "proposalDeclined",
+                        )
+                      }
                     >
-                      Keep original request
+                      {selected.agreedTerms
+                        ? copy.keepAgreement
+                        : copy.keepOriginal}
                     </button>
                   </div>
-                </div>
+                </section>
               )}
-            {selected.status === "Requested" &&
-              selected.proposal?.status === "declined" && (
-                <div className="scope-note">
-                  <Clock3 size={17} />
-                  <span>
-                    Original time retained: {selected.time}. This request is
-                    still awaiting the venue's confirmation.
-                  </span>
-                </div>
-              )}
-            {selected.status === "Upcoming" &&
-              selected.proposal?.status === "accepted" && (
-                <div className="scope-note">
-                  <CalendarDays size={17} />
-                  <span>
-                    New time accepted: {selected.time}. Original request:{" "}
-                    {selected.proposal.originalTime}.
-                  </span>
-                </div>
-              )}
-            {selected.status === "Upcoming" && (
-              <div className="qr-card">
-                <CalendarDays size={28} />
-                <span>
-                  <small>Sample booking reference</small>
-                  <strong>{selected.code}</strong>
-                </span>
-              </div>
+            {selected.phase === "Cancelled" && (
+              <section className="booking-cancellation-note">
+                <strong>{copy.cancellationSaved}</strong>
+                <p className="space-booking-note">
+                  {selected.cancellationReason || copy.noReason}
+                </p>
+              </section>
             )}
-            {selected.status === "Cancelled" && (
-              <div className="booking-cancellation-note">
-                <strong>Cancellation saved in this tab</strong>
-                <p>{selected.cancellationReason || "No reason provided."}</p>
-                <small>No refund or payment change has been processed.</small>
-              </div>
+            {selected.phase === "Declined" && (
+              <section className="booking-cancellation-note">
+                <strong>{copy.declinedReason}</strong>
+                <p className="space-booking-note">
+                  {selected.history
+                    .filter((entry) => entry.action === "declined")
+                    .at(-1)?.note || copy.noReason}
+                </p>
+              </section>
             )}
-            {selected.status === "Completed" && (
-              <div className="scope-note">
-                <CalendarDays size={17} />
-                <span>This booking is completed and cannot be cancelled.</span>
-              </div>
-            )}
-            {(selected.status === "Upcoming" ||
-              selected.status === "Requested") && (
+            {["Requested", "Proposed", "Agreed"].includes(selected.phase) && (
               <button
                 className="soft-button"
                 onClick={() => setCancellingId(selected.id)}
               >
-                {selected.status === "Requested"
-                  ? "Withdraw request"
-                  : "Cancel booking"}
+                {selected.phase === "Agreed"
+                  ? copy.cancelBooking
+                  : copy.withdraw}
               </button>
             )}
+            <section
+              className="space-booking-original"
+              aria-label={copy.history}
+            >
+              <h3>{copy.history}</h3>
+              <ol className="space-booking-history">
+                {selected.history.map((entry) => {
+                  const proposal =
+                    entry.action === "proposed"
+                      ? selected.proposals.find(
+                          (item) => item.id === entry.proposalId,
+                        )
+                      : undefined;
+                  return (
+                    <li key={entry.id}>
+                      <strong>
+                        {spaceBookingHistoryText(entry.action, copy)}
+                      </strong>
+                      <small>
+                        {entry.actor} ·{" "}
+                        {spaceBookingDate(entry.at, locale, true)}
+                      </small>
+                      {entry.note && (
+                        <p className="space-booking-note">{entry.note}</p>
+                      )}
+                      {proposal && (
+                        <details>
+                          <summary>
+                            {copy.proposal} {proposal.version} ·{" "}
+                            {spaceBookingStatusText(proposal.status, copy)}
+                          </summary>
+                          <BookingTerms
+                            terms={proposal.proposedTerms}
+                            locale={locale}
+                            copy={copy}
+                          />
+                        </details>
+                      )}
+                    </li>
+                  );
+                })}
+              </ol>
+            </section>
           </aside>
         ) : (
           <aside className="card padded booking-detail-panel booking-detail-empty">
             <CalendarDays size={28} />
-            <h2>No booking selected</h2>
-            <p>
-              There are no records in this filter. No booking details are shown.
-            </p>
+            <h2 ref={heading} tabIndex={-1}>
+              {copy.noSelected}
+            </h2>
+            <p>{copy.noRecordsNote}</p>
           </aside>
         )}
       </div>
@@ -364,13 +616,27 @@ export function SpaceBookingsView({
           booking={cancelling}
           onClose={() => setCancellingId(null)}
           onConfirm={(reason) => {
-            setState((current) =>
-              cancelSpaceBooking(current, cancelling.id, reason),
+            const issue = act(
+              cancelling.id,
+              { type: "cancel", note: reason },
+              "cancellationSaved",
             );
+            if (issue) return spaceBookingIssueText(issue, copy);
             setCancellingId(null);
-            setStatus(
-              `${cancelling.status === "Requested" ? "Request withdrawn" : "Booking cancelled"} in this tab. The record is now in Cancelled.`,
-            );
+            return undefined;
+          }}
+        />
+      )}
+      {draftTarget && (
+        <SpaceBookingRequest
+          role={role}
+          state={state}
+          setState={setState}
+          {...draftTarget}
+          onClose={() => setDraftTarget(null)}
+          onSaved={() => {
+            setDraftTarget(null);
+            setStatus("requestCreated");
             focusDetails();
           }}
         />

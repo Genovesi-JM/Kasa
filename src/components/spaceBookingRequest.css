@@ -1,0 +1,118 @@
+.space-request-card {
+  width: min(680px, 100%);
+}
+.space-request-form {
+  display: grid;
+  gap: 18px;
+}
+.space-request-form p {
+  margin: 0;
+  line-height: 1.6;
+}
+.space-request-venue {
+  display: grid;
+  gap: 5px;
+}
+.space-request-venue span,
+.space-request-form .space-request-notice {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.6;
+}
+.space-request-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+.space-request-fields label {
+  display: grid;
+  align-content: start;
+  gap: 7px;
+  font-size: 14px;
+  font-weight: 600;
+}
+.space-request-fields input,
+.space-request-fields textarea {
+  min-width: 0;
+  width: 100%;
+  min-height: 44px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-size: 16px;
+}
+.space-request-fields textarea {
+  resize: vertical;
+}
+.space-request-wide {
+  grid-column: 1 / -1;
+}
+.space-request-error,
+.space-booking-error {
+  color: #8d2927;
+  font-size: 13px;
+  line-height: 1.6;
+}
+.space-request-errors {
+  padding: 12px 15px;
+  border: 1px solid #dbb4ab;
+  border-radius: 8px;
+  background: #fff5f1;
+}
+.space-request-errors ul {
+  margin: 8px 0 0;
+  padding-inline-start: 20px;
+}
+.space-request-errors a {
+  color: inherit;
+}
+.space-request-price {
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--sage);
+}
+.space-request-price dl {
+  display: grid;
+  gap: 12px;
+  margin: 12px 0;
+  font-size: 14px;
+}
+.space-request-price dl > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 15px;
+}
+.space-request-price dt {
+  flex: 1;
+}
+.space-request-price dd {
+  margin: 0;
+  font-weight: 600;
+  text-align: end;
+}
+.space-request-form .modal-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.space-request-form .modal-actions button {
+  min-height: 44px;
+}
+@media (max-width: 560px) {
+  .space-request-layer {
+    padding: 10px;
+  }
+  .space-request-card {
+    max-height: calc(100dvh - 20px);
+  }
+  .space-request-fields {
+    grid-template-columns: 1fr;
+  }
+  .space-request-form .modal-actions button {
+    flex: 1 1 100%;
+  }
+}

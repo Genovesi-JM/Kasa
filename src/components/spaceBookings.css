@@ -7,11 +7,124 @@
 .space-bookings-page .booking-detail-panel h2 {
   scroll-margin-top: 130px;
 }
+.space-bookings-page .page-actions .segment {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+.space-bookings-page .page-actions .segment button {
+  min-height: 44px;
+}
+.space-bookings-page .space-booking-list button > span {
+  min-width: 0;
+}
+.space-bookings-page .space-booking-list strong {
+  font-size: 14px;
+}
+.space-bookings-page .space-booking-list small,
+.space-bookings-page .booking-detail-panel > div:nth-child(2) p {
+  font-size: 12px;
+  line-height: 1.5;
+}
+.space-bookings-page .space-booking-list > button,
+.space-bookings-page .booking-detail-panel {
+  overflow-wrap: anywhere;
+  text-align: start;
+}
+.space-booking-terms {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  margin: 15px 0;
+  font-size: 14px;
+}
+.space-booking-terms div {
+  display: grid;
+  gap: 5px;
+}
+.space-booking-terms dt {
+  color: var(--muted);
+  font-size: 12px;
+}
+.space-booking-terms dd {
+  margin: 0;
+  font-weight: 600;
+}
+.space-booking-note {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  line-height: 1.6;
+  font-size: 13px;
+}
+.space-booking-original {
+  margin: 16px 0;
+  padding-block: 12px;
+  border-block: 1px solid var(--line);
+}
+.space-booking-original summary {
+  padding-block: 8px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+}
+.space-booking-history {
+  padding-inline-start: 22px;
+  font-size: 13px;
+}
+.space-booking-history li {
+  margin-block: 18px;
+  padding-inline-start: 5px;
+}
+.space-booking-history li > strong,
+.space-booking-history li > small {
+  display: block;
+}
+.space-booking-history small {
+  color: var(--muted);
+  margin-block: 5px;
+  line-height: 1.5;
+}
+.space-booking-history p {
+  margin-block: 8px;
+}
+.space-booking-drafts {
+  display: grid;
+  gap: 12px;
+}
+.space-booking-drafts h2,
+.space-booking-drafts p {
+  margin: 0;
+}
+.space-booking-drafts article {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  border-top: 1px solid var(--line);
+  padding-top: 12px;
+}
+.space-booking-drafts article > div {
+  display: grid;
+  gap: 6px;
+}
+.space-booking-drafts article > div:last-child {
+  display: flex;
+  flex-wrap: wrap;
+}
+.space-bookings-page .soft-button,
+.space-bookings-page .button {
+  min-height: 44px;
+}
 .booking-cancel-reason {
   display: grid;
   gap: 8px;
   margin-top: 20px;
   font-size: 14px;
+}
+.space-booking-cancel-form > p {
+  font-size: 14px;
+  line-height: 1.6;
 }
 .booking-cancel-reason textarea {
   width: 100%;
@@ -39,4 +152,22 @@
   align-self: start;
   text-align: center;
   color: var(--muted);
+}
+@media (max-width: 560px) {
+  .space-bookings-page .space-booking-list > button {
+    grid-template-columns: 65px minmax(0, 1fr) 18px;
+    padding: 12px;
+    gap: 10px;
+  }
+  .space-bookings-page .space-booking-list img {
+    width: 65px;
+    height: 65px;
+  }
+  .space-booking-drafts article > div:last-child,
+  .space-booking-drafts button {
+    width: 100%;
+  }
+  .space-booking-terms {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
