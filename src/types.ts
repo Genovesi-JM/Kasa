@@ -8,6 +8,7 @@ export type View =
   | "property"
   | "portfolio"
   | "applications"
+  | "viewings"
   | "messages"
   | "notifications"
   | "profile"

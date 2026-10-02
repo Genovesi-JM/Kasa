@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import {
   ArrowRight,
@@ -29,6 +29,7 @@ interface PropertyOverviewProps {
   rentState: RentRecordState;
   applicationState: ApplicationState;
   maintenanceState: MaintenanceState;
+  viewingPanel?: ReactNode;
   go: (view: View) => void;
   onOpenProperty: (property: Property) => void;
 }
@@ -38,6 +39,7 @@ export function PropertyOverview({
   rentState,
   applicationState,
   maintenanceState,
+  viewingPanel,
   go,
   onOpenProperty,
 }: PropertyOverviewProps) {
@@ -250,6 +252,8 @@ export function PropertyOverview({
           </button>
         ))}
       </section>
+
+      {viewingPanel}
 
       <div className="operations-two-column">
         <section

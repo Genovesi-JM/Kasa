@@ -60,7 +60,12 @@ import {
 } from "lucide-react";
 import { properties, providers, spaceVenues, workOpportunities } from "./data";
 import { marketplaceMatches, matchesSearch, type SearchScope } from "./search";
-import { appRouteUrl, readAppRoute, type AppRoute } from "./navigation";
+import {
+  appRouteUrl,
+  readAppRoute,
+  canonicalRoleView,
+  type AppRoute,
+} from "./navigation";
 import {
   displayTranslation,
   languages,
@@ -107,12 +112,11 @@ import {
   tenantApplicationForProperty,
   visibleApplicationRecords,
 } from "./components/applicationState";
-import { PropertyRequestActions } from "./components/PropertyRequestDialog";
 import {
-  cancelViewingRequest,
   createInitialPropertyRequestState,
-  saveViewingRequest,
-  viewingForProperty,
+  selectViewingRequest,
+  setViewingFilter,
+  viewingCounts,
 } from "./components/propertyRequestState";
 import { SaveSearchButton, SavedSearches } from "./components/SavedSearches";
 import {
@@ -224,6 +228,21 @@ const PropertyInsights = lazy(() =>
 const Applications = lazy(() =>
   import("./components/Applications").then((module) => ({
     default: module.Applications,
+  })),
+);
+const PropertyRequestActions = lazy(() =>
+  import("./components/PropertyRequestDialog").then((module) => ({
+    default: module.PropertyRequestActions,
+  })),
+);
+const ViewingRequests = lazy(() =>
+  import("./components/ViewingRequests").then((module) => ({
+    default: module.ViewingRequests,
+  })),
+);
+const PropertyViewingsSummary = lazy(() =>
+  import("./components/PropertyViewingsSummary").then((module) => ({
+    default: module.PropertyViewingsSummary,
   })),
 );
 const PropertyOverview = lazy(() =>
@@ -345,6 +364,12 @@ const navItems: NavItem[] = [
     label: "Applications",
     icon: FileCheck2,
     badge: "3",
+    roles: ["landlord", "tenant"],
+  },
+  {
+    id: "viewings",
+    label: "Viewings",
+    icon: CalendarDays,
     roles: ["landlord", "tenant"],
   },
   {
@@ -1198,6 +1223,7 @@ function UniversalHome({
   initialQuery = "",
   onAllSearch,
   summary,
+  viewingPanel,
 }: {
   go: (view: View) => void;
   openServices: (mode: ServiceLaunchMode) => void;
@@ -1210,6 +1236,7 @@ function UniversalHome({
   initialQuery?: string;
   onAllSearch: (query: string) => void;
   summary: PropertyOperationsSummary;
+  viewingPanel?: React.ReactNode;
 }) {
   const { tr, language } = useKasaI18n();
   const [chooserOpen, setChooserOpen] = useState(false);
@@ -1447,6 +1474,8 @@ function UniversalHome({
           </button>
         </div>
       </section>
+
+      {viewingPanel}
 
       {chooserOpen && (
         <Modal
@@ -5437,6 +5466,17 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
   const [propertyRequestState, setPropertyRequestState] = useState(
     createInitialPropertyRequestState,
   );
+  const viewingSummaryCounts = viewingCounts(
+    propertyRequestState,
+    role,
+    operationsNow,
+  );
+  const viewingDecisionCount =
+    role === "landlord"
+      ? viewingSummaryCounts.pending
+      : role === "tenant"
+        ? viewingSummaryCounts.proposed
+        : 0;
   const [notificationState, setNotificationState] = useState(
     createInitialNotificationState,
   );
@@ -5596,13 +5636,22 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
     () => navItems.filter((item) => !item.roles || item.roles.includes(role)),
     [role],
   );
+  const inViewingContext =
+    view === "viewings" ||
+    (view === "property" && propertyReturnTo === "viewings");
   const tenantContextItem: {
     id: View;
     label: string;
     icon: LucideIcon;
     activeViews: View[];
-  } =
-    view === "spaces" || view === "spaceVenue" || view === "spaceBookings"
+  } = inViewingContext
+    ? {
+        id: "viewings",
+        label: tr("nav.viewings"),
+        icon: CalendarDays,
+        activeViews: ["viewings", "property"],
+      }
+    : view === "spaces" || view === "spaceVenue" || view === "spaceBookings"
       ? {
           id: "spaceBookings",
           label: tr("nav.myBookings"),
@@ -5633,6 +5682,7 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
                 "property",
                 "portfolio",
                 "applications",
+                "viewings",
                 "rent",
                 "maintenance",
                 "documents",
@@ -5682,9 +5732,14 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
               icon: Building2,
             },
             {
-              id: "applications",
-              label: tr("common.applications"),
-              icon: FileCheck2,
+              id: inViewingContext ? "viewings" : "applications",
+              label: tr(
+                inViewingContext ? "nav.viewings" : "common.applications",
+              ),
+              icon: inViewingContext ? CalendarDays : FileCheck2,
+              activeViews: inViewingContext
+                ? ["viewings", "property"]
+                : ["applications"],
             },
             {
               id: "maintenance",
@@ -5761,6 +5816,7 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
     saved: "nav.savedHomes",
     portfolio: role === "tenant" ? "nav.myHome" : "nav.myProperties",
     applications: "common.applications",
+    viewings: "nav.viewings",
     messages: "common.messages",
     notifications: "common.notifications",
     profile: "universalHome.profile",
@@ -5852,7 +5908,7 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
 
   const go = useCallback(
     (next: View, query?: string) => {
-      setView(next);
+      setView(canonicalRoleView(role, next));
       if (query !== undefined) setSearchQuery(query);
       else if (
         next !== view &&
@@ -5867,8 +5923,15 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
         behavior: reduceMotion || systemReduceMotion ? "instant" : "smooth",
       });
     },
-    [view, reduceMotion, systemReduceMotion],
+    [role, view, reduceMotion, systemReduceMotion],
   );
+  const openViewings = (id?: string) => {
+    if (id)
+      setPropertyRequestState((current) =>
+        selectViewingRequest(current, role, id),
+      );
+    go("viewings");
+  };
   const openProperty = (
     property: Property,
     returnTo: AppRoute["returnTo"] = "discover",
@@ -5956,6 +6019,25 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
     setShowOnboarding(false);
   };
 
+  const viewingPanel = (
+    <PropertyViewingsSummary
+      role={role}
+      state={propertyRequestState}
+      onOpenRequest={openViewings}
+      onOpenViewings={() => openViewings()}
+      onOpenDecisions={() => {
+        setPropertyRequestState((current) =>
+          setViewingFilter(
+            current,
+            role,
+            role === "landlord" ? "Pending" : "Proposed",
+          ),
+        );
+        go("viewings");
+      }}
+    />
+  );
+
   const renderView = () => {
     switch (view) {
       case "overview":
@@ -5965,12 +6047,14 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
             rentState={rentRecordState}
             applicationState={applicationState}
             maintenanceState={maintenanceState}
+            viewingPanel={viewingPanel}
             go={go}
             onOpenProperty={(property) => openProperty(property, "overview")}
           />
         ) : role === "tenant" ? (
           <UniversalHome
             summary={operationsSummary!}
+            viewingPanel={viewingPanel}
             go={go}
             openServices={openServices}
             setDiscoveryIntent={setDiscoveryIntent}
@@ -6074,7 +6158,9 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
                     ? `${tr("common.back")} · ${tr("nav.savedHomes")}`
                     : propertyReturnTo === "insights"
                       ? `${tr("common.back")} · ${tr("nav.insights")}`
-                      : undefined
+                      : propertyReturnTo === "viewings"
+                        ? `${tr("common.back")} · ${tr("nav.viewings")}`
+                        : undefined
             }
             onMessage={() => {
               if (!isWorkspaceListingOwner(role, selectedProperty.id)) {
@@ -6087,6 +6173,14 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
             requestControls={
               ownsProperty(role, selectedProperty.id) ? (
                 <div className="property-request-actions">
+                  <button
+                    type="button"
+                    className="button button-secondary"
+                    onClick={() => openViewings()}
+                  >
+                    <CalendarDays size={16} />
+                    {tr("nav.viewings")}
+                  </button>
                   <button
                     className="button button-secondary"
                     onClick={() => go("applications")}
@@ -6106,38 +6200,15 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
                 <PropertyRequestActions
                   property={selectedProperty}
                   role={role}
-                  viewing={viewingForProperty(
-                    propertyRequestState,
-                    role,
-                    selectedProperty.id,
-                  )}
+                  viewingState={propertyRequestState}
+                  setViewingState={setPropertyRequestState}
+                  onViewViewings={openViewings}
                   application={tenantApplicationForProperty(
                     applicationState,
                     selectedProperty,
                   )}
                   viewingLabel={tr("discover.requestViewing")}
                   applicationLabel={tr("discover.applyHome")}
-                  onSaveViewing={(draft) => {
-                    setPropertyRequestState((current) =>
-                      saveViewingRequest(
-                        current,
-                        role,
-                        selectedProperty,
-                        draft,
-                      ),
-                    );
-                    notify(
-                      "Viewing request saved in this tab. Nothing was sent or confirmed.",
-                    );
-                  }}
-                  onCancelViewing={() => {
-                    setPropertyRequestState((current) =>
-                      cancelViewingRequest(current, role, selectedProperty.id),
-                    );
-                    notify(
-                      "Local viewing request cancelled. No one has been contacted.",
-                    );
-                  }}
                   onSaveApplication={(draft) => {
                     setApplicationState((current) =>
                       submitRentalApplication(
@@ -6164,6 +6235,7 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
             rentState={rentRecordState}
             applicationState={applicationState}
             maintenanceState={maintenanceState}
+            viewingPanel={viewingPanel}
             go={go}
             onOpenProperty={(property) => openProperty(property, "portfolio")}
           />
@@ -6187,6 +6259,19 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
             />
           </PropertyPortfolio>
         );
+      case "viewings":
+        return role === "tenant" || role === "landlord" ? (
+          <ViewingRequests
+            role={role}
+            state={propertyRequestState}
+            setState={setPropertyRequestState}
+            onOpenProperty={(id) => {
+              const property = properties.find((item) => item.id === id);
+              if (property) openProperty(property, "viewings");
+            }}
+            onBrowseHomes={() => go("discover")}
+          />
+        ) : null;
       case "applications":
         return (
           <Applications
@@ -6556,11 +6641,15 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
                   ? applicationCount > 0
                     ? String(applicationCount)
                     : undefined
-                  : item.id === "maintenance"
-                    ? maintenanceCount > 0
-                      ? String(maintenanceCount)
+                  : item.id === "viewings"
+                    ? viewingDecisionCount > 0
+                      ? String(viewingDecisionCount)
                       : undefined
-                    : item.badge;
+                    : item.id === "maintenance"
+                      ? maintenanceCount > 0
+                        ? String(maintenanceCount)
+                        : undefined
+                      : item.badge;
             const active =
               view === item.id ||
               (view === "property" && item.id === propertyReturnTo);

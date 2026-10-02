@@ -8,7 +8,8 @@ export interface AppRoute {
   propertyId: number;
   service: "discover" | "tasks" | "jobs" | "hire";
   query: string;
-  returnTo: "discover" | "saved" | "portfolio" | "overview" | "insights";
+  returnTo:
+    "discover" | "saved" | "portfolio" | "overview" | "insights" | "viewings";
 }
 
 const roles: Record<Role, true> = {
@@ -26,6 +27,7 @@ const views: Record<View, true> = {
   property: true,
   portfolio: true,
   applications: true,
+  viewings: true,
   messages: true,
   notifications: true,
   profile: true,
@@ -59,6 +61,7 @@ const returnTargets: Record<AppRoute["returnTo"], true> = {
   portfolio: true,
   overview: true,
   insights: true,
+  viewings: true,
 };
 
 function readChoice<T extends string>(
@@ -81,7 +84,16 @@ function normalizeQuery(query: string) {
   return query.trim().slice(0, 200);
 }
 
+/** Keep the viewing inbox within the two property-party workspaces. */
+export function canonicalRoleView(role: Role, view: View): View {
+  return view === "viewings" && role !== "tenant" && role !== "landlord"
+    ? "overview"
+    : view;
+}
+
 function returnTargetForRole(target: AppRoute["returnTo"], role: Role) {
+  if (target === "viewings" && canonicalRoleView(role, target) !== target)
+    return "discover";
   return target === "insights" && role !== "landlord" ? "discover" : target;
 }
 
@@ -91,7 +103,10 @@ export function readAppRoute(
 ): AppRoute {
   const params = new URLSearchParams(search);
   const role = readChoice(params.get("role"), defaults.role, roles, "tenant");
-  const view = readChoice(params.get("view"), defaults.view, views, "overview");
+  const view = canonicalRoleView(
+    role,
+    readChoice(params.get("view"), defaults.view, views, "overview"),
+  );
   let intent = readChoice(
     params.get("intent"),
     defaults.intent,
@@ -142,6 +157,7 @@ export function readAppRoute(
 
 export function appRouteUrl(route: AppRoute, currentSearch: string): string {
   const params = new URLSearchParams(currentSearch);
+  const view = canonicalRoleView(route.role, route.view);
   const hasEntryMode = [
     "present",
     "journey",
@@ -153,17 +169,17 @@ export function appRouteUrl(route: AppRoute, currentSearch: string): string {
   ].some((key) => params.has(key));
   if (!hasEntryMode) params.set("app", "1");
   params.set("role", route.role);
-  params.set("view", route.view);
+  params.set("view", view);
   params.set("intent", route.intent);
 
-  if (route.view === "property") {
+  if (view === "property") {
     params.set("property", String(route.propertyId));
     params.set("from", returnTargetForRole(route.returnTo, route.role));
   } else {
     params.delete("property");
     params.delete("from");
   }
-  if (route.view === "services") params.set("service", route.service);
+  if (view === "services") params.set("service", route.service);
   else params.delete("service");
 
   const query = normalizeQuery(route.query);

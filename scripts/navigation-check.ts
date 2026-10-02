@@ -1,6 +1,11 @@
 import assert from "node:assert/strict";
 import { properties } from "../src/data";
-import { appRouteUrl, readAppRoute, type AppRoute } from "../src/navigation";
+import {
+  appRouteUrl,
+  canonicalRoleView,
+  readAppRoute,
+  type AppRoute,
+} from "../src/navigation";
 import type { Role, View } from "../src/types";
 
 const roles: Role[] = [
@@ -17,6 +22,7 @@ const views: View[] = [
   "property",
   "portfolio",
   "applications",
+  "viewings",
   "messages",
   "notifications",
   "profile",
@@ -59,7 +65,13 @@ for (const role of roles) {
     const url = appRouteUrl(route, "");
     assert.deepEqual(
       readAppRoute(url),
-      route,
+      {
+        ...route,
+        view:
+          view === "viewings" && role !== "tenant" && role !== "landlord"
+            ? "overview"
+            : view,
+      },
       `${role}/${view} must round-trip`,
     );
     assert.ok(url.startsWith("?") && !url.startsWith("?/"));
@@ -87,7 +99,12 @@ for (const property of properties) {
   assert.equal(route.returnTo, "saved");
   assert.deepEqual(readAppRoute(appRouteUrl(route, "")), route);
 }
-for (const returnTo of ["portfolio", "overview", "insights"] as const) {
+for (const returnTo of [
+  "portfolio",
+  "overview",
+  "insights",
+  "viewings",
+] as const) {
   const route = readAppRoute(
     `?role=landlord&view=property&property=1&from=${returnTo}`,
   );
@@ -98,6 +115,66 @@ for (const returnTo of ["portfolio", "overview", "insights"] as const) {
     new URL(appRouteUrl(route, ""), "https://example.com/Kasa/").pathname,
     "/Kasa/",
   );
+}
+for (const role of ["tenant", "landlord"] as const) {
+  assert.equal(canonicalRoleView(role, "viewings"), "viewings");
+  const route = readAppRoute(
+    `?role=${role}&view=property&property=1&from=viewings`,
+  );
+  assert.equal(route.returnTo, "viewings");
+  assert.deepEqual(readAppRoute(appRouteUrl(route, "")), route);
+  const defaults = readAppRoute("", {
+    role,
+    view: "viewings",
+    returnTo: "viewings",
+  });
+  assert.equal(defaults.view, "viewings");
+  assert.equal(defaults.returnTo, "viewings");
+}
+for (const role of ["provider", "spaceOperator", "admin"] as const) {
+  assert.equal(canonicalRoleView(role, "viewings"), "overview");
+  assert.equal(
+    readAppRoute(`?role=${role}&view=viewings`).view,
+    "overview",
+    `${role} cannot open the property-party viewing inbox`,
+  );
+  assert.equal(
+    readAppRoute(`?role=${role}&view=property&from=viewings`).returnTo,
+    "discover",
+  );
+  const defaultRoute = readAppRoute(`?role=${role}`, {
+    role: "tenant",
+    view: "viewings",
+    returnTo: "viewings",
+  });
+  assert.equal(defaultRoute.view, "overview");
+  assert.equal(defaultRoute.returnTo, "discover");
+  const serialized = new URLSearchParams(
+    appRouteUrl(
+      { ...initial, role, view: "viewings", returnTo: "viewings" },
+      "?property=1&from=viewings&service=hire&campaign=phone",
+    ),
+  );
+  assert.equal(serialized.get("view"), "overview");
+  for (const key of ["property", "from", "service"])
+    assert.equal(serialized.has(key), false);
+  assert.equal(serialized.get("campaign"), "phone");
+  assert.equal(
+    new URLSearchParams(
+      appRouteUrl(
+        { ...initial, role, view: "property", returnTo: "viewings" },
+        "",
+      ),
+    ).get("from"),
+    "discover",
+  );
+}
+for (const malformed of ["Viewings", "viewings/", " viewings", "viewings "]) {
+  const route = readAppRoute(
+    `?role=tenant&view=${encodeURIComponent(malformed)}&from=${encodeURIComponent(malformed)}`,
+  );
+  assert.equal(route.view, "overview");
+  assert.equal(route.returnTo, "discover");
 }
 for (const role of roles.filter((role) => role !== "landlord")) {
   assert.equal(
@@ -269,5 +346,5 @@ assert.equal(
 );
 
 console.log(
-  `Application navigation passed: ${roles.length * views.length} role/view routes, every property, owner-scoped Insights return, all service modes, invalid URLs, query limits, defaults and entry-mode preservation.`,
+  `Application navigation passed: ${roles.length * views.length} role/view routes, scoped viewing inbox/return, every property, owner-scoped Insights return, all service modes, invalid URLs, query limits, defaults and entry-mode preservation.`,
 );

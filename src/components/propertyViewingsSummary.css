@@ -1,0 +1,169 @@
+.property-viewings-summary {
+  min-width: 0;
+  padding: 24px;
+  color: var(--ink);
+}
+.property-viewings-summary > header,
+.property-viewings-summary > header > div,
+.property-viewings-summary-subheading {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.property-viewings-summary > header {
+  justify-content: space-between;
+  flex-wrap: wrap;
+  margin-bottom: 18px;
+}
+.property-viewings-summary > header > div {
+  min-width: 0;
+}
+.property-viewings-summary > header h2 {
+  margin: 0;
+  font-size: 18px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+.property-viewings-summary > header .text-button {
+  min-height: 44px;
+  text-align: start;
+}
+.property-viewings-summary svg {
+  flex-shrink: 0;
+}
+.property-viewings-summary-decision {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 48px;
+  padding: 12px 14px;
+  border: 1px solid #d9e2d5;
+  border-radius: 11px;
+  background: #eef3e9;
+  color: var(--green);
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.5;
+  text-align: start;
+  cursor: pointer;
+}
+.property-viewings-summary-decision > span {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.property-viewings-summary-decision:hover {
+  background: #e3eddd;
+}
+.property-viewings-summary-clear {
+  margin: 0;
+  color: #617368;
+  font-size: 13px;
+  line-height: 1.6;
+}
+.property-viewings-summary-subheading {
+  flex-wrap: wrap;
+  justify-content: space-between;
+  margin-top: 22px;
+}
+.property-viewings-summary-subheading h3 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 650;
+  line-height: 1.5;
+}
+.property-viewings-summary-subheading > span {
+  color: #617368;
+  font-size: 11px;
+  line-height: 1.5;
+}
+.property-viewings-summary-list {
+  list-style: none;
+  padding: 0;
+  margin: 8px 0 0;
+}
+.property-viewings-summary-list li + li {
+  border-top: 1px solid var(--line);
+}
+.property-viewings-summary-list button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  min-height: 80px;
+  padding: 15px 8px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: inherit;
+  text-align: start;
+  font: inherit;
+  cursor: pointer;
+}
+.property-viewings-summary-list button:hover {
+  background: #f0f5ed;
+}
+.property-viewings-summary-details {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.property-viewings-summary-details time {
+  color: var(--green);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.5;
+}
+.property-viewings-summary-details strong {
+  font-size: 14px;
+  line-height: 1.45;
+}
+.property-viewings-summary-details > span,
+.property-viewings-summary-details small {
+  color: #617368;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.property-viewings-summary-details small {
+  color: #756231;
+}
+.property-viewings-summary-empty {
+  margin-top: 18px;
+  padding: 18px;
+  border-radius: 12px;
+  background: #f5f4ed;
+}
+.property-viewings-summary-empty p {
+  margin: 0 0 5px;
+  font-size: 14px;
+  line-height: 1.5;
+}
+.property-viewings-summary-empty > span {
+  color: #617368;
+  font-size: 12px;
+  line-height: 1.6;
+}
+.property-viewings-summary button:focus-visible {
+  outline: 3px solid #49785f;
+  outline-offset: 3px;
+}
+@media (max-width: 600px) {
+  .property-viewings-summary {
+    padding: 18px;
+  }
+  .property-viewings-summary > header {
+    gap: 8px;
+  }
+  .property-viewings-summary > header h2 {
+    font-size: 17px;
+  }
+  .property-viewings-summary > header .text-button {
+    margin-inline-start: 33px;
+  }
+  .property-viewings-summary-empty {
+    padding: 14px;
+  }
+}
