@@ -113,16 +113,48 @@ function ApplicationDetail({
             <div>
               <h3>{record.property}</h3>
               <p>
-                {record.status === "Draft" ? "Draft created" : "Submitted"}{" "}
+                {record.submission
+                  ? "Recorded locally"
+                  : record.status === "Draft"
+                    ? "Draft created"
+                    : "Submitted"}{" "}
                 {displayDate(record.submittedAt)}
               </p>
             </div>
             <ApplicationStatus status={record.status} />
           </div>
           <p className="application-local-note">
-            Sample record · Changes stay in this browser session. No documents
-            or notifications are sent.
+            {record.submission ? "Local application" : "Sample record"} ·
+            Changes stay in this browser session. No documents or notifications
+            are sent.
           </p>
+
+          {record.submission && (
+            <section
+              className="application-detail-section"
+              aria-labelledby="application-submission-title"
+            >
+              <h3 id="application-submission-title">Application details</h3>
+              <dl className="application-submission-details">
+                <div>
+                  <dt>Preferred move-in date</dt>
+                  <dd>
+                    {displayDate(`${record.submission.moveInDate}T12:00:00`)}
+                  </dd>
+                </div>
+                <div>
+                  <dt>Number of people</dt>
+                  <dd>{record.submission.householdSize}</dd>
+                </div>
+                <div>
+                  <dt>Introduction</dt>
+                  <dd>
+                    {record.submission.introduction || "Not added (optional)"}
+                  </dd>
+                </div>
+              </dl>
+            </section>
+          )}
 
           <section
             className="application-detail-section"

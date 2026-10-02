@@ -526,15 +526,7 @@ export function readPresentationLocation(search: string) {
   };
 }
 
-export function isPresentationEntry(search: string) {
-  const params = new URLSearchParams(search);
-  return (
-    !params.has("app") &&
-    !params.has("device") &&
-    !params.has("simulator") &&
-    params.get("present") === "1"
-  );
-}
+export { isPresentationEntry } from "../entry";
 
 export function presentationUrl(
   journey?: DemoJourney,

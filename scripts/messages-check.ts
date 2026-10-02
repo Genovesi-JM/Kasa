@@ -3,10 +3,14 @@ import { properties } from "../src/data";
 import {
   appendLocalMessage,
   createInitialMessageState,
+  createInitialWorkspaceMessageState,
   openPropertyConversation,
   unreadMessageCount,
   updateConversation,
+  updateWorkspaceMessageState,
 } from "../src/components/messageState";
+import type { Role } from "../src/types";
+import { matchesSearch } from "../src/search";
 
 const initial = createInitialMessageState();
 assert.equal(
@@ -189,6 +193,196 @@ assert.equal(
   "All changes leave the original seeds untouched",
 );
 
+const workspaces = createInitialWorkspaceMessageState();
+const roles: Role[] = [
+  "tenant",
+  "landlord",
+  "provider",
+  "spaceOperator",
+  "admin",
+];
+const expectedCounterpart: Record<Role, string> = {
+  tenant: "Olivia Martín",
+  landlord: "Inês Duarte",
+  provider: "Olivia Martín",
+  spaceOperator: "Leo Bernard",
+  admin: "Olivia Martín",
+};
+const workspaceIdentity: Record<Role, string[]> = {
+  tenant: ["Inês Duarte"],
+  landlord: ["Olivia Martín"],
+  provider: ["Adrián Ruiz", "Volt & Co."],
+  spaceOperator: ["Olivia Martín", "Poblenou MultiSport Club"],
+  admin: ["Kasa Trust"],
+};
+for (const role of roles) {
+  const inbox = workspaces[role];
+  assert.equal(inbox.role, role);
+  assert.equal(inbox.conversations[0].name, expectedCounterpart[role]);
+  assert.ok(
+    inbox.conversations.every(
+      (conversation) => !workspaceIdentity[role].includes(conversation.name),
+    ),
+    `${role} seed recipients must be counterparts, not the current identity`,
+  );
+  assert.ok(
+    inbox.conversations.every((conversation) =>
+      conversation.id.startsWith(`${role}:`),
+    ),
+  );
+}
+assert.match(
+  workspaces.tenant.conversations[0].messages[0].text,
+  /I made the rent transfer/,
+);
+assert.equal(workspaces.tenant.conversations[0].messages[0].direction, "sent");
+assert.match(
+  workspaces.landlord.conversations[0].messages[1].text,
+  /I made the rent transfer/,
+);
+assert.equal(
+  workspaces.landlord.conversations[0].messages[1].direction,
+  "received",
+);
+assert.ok(
+  workspaces.provider.conversations.some(
+    (conversation) => conversation.category === "Services",
+  ),
+);
+assert.ok(
+  workspaces.spaceOperator.conversations.some(
+    (conversation) => conversation.category === "Spaces",
+  ),
+);
+assert.ok(
+  workspaces.admin.conversations.every(
+    (conversation) => conversation.category === "Platform",
+  ),
+);
+assert.ok(matchesSearch("  ines  ", workspaces.landlord.conversations[0].name));
+assert.ok(
+  matchesSearch(
+    " EIXAMPLE  olivia ",
+    workspaces.tenant.conversations[0].name,
+    workspaces.tenant.conversations[0].property,
+  ),
+);
+
+const tenantId = workspaces.tenant.selectedId;
+const editedWorkspace = updateWorkspaceMessageState(
+  workspaces,
+  "tenant",
+  (inbox) => ({
+    ...updateConversation(inbox, tenantId, (conversation) => ({
+      ...conversation,
+      draft: "Tenant-only draft",
+      blocked: true,
+      unread: 0,
+    })),
+    conversationOpen: true,
+  }),
+);
+assert.equal(
+  editedWorkspace.tenant.conversations[0].draft,
+  "Tenant-only draft",
+);
+assert.equal(editedWorkspace.tenant.conversations[0].blocked, true);
+assert.equal(editedWorkspace.tenant.conversationOpen, true);
+assert.equal(unreadMessageCount(editedWorkspace.tenant), 0);
+assert.equal(unreadMessageCount(editedWorkspace.landlord), 2);
+for (const role of roles.filter((role) => role !== "tenant")) {
+  assert.equal(
+    editedWorkspace[role],
+    workspaces[role],
+    `Updating tenant must not replace ${role} state`,
+  );
+  assert.ok(
+    editedWorkspace[role].conversations.every(
+      (conversation) => conversation.draft === "" && !conversation.blocked,
+    ),
+  );
+}
+const landlordEdited = updateWorkspaceMessageState(
+  editedWorkspace,
+  "landlord",
+  (inbox) =>
+    updateConversation(inbox, inbox.selectedId, (conversation) => ({
+      ...conversation,
+      draft: "Owner-only draft",
+    })),
+);
+assert.equal(
+  landlordEdited.tenant,
+  editedWorkspace.tenant,
+  "Switching and editing another workspace keeps the tenant draft, unread and block state",
+);
+assert.equal(
+  landlordEdited.landlord.conversations[0].draft,
+  "Owner-only draft",
+);
+assert.equal(
+  updateWorkspaceMessageState(
+    landlordEdited,
+    "provider",
+    landlordEdited.tenant,
+  ),
+  landlordEdited,
+  "A setter must not place a differently tagged inbox under another workspace",
+);
+
+const tenantProperty = updateWorkspaceMessageState(
+  landlordEdited,
+  "tenant",
+  (inbox) => openPropertyConversation(inbox, listing),
+);
+const tenantPropertyId = tenantProperty.tenant.selectedId;
+const providerProperty = updateWorkspaceMessageState(
+  tenantProperty,
+  "provider",
+  (inbox) => openPropertyConversation(inbox, listing),
+);
+assert.notEqual(
+  providerProperty.provider.selectedId,
+  tenantPropertyId,
+  "Even the same listing has separate conversation IDs in different workspaces",
+);
+assert.equal(providerProperty.tenant, tenantProperty.tenant);
+assert.equal(
+  providerProperty.provider.conversations.at(-1)?.name,
+  listing.landlord,
+);
+assert.equal(
+  providerProperty.tenant.conversations.at(-1)?.name,
+  listing.landlord,
+);
+assert.equal(providerProperty.provider.conversationOpen, true);
+assert.equal(providerProperty.tenant.conversationOpen, true);
+const tenantReply = updateWorkspaceMessageState(
+  providerProperty,
+  "tenant",
+  (inbox) =>
+    appendLocalMessage(
+      updateConversation(inbox, tenantPropertyId, (conversation) => ({
+        ...conversation,
+        draft: "My property question",
+      })),
+      tenantPropertyId,
+    ),
+);
+assert.equal(tenantReply.tenant.conversations.at(-1)?.messages.length, 1);
+assert.equal(tenantReply.provider.conversations.at(-1)?.messages.length, 0);
+assert.equal(tenantReply.landlord.conversations.length, 3);
+assert.equal(
+  workspaces.tenant.conversations.length,
+  3,
+  "Workspace operations never modify the seed store",
+);
+assert.notEqual(
+  createInitialWorkspaceMessageState().tenant.conversations[0],
+  workspaces.tenant.conversations[0],
+  "A new session receives fresh objects",
+);
+
 console.log(
-  "Messages checks passed: separate transcripts, contextual recipient/listing identity, empty new threads, mobile entry, reuse, retained drafts/messages, unread counts and blocked/blank send guards.",
+  "Messages checks passed: all five workspace counterparts, isolated drafts/unread/block state, contextual recipient/listing identity, empty new threads, mobile entry, reuse, retained messages and blocked/blank send guards.",
 );

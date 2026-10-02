@@ -87,7 +87,31 @@ import {
   type KasaNotification,
 } from "./components/notificationState";
 import { Applications } from "./components/Applications";
-import { createInitialApplicationState } from "./components/applicationState";
+import {
+  createInitialApplicationState,
+  submitRentalApplication,
+  tenantApplicationForProperty,
+  visibleApplicationRecords,
+} from "./components/applicationState";
+import { PropertyRequestActions } from "./components/PropertyRequestDialog";
+import {
+  cancelViewingRequest,
+  createInitialPropertyRequestState,
+  saveViewingRequest,
+  viewingForProperty,
+} from "./components/propertyRequestState";
+import { SaveSearchButton, SavedSearches } from "./components/SavedSearches";
+import {
+  copySavedSearchFilters,
+  type SavedSearchState,
+} from "./components/savedSearchState";
+import {
+  createInitialWorkspaceSavedState,
+  updateWorkspaceFavourites,
+  updateWorkspaceSavedSearches,
+  type FavouriteUpdate,
+  type SavedSearchStateUpdate,
+} from "./components/workspaceSavedState";
 import {
   createInitialDiscoverState,
   resetDiscoverFilters,
@@ -96,9 +120,11 @@ import {
   type DiscoverFilterUpdate,
 } from "./components/discoverState";
 import {
-  createInitialMessageState,
+  createInitialWorkspaceMessageState,
   openPropertyConversation,
   unreadMessageCount,
+  updateWorkspaceMessageState,
+  type MessageStateUpdate,
 } from "./components/messageState";
 import { createInitialSpaceBookingsState } from "./components/spaceBookingsState";
 import { SpaceBookingsView } from "./components/SpaceBookings";
@@ -1817,7 +1843,6 @@ function TenantOverview({
 function Discover({
   favourites,
   toggleFavourite,
-  notify,
   onOpen,
   initialIntent,
   initialQuery = "",
@@ -1825,10 +1850,12 @@ function Discover({
   onQueryChange,
   filters,
   onFiltersChange,
+  savedSearchState,
+  setSavedSearchState,
+  onManageSavedSearches,
 }: {
   favourites: number[];
   toggleFavourite: (id: number) => void;
-  notify: (message: string) => void;
   onOpen: (property: Property) => void;
   initialIntent: "Rent" | "Buy";
   initialQuery?: string;
@@ -1836,6 +1863,9 @@ function Discover({
   onQueryChange?: (query: string) => void;
   filters: DiscoverFilters;
   onFiltersChange: (update: DiscoverFilterUpdate) => void;
+  savedSearchState: SavedSearchState;
+  setSavedSearchState: React.Dispatch<React.SetStateAction<SavedSearchState>>;
+  onManageSavedSearches: () => void;
 }) {
   const { tr } = useKasaI18n();
   const [catalogProperties, setCatalogProperties] = useState(properties);
@@ -2226,12 +2256,13 @@ function Discover({
           </span>
         </div>
         <div className="results-actions">
-          <button
-            className="soft-button"
-            onClick={() => notify(tr("discover.searchSaved"))}
-          >
-            <Bell size={15} /> {tr("discover.saveSearch")}
-          </button>
+          <SaveSearchButton
+            state={savedSearchState}
+            setState={setSavedSearchState}
+            search={{ query, intent, filters }}
+            label={tr("discover.saveSearch")}
+            onManage={onManageSavedSearches}
+          />
           <div className="view-toggle">
             <button
               className={viewMode === "list" ? "active" : ""}
@@ -2387,25 +2418,16 @@ function PropertyDetail({
   onFavourite,
   onBack,
   onMessage,
-  notify,
+  requestControls,
 }: {
   property: Property;
   favourite: boolean;
   onFavourite: () => void;
   onBack: () => void;
   onMessage: () => void;
-  notify: (message: string) => void;
+  requestControls: React.ReactNode;
 }) {
   const { tr } = useKasaI18n();
-  const [flow, setFlow] = useState<"viewing" | "application" | null>(null);
-  const finish = () => {
-    notify(
-      flow === "viewing"
-        ? "Viewing request sent directly to the listing party."
-        : "Application submitted to the listing party for review.",
-    );
-    setFlow(null);
-  };
   return (
     <div className="page-stack property-detail-page">
       <div className="detail-toolbar">
@@ -2542,107 +2564,13 @@ function PropertyDetail({
           <button className="button contact-message" onClick={onMessage}>
             <MessageCircle size={16} /> {tr("discover.startPrivateChat")}
           </button>
-          <ActionButton
-            secondary
-            onClick={() => setFlow("viewing")}
-            icon={CalendarDays}
-          >
-            {tr("discover.requestViewing")}
-          </ActionButton>
-          {property.listingType === "Rent" && (
-            <ActionButton
-              secondary
-              onClick={() => setFlow("application")}
-              icon={FileCheck2}
-            >
-              {tr("discover.applyHome")}
-            </ActionButton>
-          )}
+          {requestControls}
           <div className="direct-note">
             <ShieldCheck size={16} />
             <p>{tr("discover.directContract")}</p>
           </div>
         </aside>
       </div>
-      {flow && (
-        <Modal
-          title={
-            flow === "viewing"
-              ? tr("discover.requestViewing")
-              : "Reusable tenant application"
-          }
-          onClose={() => setFlow(null)}
-        >
-          <div className="modal-body">
-            {flow === "viewing" ? (
-              <>
-                <p>
-                  Choose a preferred time. The listing party can approve or
-                  suggest another time directly.
-                </p>
-                <div className="form-grid">
-                  <label>
-                    Preferred date
-                    <input type="date" defaultValue="2026-08-25" />
-                  </label>
-                  <label>
-                    Preferred time
-                    <select defaultValue="18:00">
-                      <option>10:00</option>
-                      <option>14:00</option>
-                      <option>18:00</option>
-                    </select>
-                  </label>
-                  <label className="full">
-                    Message
-                    <textarea defaultValue="Hi, I would like to view this property. Please confirm whether this time works for you." />
-                  </label>
-                </div>
-              </>
-            ) : (
-              <>
-                <p>
-                  Your verified profile saves time. You choose exactly which
-                  information is shared with this listing party.
-                </p>
-                <div className="application-progress">
-                  <i style={{ width: "84%" }} />
-                  <span>Profile 84% complete</span>
-                </div>
-                <div className="form-grid">
-                  <label>
-                    Move-in date
-                    <input type="date" defaultValue="2026-09-01" />
-                  </label>
-                  <label>
-                    Household
-                    <select>
-                      <option>1 person</option>
-                      <option>2 people</option>
-                      <option>Family</option>
-                    </select>
-                  </label>
-                  <label className="check-label full">
-                    <input type="checkbox" defaultChecked /> Share identity and
-                    income verification records
-                  </label>
-                </div>
-              </>
-            )}
-            <div className="modal-actions">
-              <button
-                className="button button-secondary"
-                onClick={() => setFlow(null)}
-              >
-                Cancel
-              </button>
-              <button className="button" onClick={finish}>
-                {flow === "viewing" ? "Send request" : "Submit application"}
-              </button>
-            </div>
-          </div>
-        </Modal>
-      )}
     </div>
   );
 }
@@ -2651,12 +2579,14 @@ function Saved({
   favourites,
   toggleFavourite,
   onOpen,
-  notify,
+  savedSearches,
+  onDiscover,
 }: {
   favourites: number[];
   toggleFavourite: (id: number) => void;
   onOpen: (property: Property) => void;
-  notify: (message: string) => void;
+  savedSearches: React.ReactNode;
+  onDiscover: () => void;
 }) {
   const [intent, setIntent] = useState("All");
   const [sort, setSort] = useState("Recently saved");
@@ -2677,22 +2607,7 @@ function Saved({
     );
   return (
     <div className="page-stack">
-      <section className="saved-search card padded">
-        <div className="saved-search-icon">
-          <Bell size={22} />
-        </div>
-        <div>
-          <span className="eyebrow">SAVED SEARCH</span>
-          <h2>Barcelona · up to €2,000 · 1+ bedroom</h2>
-          <p>Instant alerts are on · 3 new matches this week</p>
-        </div>
-        <button
-          className="soft-button"
-          onClick={() => notify("Saved-search settings opened.")}
-        >
-          <Settings size={16} /> Edit alert
-        </button>
-      </section>
+      {savedSearches}
       <FilterToolbar
         activeCount={intent === "All" ? 0 : 1}
         onReset={() => {
@@ -2723,9 +2638,7 @@ function Saved({
       <SectionHeading
         title={`${saved.length} saved homes`}
         action="Discover more"
-        onAction={() =>
-          notify("Open Discover from the navigation to see every match.")
-        }
+        onAction={onDiscover}
       />
       {saved.length ? (
         <section className="property-grid">
@@ -7906,14 +7819,43 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
     properties.find((property) => property.id === initialRoute.propertyId) ??
       properties[0],
   );
-  const [favourites, setFavourites] = useState<number[]>([2]);
-  const [messageState, setMessageState] = useState(createInitialMessageState);
+  const [workspaceSaved, setWorkspaceSaved] = useState(
+    createInitialWorkspaceSavedState,
+  );
+  const favourites = workspaceSaved[role].favourites;
+  const setFavourites = useCallback(
+    (update: FavouriteUpdate) => {
+      setWorkspaceSaved((current) =>
+        updateWorkspaceFavourites(current, role, update),
+      );
+    },
+    [role],
+  );
+  const [workspaceMessages, setWorkspaceMessages] = useState(
+    createInitialWorkspaceMessageState,
+  );
+  const messageState = workspaceMessages[role];
+  const setMessageState = useCallback(
+    (update: MessageStateUpdate) => {
+      setWorkspaceMessages((current) =>
+        updateWorkspaceMessageState(current, role, update),
+      );
+    },
+    [role],
+  );
   const messageUnread = unreadMessageCount(messageState);
   const [bookingsState, setBookingsState] = useState(
     createInitialSpaceBookingsState,
   );
   const [applicationState, setApplicationState] = useState(
     createInitialApplicationState,
+  );
+  const applicationCount = visibleApplicationRecords(
+    applicationState,
+    role,
+  ).length;
+  const [propertyRequestState, setPropertyRequestState] = useState(
+    createInitialPropertyRequestState,
   );
   const [notificationState, setNotificationState] = useState(
     createInitialNotificationState,
@@ -7935,11 +7877,27 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
     () => !isDevicePreview && previewParams.get("simulator") === "1",
   );
   const [toast, setToast] = useState("");
+  const toastTimer = useRef<number | null>(null);
+  useEffect(
+    () => () => {
+      if (toastTimer.current !== null) window.clearTimeout(toastTimer.current);
+    },
+    [],
+  );
   const [discoveryIntent, setDiscoveryIntent] = useState<"Rent" | "Buy">(
     initialRoute.intent,
   );
   const [discoverState, setDiscoverState] = useState(
     createInitialDiscoverState,
+  );
+  const savedSearchState = workspaceSaved[role].searches;
+  const setSavedSearchState = useCallback(
+    (update: SavedSearchStateUpdate) => {
+      setWorkspaceSaved((current) =>
+        updateWorkspaceSavedSearches(current, role, update),
+      );
+    },
+    [role],
   );
   const [serviceLaunch, setServiceLaunch] = useState<ServiceLaunchMode>(
     initialRoute.service,
@@ -8343,8 +8301,12 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
       window.removeEventListener("keydown", handleKeyboardNavigation);
   }, [role, go]);
   const notify = (message: string) => {
+    if (toastTimer.current !== null) window.clearTimeout(toastTimer.current);
     setToast(message);
-    window.setTimeout(() => setToast(""), 3200);
+    toastTimer.current = window.setTimeout(() => {
+      setToast("");
+      toastTimer.current = null;
+    }, 3200);
   };
   const openNotification = (notification: KasaNotification) => {
     setNotificationsOpen(false);
@@ -8384,7 +8346,6 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
     setSearchQuery("");
     if (nextDiscoveryIntent) setDiscoveryIntent(nextDiscoveryIntent);
     setShowOnboarding(false);
-    window.sessionStorage.setItem("kasa-demo-entered", "1");
   };
 
   const renderView = () => {
@@ -8427,7 +8388,9 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
           <Discover
             favourites={favourites}
             toggleFavourite={toggleFavourite}
-            notify={notify}
+            savedSearchState={savedSearchState}
+            setSavedSearchState={setSavedSearchState}
+            onManageSavedSearches={() => go("saved")}
             initialIntent={discoveryIntent}
             initialQuery={searchQuery}
             onQueryChange={setSearchQuery}
@@ -8451,7 +8414,26 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
           <Saved
             favourites={favourites}
             toggleFavourite={toggleFavourite}
-            notify={notify}
+            onDiscover={() => go("discover")}
+            savedSearches={
+              <SavedSearches
+                key={role}
+                state={savedSearchState}
+                setState={setSavedSearchState}
+                onDiscover={() => go("discover")}
+                onOpen={(search) => {
+                  setDiscoveryIntent(search.intent);
+                  setDiscoverState((current) =>
+                    updateDiscoverState(
+                      current,
+                      search.intent,
+                      copySavedSearchFilters(search.filters),
+                    ),
+                  );
+                  go("discover", search.query);
+                }}
+              />
+            }
             onOpen={(property) => {
               setSelectedProperty(property);
               setPropertyReturnTo("saved");
@@ -8473,7 +8455,53 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
               );
               go("messages");
             }}
-            notify={notify}
+            requestControls={
+              <PropertyRequestActions
+                property={selectedProperty}
+                role={role}
+                viewing={viewingForProperty(
+                  propertyRequestState,
+                  role,
+                  selectedProperty.id,
+                )}
+                application={tenantApplicationForProperty(
+                  applicationState,
+                  selectedProperty,
+                )}
+                viewingLabel={tr("discover.requestViewing")}
+                applicationLabel={tr("discover.applyHome")}
+                onSaveViewing={(draft) => {
+                  setPropertyRequestState((current) =>
+                    saveViewingRequest(current, role, selectedProperty, draft),
+                  );
+                  notify(
+                    "Viewing request saved in this tab. Nothing was sent or confirmed.",
+                  );
+                }}
+                onCancelViewing={() => {
+                  setPropertyRequestState((current) =>
+                    cancelViewingRequest(current, role, selectedProperty.id),
+                  );
+                  notify(
+                    "Local viewing request cancelled. No one has been contacted.",
+                  );
+                }}
+                onSaveApplication={(draft) => {
+                  setApplicationState((current) =>
+                    submitRentalApplication(
+                      current,
+                      role,
+                      selectedProperty,
+                      draft,
+                    ),
+                  );
+                  notify(
+                    "Application saved in this tab. Open Applications to inspect it; nothing was sent.",
+                  );
+                }}
+                onViewApplications={() => go("applications")}
+              />
+            }
           />
         );
       case "portfolio":
@@ -8778,9 +8806,14 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
                 ? messageUnread > 0
                   ? String(messageUnread)
                   : undefined
-                : role === "tenant" && item.id === "applications"
-                  ? "1"
+                : item.id === "applications"
+                  ? applicationCount > 0
+                    ? String(applicationCount)
+                    : undefined
                   : item.badge;
+            const active =
+              view === item.id ||
+              (view === "property" && item.id === propertyReturnTo);
             return (
               <span className="nav-wrap" key={item.id}>
                 {section !== previousSection && (
@@ -8791,12 +8824,8 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
                   </span>
                 )}
                 <button
-                  className={
-                    view === item.id ||
-                    (view === "property" && item.id === "discover")
-                      ? "active"
-                      : ""
-                  }
+                  className={active ? "active" : ""}
+                  aria-current={active ? "page" : undefined}
                   onClick={() => go(item.id)}
                 >
                   <Icon size={18} />
@@ -8924,6 +8953,7 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
               <button
                 key={item.id}
                 className={active ? "active" : ""}
+                aria-current={active ? "page" : undefined}
                 onClick={() => go(item.id)}
               >
                 <Icon />
@@ -8949,7 +8979,7 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
         />
       )}
       {toast && (
-        <div className="toast">
+        <div className="toast" role="status">
           <CheckCircle2 size={18} />
           {toast}
         </div>

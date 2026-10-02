@@ -2,9 +2,13 @@ import assert from "node:assert/strict";
 import {
   applicationCompleteness,
   createInitialApplicationState,
+  submitRentalApplication,
+  tenantApplicationForProperty,
   updateApplication,
   visibleApplicationRecords,
 } from "../src/components/applicationState";
+import { properties } from "../src/data";
+import type { RentalApplicationDraft } from "../src/components/propertyRequestState";
 
 const initial = createInitialApplicationState();
 const fixedTime = new Date("2026-10-02T12:00:00Z");
@@ -154,6 +158,129 @@ assert.equal(
   "Review",
   "A fresh session has independent sample state",
 );
+const rental = properties.find((property) => property.id === 2)!;
+const submission: RentalApplicationDraft = {
+  moveInDate: "2026-10-20",
+  householdSize: 2,
+  introduction: "  Move-in date is flexible.  ",
+};
+const submitted = submitRentalApplication(
+  initial,
+  "tenant",
+  rental,
+  submission,
+  fixedTime,
+);
+const newRecord = tenantApplicationForProperty(submitted, rental)!;
+assert.equal(submitted.records.length, initial.records.length + 1);
+assert.equal(newRecord.propertyId, rental.id);
+assert.equal(newRecord.tenantId, "tenant-ines");
+assert.equal(newRecord.applicant, "Inês Duarte");
+assert.equal(newRecord.status, "Review");
+assert.equal(
+  newRecord.reviewed,
+  false,
+  "A local submission must not review or approve itself",
+);
+assert.deepEqual(newRecord.submission, {
+  moveInDate: "2026-10-20",
+  householdSize: 2,
+  introduction: "Move-in date is flexible.",
+});
+assert.ok(
+  newRecord.documents.every((document) => document.status === "Missing"),
+  "Creation must not invent supplied or verified documents",
+);
+assert.match(newRecord.activity[0].label, /not sent/);
+assert.ok(
+  visibleApplicationRecords(submitted, "tenant").some(
+    (record) => record.id === newRecord.id,
+  ),
+);
+assert.ok(
+  visibleApplicationRecords(submitted, "landlord").some(
+    (record) => record.id === newRecord.id,
+  ),
+);
+assert.equal(
+  initial.records.length,
+  4,
+  "Submission leaves the previous state unchanged",
+);
+assert.equal(
+  submitRentalApplication(submitted, "tenant", rental, submission, fixedTime),
+  submitted,
+  "The same tenant cannot create duplicate applications for one property",
+);
+assert.equal(
+  submitRentalApplication(
+    submitted,
+    "tenant",
+    { ...rental, title: "Renamed property" },
+    submission,
+    fixedTime,
+  ),
+  submitted,
+  "Duplicate detection uses stable property identity",
+);
+assert.equal(
+  submitRentalApplication(
+    initial,
+    "tenant",
+    properties[0],
+    submission,
+    fixedTime,
+  ),
+  initial,
+  "Existing seed applications are reused, never overwritten",
+);
+for (const role of [
+  "landlord",
+  "provider",
+  "spaceOperator",
+  "admin",
+] as const) {
+  assert.equal(
+    submitRentalApplication(initial, role, rental, submission, fixedTime),
+    initial,
+    "Non-tenants cannot submit as the sample tenant",
+  );
+}
+assert.equal(
+  submitRentalApplication(
+    initial,
+    "tenant",
+    properties.find((property) => property.listingType === "Buy")!,
+    submission,
+    fixedTime,
+  ),
+  initial,
+  "Sale properties do not create rental applications",
+);
+for (const invalid of [
+  { ...submission, moveInDate: "2026-09-01" },
+  { ...submission, moveInDate: "2026-02-30" },
+  { ...submission, householdSize: 0 },
+  { ...submission, householdSize: 1.5 },
+  { ...submission, householdSize: Number.NaN },
+  { ...submission, introduction: "x".repeat(1001) },
+])
+  assert.equal(
+    submitRentalApplication(initial, "tenant", rental, invalid, fixedTime),
+    initial,
+    "Invalid submissions must not create records",
+  );
+assert.equal(
+  submitRentalApplication(
+    initial,
+    "tenant",
+    rental,
+    { ...submission, introduction: "" },
+    fixedTime,
+  ).records.at(-1)?.submission?.introduction,
+  "",
+  "Introduction remains optional",
+);
 console.log(
-  "Application state checks passed: explicit owner actions, tenant visibility, immutable records, document requests and local history.",
+  "Application state checks passed: explicit owner actions, tenant visibility, immutable records, document requests, local history, validated tenant submissions and duplicate prevention.",
 );

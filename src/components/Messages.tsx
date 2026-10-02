@@ -13,13 +13,16 @@ import {
   Search,
   Send,
 } from "lucide-react";
+import { matchesSearch } from "../search";
 import {
   appendLocalMessage,
+  messageWorkspaceLabels,
   updateConversation,
   type ChatConversation,
   type MessageState,
 } from "./messageState";
 import "./messages.css";
+import { useMediaQuery } from "./useMediaQuery";
 
 interface MessagesProps {
   state: MessageState;
@@ -41,7 +44,29 @@ export function Messages({ state, setState, notify }: MessagesProps) {
   const selectedConversation = state.conversations.find(
     (item) => item.id === state.selectedId,
   );
+  const isMobileInbox = useMediaQuery("(max-width: 720px)");
+  const selectedUnread = selectedConversation?.unread ?? 0;
+  useEffect(() => {
+    if (!selectedUnread || (isMobileInbox && !state.conversationOpen)) return;
+    setState((current) =>
+      updateConversation(current, current.selectedId, (conversation) => ({
+        ...conversation,
+        unread: 0,
+      })),
+    );
+  }, [
+    isMobileInbox,
+    state.conversationOpen,
+    state.selectedId,
+    selectedUnread,
+    setState,
+  ]);
   const messageCount = selectedConversation?.messages.length ?? 0;
+  const categories = [
+    ...new Set(
+      state.conversations.map((conversation) => conversation.category),
+    ),
+  ];
   const preview = (conversation: ChatConversation) => {
     if (conversation.draft) return `Draft: ${conversation.draft}`;
     const lastMessage = conversation.messages.at(-1);
@@ -51,18 +76,17 @@ export function Messages({ state, setState, notify }: MessagesProps) {
   };
   const visibleConversations = state.conversations
     .filter((conversation) => {
-      const matchesQuery =
-        `${conversation.name} ${conversation.property} ${conversation.messages.map((message) => message.text).join(" ")}`
-          .toLowerCase()
-          .includes(conversationQuery.trim().toLowerCase());
-      const maintenance = conversation.property.startsWith("Maintenance");
+      const matchesQuery = matchesSearch(
+        conversationQuery,
+        conversation.name,
+        conversation.property,
+        ...conversation.messages.map((message) => message.text),
+      );
       const matchesContext =
         conversationContext === "All conversations" ||
         (conversationContext === "Unread"
           ? conversation.unread > 0
-          : conversationContext === "Maintenance"
-            ? maintenance
-            : !maintenance);
+          : conversation.category === conversationContext);
       return matchesQuery && matchesContext;
     })
     .sort((a, b) =>
@@ -134,8 +158,9 @@ export function Messages({ state, setState, notify }: MessagesProps) {
           >
             <option>All conversations</option>
             <option>Unread</option>
-            <option>Property</option>
-            <option>Maintenance</option>
+            {categories.map((category) => (
+              <option key={category}>{category}</option>
+            ))}
           </select>
           <select
             aria-label="Sort messages"
@@ -244,7 +269,9 @@ export function Messages({ state, setState, notify }: MessagesProps) {
             <div className="chat-privacy-banner" id="message-local-note">
               <LockKeyhole size={16} />
               <span>
-                <strong>Sample conversations · this tab only</strong>
+                <strong>
+                  Sample inbox · {messageWorkspaceLabels[state.role]}
+                </strong>
                 <small>
                   Messages are not delivered to anyone. Your messages and drafts
                   are cleared when you reload this page.

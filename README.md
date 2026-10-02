@@ -8,7 +8,7 @@ Hosted independently on GitHub Pages and accessible to anyone with the link. No 
 
 The optional [guided tour](https://genovesi-jm.github.io/Kasa/?present=1) is available through `?present=1`; its [presentation guide](./docs/PRESENTATION_GUIDE.md) describes scene navigation and resets. `?app=1` also opens the software directly.
 
-The prototype uses synthetic records. Messages, drafts, application updates, notification read state, booking changes and discovery filters stay in the current open tab while navigating. Reloading the app or resetting a tour scene restores sample state; these changes are not shared between tabs or saved to a production database. Messages and requests are not delivered to other people, and sample status changes do not perform real approvals, reservations or payments.
+The prototype uses synthetic records. Messages, drafts, saved searches, viewing requests, application updates, notification read state, booking changes and discovery filters stay in the current open tab while navigating. Inboxes and saved collections are separate for each workspace. Reloading the app or resetting a tour scene restores sample state; these changes are not shared between tabs or saved to a production database. Messages and requests are not delivered to other people, and sample status changes do not perform real approvals, reservations or payments.
 
 Kasa is a non-brokerage property-operations platform for landlords and tenants. It helps people discover homes, manage applications and documents, communicate, reconcile direct rent payments, coordinate maintenance, and find service providers.
 
@@ -57,7 +57,9 @@ The interface includes the product areas below. Connected production authenticat
 
 - Shareable screen/property URLs and browser Back/Forward navigation; scoped search across homes, work, services and spaces.
 - Independent Rent/Buy filters, sort order and map areas retained while navigating; keyboard-accessible property galleries and listing-link sharing.
-- Conversation search, unread state, separate drafts, local message composition and local block/unblock controls.
+- Saved search snapshots with reopening, rename, delete and undo; favourite homes and searches isolated by workspace.
+- Separate workspace inboxes, conversation search, unread state, drafts, local message composition and local block/unblock controls.
+- Viewing requests with validated dates/times, retained notes, editing and cancellation; rental applications that retain form answers and appear in the application list without duplicate submissions.
 - Application details, document summaries, owner-controlled local review/status actions and activity history, with tenant access limited to the tenant's sample records.
 - One notification feed shared by the header and full page, with workspace-specific unread counts, individual/read-all actions and links to relevant screens.
 - Booking filters and details, local acceptance of proposed times, keeping an original request and local cancellation with a reason.

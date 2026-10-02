@@ -27,8 +27,8 @@ export class ErrorBoundary extends Component<Props, State> {
             <span>Kasa</span>
             <h1>We could not load this screen</h1>
             <p>
-              Refresh the app to try again. Your submitted records are not
-              changed.
+              Refresh the app to try again. This sample workspace will reset;
+              messages, drafts and changes in this tab will be cleared.
             </p>
             <button onClick={() => window.location.reload()}>
               Refresh Kasa

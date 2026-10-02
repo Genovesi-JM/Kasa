@@ -25,11 +25,12 @@ Screen/property links preserve the GitHub Pages path and support browser Back/Fo
 
 The following frontend workflows update shared state in the current open tab:
 
-- Messages: conversation search, unread state, separate drafts, local composition and block/unblock controls. Composed messages are not delivered.
-- Applications: record details, sample document summaries, owner-controlled local review/status changes and activity history. Tenants see only their sample records; no real approval or document request is issued.
+- Messages: separate inboxes for all five workspaces, matching contacts, conversation search, unread state, drafts, local composition and block/unblock controls. Composed messages are not delivered.
+- Saved searches and homes: separate collections per workspace, exact search/filter snapshots, reopening, rename, delete and undo. Saved searches do not generate notifications.
+- Applications: validated rental submissions retain move-in date, household size and introduction, prevent duplicate tenant/property records and appear in the Applications list. Record details, document summaries, explicit owner review/status changes and activity history remain local. Tenants see only their own records; no real approval or document request is issued.
 - Notifications: header and full-page feed share per-workspace unread counts. Individual/read-all actions update both surfaces; opening an update marks it read and opens the relevant screen.
 - Bookings: status filters, details, local acceptance of proposed times, keeping the original request and local cancellation reasons. No venue is contacted, reservation made or refund processed.
-- Property details: accessible gallery navigation and shareable listing links.
+- Property details: accessible galleries and shareable links; validated viewing requests retain the entered date, time and note, support editing/cancellation, and remain visible when revisiting the property.
 
 These changes survive navigation within that app instance. Reloading or closing the tab, or resetting a presentation scene, restores sample data; separate tabs do not share the changes. No production database or authenticated account owns these records.
 
@@ -76,6 +77,6 @@ Run the frontend state checks directly:
 npm run test:ui-state
 ```
 
-They cover URL routing and validation, scoped search, message state, application transitions, notification counts and workspace isolation, booking changes, and independent Rent/Buy discovery filters. These checks validate local behaviour, not production delivery or payment integrations.
+They cover URL routing and validation, scoped search, workspace-isolated messages and saved collections, application submissions/transitions, viewing dates and edits, notification counts, booking changes, independent Rent/Buy discovery filters, and unavailable browser preference storage. These checks validate local behaviour, not production delivery or payment integrations.
 
 The product boundaries remain locked: Kasa is non-brokerage, does not represent or negotiate for property parties, does not hold rent or deposits, does not enable overnight accommodation in Kasa Spaces, and does not provide mortgage advice or intermediation.

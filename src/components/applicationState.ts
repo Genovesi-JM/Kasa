@@ -1,5 +1,11 @@
-import { applications } from "../data";
-import type { Application, Role } from "../types";
+import { applications, properties } from "../data";
+import type { Application, Property, Role } from "../types";
+import {
+  validateRentalApplication,
+  type RentalApplicationDraft,
+} from "./propertyRequestState";
+
+const tenantIdentity = { id: "tenant-ines", name: "Inês Duarte", avatar: "ID" };
 
 export interface ApplicationDocument {
   id: string;
@@ -12,6 +18,9 @@ export interface ApplicationRecord extends Omit<
   Application,
   "score" | "submitted"
 > {
+  propertyId?: number;
+  tenantId?: string;
+  submission?: RentalApplicationDraft;
   submittedAt: string;
   profileFields: Array<{ label: string; present: boolean }>;
   documents: ApplicationDocument[];
@@ -41,6 +50,13 @@ export function createInitialApplicationState(): ApplicationState {
       id: application.id,
       applicant: application.applicant,
       property: application.property,
+      propertyId: properties.find(
+        (property) => property.title === application.property,
+      )?.id,
+      tenantId:
+        application.applicant === tenantIdentity.name
+          ? tenantIdentity.id
+          : undefined,
       status: application.status,
       avatar: application.avatar,
       submittedAt: dates[index],
@@ -121,8 +137,100 @@ export function visibleApplicationRecords(
 ): ApplicationRecord[] {
   if (role === "landlord") return state.records;
   if (role === "tenant")
-    return state.records.filter((record) => record.applicant === "Inês Duarte");
+    return state.records.filter(
+      (record) =>
+        record.tenantId === tenantIdentity.id ||
+        record.applicant === tenantIdentity.name,
+    );
   return [];
+}
+
+export function tenantApplicationForProperty(
+  state: ApplicationState,
+  property: Pick<Property, "id" | "title">,
+) {
+  return state.records.find(
+    (record) =>
+      (record.tenantId === tenantIdentity.id ||
+        record.applicant === tenantIdentity.name) &&
+      (record.propertyId === property.id ||
+        (!record.propertyId && record.property === property.title)),
+  );
+}
+
+/** Record a tenant's local request; it does not deliver or approve an application. */
+export function submitRentalApplication(
+  state: ApplicationState,
+  role: Role,
+  property: Pick<Property, "id" | "title" | "listingType">,
+  draft: RentalApplicationDraft,
+  now = new Date(),
+): ApplicationState {
+  if (
+    role !== "tenant" ||
+    property.listingType !== "Rent" ||
+    Object.keys(validateRentalApplication(draft, now)).length
+  )
+    return state;
+  if (tenantApplicationForProperty(state, property)) return state;
+  const id = Math.max(0, ...state.records.map((record) => record.id)) + 1;
+  const introduction = draft.introduction.trim();
+  const record: ApplicationRecord = {
+    id,
+    tenantId: tenantIdentity.id,
+    applicant: tenantIdentity.name,
+    avatar: tenantIdentity.avatar,
+    propertyId: property.id,
+    property: property.title,
+    status: "Review",
+    submittedAt: now.toISOString(),
+    submission: {
+      moveInDate: draft.moveInDate,
+      householdSize: draft.householdSize,
+      introduction,
+    },
+    profileFields: [
+      { label: "Preferred move-in date", present: true },
+      { label: "Household size", present: true },
+      ...(introduction
+        ? [{ label: "Applicant introduction", present: true }]
+        : []),
+    ],
+    documents: [
+      {
+        id: "identity",
+        name: "Identity document",
+        status: "Missing",
+        summary:
+          "No identity file was collected or verified by this local application.",
+      },
+      {
+        id: "income",
+        name: "Proof of income",
+        status: "Missing",
+        summary:
+          "No financial details or files were collected by this local application.",
+      },
+      {
+        id: "reference",
+        name: "Rental reference",
+        status: "Missing",
+        summary:
+          "No reference was provided or contacted by this local application.",
+      },
+    ],
+    reviewed: false,
+    documentRequest: "",
+    activity: [
+      {
+        id: `local-submission-${id}`,
+        label:
+          "Rental application saved in this tab; not sent to the listing party",
+        at: now.toISOString(),
+      },
+    ],
+  };
+  return { ...state, records: [...state.records, record] };
 }
 
 /** Local workspace state only. Each transition requires an explicit owner action. */

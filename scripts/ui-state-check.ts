@@ -5,5 +5,9 @@ import "./application-state-check";
 import "./notification-check";
 import "./bookings-check";
 import "./discover-state-check";
+import "./preferences-check";
+import "./saved-search-state-check";
+import "./workspace-saved-state-check";
+import "./property-request-check";
 
 console.log("Kasa UI state checks passed.");
