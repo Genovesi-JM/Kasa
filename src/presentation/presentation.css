@@ -1,0 +1,724 @@
+.presentation button,
+.presentation a {
+  touch-action: manipulation;
+}
+.presentation-toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 35;
+  color: #153a33;
+  background: #fcfbf7;
+  border-bottom: 1px solid #dce3dc;
+}
+.presentation-topline {
+  min-height: 66px;
+  padding: 12px clamp(16px, 3vw, 48px);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.presentation-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 0;
+  padding: 0;
+  background: none;
+  font-size: 24px;
+  font-weight: 750;
+  cursor: pointer;
+}
+.presentation-brand > span {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  background: #e7b94f;
+  border-radius: 10px 10px 10px 3px;
+}
+.presentation-brand small {
+  margin-inline-start: 8px;
+  font-size: 12px;
+  letter-spacing: 0.12em;
+  font-weight: 600;
+  color: #68796f;
+}
+.presentation-tools {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.presentation-tools button,
+.presentation-tools a,
+.presentation-step-controls button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 40px;
+  padding: 9px 11px;
+  border: 1px solid #dce3dc;
+  border-radius: 9px;
+  background: transparent;
+  color: #153a33;
+  text-decoration: none;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.presentation-tools button:hover,
+.presentation-tools a:hover {
+  background: #e2eee7;
+}
+.presentation-hub {
+  max-width: 1440px;
+  padding: 34px clamp(18px, 4vw, 60px) 0;
+  margin: 0 auto;
+}
+.presentation-intro {
+  display: grid;
+  grid-template-columns: 1fr 280px;
+  gap: 48px;
+  align-items: center;
+  padding: clamp(25px, 4vw, 50px);
+  border-radius: 20px;
+  background: #173f37;
+  color: #fcfbf7;
+}
+.presentation-eyebrow {
+  margin: 0 0 12px;
+  font-size: 12px;
+  font-weight: 750;
+  letter-spacing: 0.13em;
+}
+.presentation-intro .presentation-eyebrow {
+  color: #e7b94f;
+}
+.presentation-intro h1 {
+  margin: 0 0 18px;
+  font-size: clamp(34px, 4.4vw, 58px);
+  line-height: 1.05;
+  letter-spacing: -0.045em;
+  color: #fcfbf7;
+}
+.presentation-intro p:not(.presentation-eyebrow) {
+  max-width: 580px;
+  font-size: 17px;
+  line-height: 1.6;
+  color: #d7e5db;
+  margin: 0 0 24px;
+}
+.presentation-start {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 14px;
+}
+.presentation-start > span {
+  font-size: 13px;
+  color: #d7e5db;
+}
+.presentation-primary,
+.presentation-secondary {
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  gap: 10px;
+  min-height: 46px;
+  padding: 13px 19px;
+  border-radius: 10px;
+  border: 1px solid #173f37;
+  background: #173f37;
+  color: #fff;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.presentation-intro .presentation-primary {
+  background: #e7b94f;
+  border-color: #e7b94f;
+  color: #153a33;
+}
+.presentation-secondary {
+  background: transparent;
+  color: #153a33;
+  border-color: #cad5cb;
+}
+.presentation-overview {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 22px;
+  border-inline-start: 1px solid #ffffff30;
+  padding-inline-start: 28px;
+}
+.presentation-overview > div {
+  display: grid;
+  gap: 4px;
+}
+.presentation-overview strong {
+  font-size: 38px;
+  font-weight: 650;
+  line-height: 1.1;
+  color: #e7b94f;
+}
+.presentation-overview span {
+  font-size: 13px;
+  color: #d7e5db;
+}
+.presentation-overview p {
+  grid-column: 1 / -1;
+  font-size: 15px !important;
+  margin: 0 !important;
+}
+.presentation-overview .presentation-sample {
+  grid-column: 1 / -1;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.presentation-navigation {
+  padding-top: 44px;
+}
+.presentation-section-heading {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 20px;
+}
+.presentation-section-heading .presentation-eyebrow {
+  color: #64786c;
+}
+.presentation-section-heading h2,
+.presentation-readiness h2 {
+  font-size: 30px;
+  margin: 0;
+  line-height: 1.2;
+}
+.presentation-search {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid #ced9ce;
+  background: #fcfbf7;
+  border-radius: 10px;
+  padding: 0 13px;
+  min-width: 295px;
+}
+.presentation-search input {
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  background: none;
+  height: 46px;
+  font-size: 14px;
+  color: #153a33;
+}
+.presentation-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 24px;
+}
+.presentation-filters button {
+  border: 1px solid #ced9ce;
+  background: #fcfbf7;
+  padding: 10px 16px;
+  border-radius: 24px;
+  font-size: 14px;
+  cursor: pointer;
+}
+.presentation-filters button[aria-pressed="true"] {
+  background: #173f37;
+  color: #fff;
+  border-color: #173f37;
+}
+.presentation-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 18px;
+  align-items: start;
+}
+.presentation-card {
+  padding: 24px;
+  background: #fcfbf7;
+  border: 1px solid #d7dfd5;
+  border-radius: 16px;
+}
+.presentation-card-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+.presentation-card-icon {
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  border-radius: 13px;
+  background: #e2eee7;
+}
+.presentation-card-heading > span:last-child {
+  font-size: 12px;
+  color: #68796f;
+}
+.presentation-card h3 {
+  font-size: 22px;
+  margin-bottom: 10px;
+  line-height: 1.2;
+}
+.presentation-card > p {
+  font-size: 15px;
+  line-height: 1.6;
+  color: #64756c;
+  margin-bottom: 16px;
+  min-height: 72px;
+}
+.presentation-phase {
+  display: inline-block;
+  margin-bottom: 15px;
+  color: #785615;
+  background: #f5ead5;
+  padding: 5px 8px;
+  font-size: 12px;
+  border-radius: 5px;
+}
+.presentation-card-start {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  padding: 13px 0;
+  border: 0;
+  border-top: 1px solid #dce3dc;
+  background: none;
+  font-size: 14px;
+  font-weight: 700;
+  text-align: start;
+  cursor: pointer;
+}
+.presentation-card-start span {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #68796f;
+  font-weight: 400;
+  font-size: 13px;
+  white-space: nowrap;
+}
+.presentation-card summary {
+  padding: 9px 0;
+  cursor: pointer;
+  font-size: 13px;
+  color: #68796f;
+}
+.presentation-card ol {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+}
+.presentation-card li button {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  text-align: start;
+  padding: 12px 8px;
+  border: 0;
+  border-bottom: 1px solid #e9ece6;
+  background: transparent;
+  font-size: 14px;
+  cursor: pointer;
+}
+.presentation-card li button:hover {
+  background: #e2eee7;
+}
+.presentation-card li svg {
+  flex-shrink: 0;
+}
+.presentation-readiness {
+  display: grid;
+  grid-template-columns: 1fr 1.2fr;
+  gap: 55px;
+  margin-top: 48px;
+  padding: 34px;
+  border: 1px solid #cad7cc;
+  border-radius: 16px;
+  background: #e7eee7;
+}
+.presentation-readiness p {
+  color: #617268;
+  font-size: 15px;
+  line-height: 1.6;
+  margin: 16px 0 0;
+}
+.presentation-readiness .presentation-eyebrow {
+  margin-top: 0;
+  font-size: 12px;
+}
+.presentation-readiness ul {
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 22px;
+  list-style: none;
+}
+.presentation-readiness li {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  font-size: 14px;
+  line-height: 1.5;
+  color: #5e7065;
+}
+.presentation-readiness svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+.presentation-readiness strong {
+  display: block;
+  margin-bottom: 4px;
+  color: #153a33;
+}
+.presentation-footer {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 12px 30px;
+  padding: 25px 0 35px;
+  color: #63776a;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.presentation-footer a {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #153a33;
+}
+.presentation-scene-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 12px clamp(16px, 3vw, 48px);
+  border-top: 1px solid #e5e9e0;
+}
+.presentation-scene-title {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  min-width: 0;
+}
+.presentation-count {
+  font-size: 20px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.presentation-count span {
+  font-size: 13px;
+  font-weight: 400;
+  color: #6c7d70;
+}
+.presentation-scene-title small {
+  font-size: 12px;
+  color: #66796c;
+}
+.presentation-scene-title h1 {
+  margin: 3px 0 0;
+  font-size: 20px;
+  line-height: 1.2;
+}
+.presentation-step-controls {
+  display: flex;
+  gap: 7px;
+  flex-shrink: 0;
+}
+.presentation-step-controls button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.presentation-step-controls .presentation-next {
+  background: #173f37;
+  color: white;
+  border-color: #173f37;
+}
+.presentation-guide {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 25px;
+  padding: 0 clamp(16px, 3vw, 48px) 13px;
+}
+.presentation-guide p {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.5;
+}
+.presentation-guide p strong {
+  margin-inline-end: 12px;
+}
+.presentation-guide > span {
+  font-size: 12px;
+  line-height: 1.5;
+  color: #64776a;
+  text-align: end;
+  min-width: 190px;
+}
+.presentation-progress {
+  height: 3px;
+  background: #e1e8de;
+}
+.presentation-progress span {
+  display: block;
+  height: 100%;
+  background: #b68b27;
+  transition: width 0.2s ease;
+}
+.presentation-stage .sidebar {
+  top: var(--presentation-height);
+}
+.presentation-stage .topbar {
+  top: var(--presentation-height);
+}
+.presentation-stage .app-shell,
+.presentation-stage .main-area {
+  min-height: calc(100dvh - var(--presentation-height));
+}
+.presentation-stage .sidebar-scrim {
+  top: var(--presentation-height);
+}
+.presentation-copy-status {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 24px;
+  background: #e2eee7;
+  color: #173f37;
+  font-size: 14px;
+}
+.presentation-copy-status button {
+  border: 0;
+  background: none;
+  font-size: 20px;
+  cursor: pointer;
+}
+.presentation-share-input {
+  width: 100%;
+  padding: 10px 20px;
+  border: 1px solid #cad7cc;
+  font-size: 14px;
+}
+.presentation-complete {
+  max-width: 740px;
+  margin: 0 auto;
+  padding: 70px 24px;
+  text-align: center;
+}
+.presentation-complete-icon {
+  display: grid;
+  place-items: center;
+  width: 64px;
+  height: 64px;
+  margin: 0 auto 24px;
+  border-radius: 50%;
+  background: #e2eee7;
+}
+.presentation-complete h1 {
+  font-size: clamp(30px, 4vw, 45px);
+  line-height: 1.1;
+}
+.presentation-complete > p:not(.presentation-eyebrow) {
+  font-size: 17px;
+  line-height: 1.6;
+  color: #647568;
+}
+.presentation-complete-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 12px;
+  margin: 28px 0;
+}
+.presentation-scope-note {
+  border-top: 1px solid #cad7cc;
+  padding-top: 25px;
+  margin-top: 40px;
+  font-size: 14px;
+  line-height: 1.6;
+  color: #647568;
+}
+.presentation-scope-note strong {
+  color: #173f37;
+}
+.presentation-scope-note p {
+  margin-top: 8px;
+}
+.presentation-empty {
+  text-align: center;
+  padding: 40px 20px;
+  border: 1px dashed #b8c9bd;
+  border-radius: 16px;
+}
+.presentation-empty svg {
+  margin-bottom: 12px;
+}
+.presentation-empty p {
+  color: #647568;
+}
+@media (max-width: 1100px) {
+  .presentation-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .presentation-intro {
+    gap: 30px;
+    grid-template-columns: 1fr 225px;
+  }
+  .presentation-overview {
+    padding-inline-start: 24px;
+    gap: 18px;
+  }
+}
+@media (max-width: 720px) {
+  .presentation-topline {
+    min-height: 58px;
+    padding: 9px 14px;
+    gap: 8px;
+  }
+  .presentation-brand {
+    font-size: 21px;
+    gap: 7px;
+  }
+  .presentation-brand small {
+    display: none;
+  }
+  .presentation-tools {
+    gap: 5px;
+  }
+  .presentation-tools button,
+  .presentation-tools a {
+    padding: 10px;
+    min-height: 40px;
+  }
+  .presentation-tools button span,
+  .presentation-active .presentation-tools a span {
+    display: none;
+  }
+  .presentation-hub {
+    padding-top: 18px;
+  }
+  .presentation-intro {
+    grid-template-columns: 1fr;
+    gap: 26px;
+    padding: 28px 22px;
+  }
+  .presentation-intro h1 {
+    font-size: 39px;
+  }
+  .presentation-overview {
+    grid-template-columns: 1fr 1fr;
+    border-inline-start: 0;
+    border-top: 1px solid #ffffff30;
+    padding: 22px 0 0;
+    gap: 14px;
+  }
+  .presentation-overview strong {
+    font-size: 29px;
+  }
+  .presentation-overview p {
+    display: none;
+  }
+  .presentation-overview .presentation-sample {
+    margin-top: 2px;
+  }
+  .presentation-start {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .presentation-start .presentation-primary {
+    width: 100%;
+  }
+  .presentation-section-heading {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 16px;
+  }
+  .presentation-section-heading h2 {
+    font-size: 28px;
+  }
+  .presentation-search {
+    min-width: 0;
+  }
+  .presentation-search input {
+    font-size: 16px;
+  }
+  .presentation-grid {
+    grid-template-columns: 1fr;
+  }
+  .presentation-card > p {
+    min-height: 0;
+    font-size: 16px;
+  }
+  .presentation-filters {
+    gap: 6px;
+  }
+  .presentation-filters button {
+    padding: 9px 12px;
+  }
+  .presentation-readiness {
+    grid-template-columns: 1fr;
+    gap: 25px;
+    padding: 24px;
+  }
+  .presentation-readiness h2 {
+    font-size: 26px;
+  }
+  .presentation-scene-bar {
+    padding: 10px 14px;
+    gap: 10px;
+  }
+  .presentation-scene-title {
+    gap: 9px;
+  }
+  .presentation-scene-title h1 {
+    font-size: 16px;
+  }
+  .presentation-scene-title small {
+    display: none;
+  }
+  .presentation-count {
+    font-size: 17px;
+  }
+  .presentation-count span {
+    font-size: 12px;
+  }
+  .presentation-step-controls {
+    gap: 5px;
+  }
+  .presentation-step-controls button {
+    padding: 9px;
+  }
+  .presentation-guide {
+    display: block;
+    padding: 0 14px 10px;
+  }
+  .presentation-guide p {
+    font-size: 13px;
+    line-height: 1.4;
+  }
+  .presentation-guide > span {
+    display: block;
+    margin-top: 6px;
+    text-align: start;
+    font-size: 12px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .presentation-progress span {
+    transition: none;
+  }
+}

@@ -1,5 +1,6 @@
 import i18n from "i18next";
 import { initReactI18next } from "react-i18next";
+import { isPresentationEntry } from "./presentation/journeys";
 
 export type LanguageCode = "pt" | "en" | "es" | "fr" | "ar" | "zh";
 
@@ -3567,8 +3568,11 @@ const zhComplete = merge(zh, {
   },
 });
 
-const savedLanguage =
-  typeof window === "undefined"
+const presentationEntry =
+  typeof window !== "undefined" && isPresentationEntry(window.location.search);
+const savedLanguage = presentationEntry
+  ? "en"
+  : typeof window === "undefined"
     ? "pt"
     : window.localStorage.getItem("kasa-language");
 const initialLanguage = languages.some(({ code }) => code === savedLanguage)

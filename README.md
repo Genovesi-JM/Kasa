@@ -1,5 +1,13 @@
 # Kasa
 
+## Interactive presentation prototype
+
+**[Open the Kasa prototype](https://kasa-mobile-preview.genovesy12.chatgpt.site/?present=1)** · **[Presentation guide](./docs/PRESENTATION_GUIDE.md)**
+
+Start the product tour or use the searchable navigator to explore every product area. Jump directly into personal, property-owner, service-provider, venue-operator and platform workspaces. Prepared scenes include guidance, shareable links and a reset control, with no account setup required. The prototype uses synthetic data and clearly separates interactive demos from production integrations and Phase 2 concepts.
+
+The presentation opens in English and supports phones, tablets and desktop screens. The original app experience remains available at `?app=1`.
+
 Kasa is a non-brokerage property-operations platform for landlords and tenants. It helps people discover homes, manage applications and documents, communicate, reconcile direct rent payments, coordinate maintenance, and find service providers.
 
 Kasa does **not** negotiate leases, represent either party, earn transaction commissions, hold deposits or rent, or operate properties under a management mandate.

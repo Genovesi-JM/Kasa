@@ -85,6 +85,7 @@ import type {
   View,
 } from "./types";
 import { appConfig } from "./platform/config";
+import type { DemoTarget } from "./presentation/journeys";
 import {
   getApiHealth,
   getCountryConfig,
@@ -8434,12 +8435,12 @@ function Plan({ notify }: { notify: (message: string) => void }) {
   );
 }
 
-function App() {
+function App({ demoTarget }: { demoTarget?: DemoTarget }) {
   const { tr } = useKasaI18n();
   const previewParams = new URLSearchParams(window.location.search);
   const previewDevice = previewParams.get("device");
-  const requestedRole = previewParams.get("role") as Role;
-  const requestedView = previewParams.get("view") as View;
+  const requestedRole = demoTarget?.role ?? (previewParams.get("role") as Role);
+  const requestedView = demoTarget?.view ?? (previewParams.get("view") as View);
   const isDevicePreview =
     previewDevice === "ios" || previewDevice === "android";
   const [role, setRole] = useState<Role>(
@@ -8448,14 +8449,17 @@ function App() {
   const [view, setView] = useState<View>(
     viewValues.includes(requestedView) ? requestedView : "overview",
   );
-  const [showOnboarding, setShowOnboarding] = useState(
-    () =>
-      !isDevicePreview &&
-      previewParams.get("simulator") !== "1" &&
-      window.sessionStorage.getItem("kasa-demo-entered") !== "1",
+  const [showOnboarding, setShowOnboarding] = useState(() =>
+    demoTarget
+      ? Boolean(demoTarget.welcome)
+      : !isDevicePreview &&
+        previewParams.get("simulator") !== "1" &&
+        window.sessionStorage.getItem("kasa-demo-entered") !== "1",
   );
   const [selectedProperty, setSelectedProperty] = useState<Property>(
-    properties[0],
+    properties.find(
+      (property) => property.listingType === demoTarget?.intent,
+    ) ?? properties[0],
   );
   const [favourites, setFavourites] = useState<number[]>([2]);
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -8466,12 +8470,15 @@ function App() {
   );
   const [toast, setToast] = useState("");
   const [discoveryIntent, setDiscoveryIntent] = useState<"Rent" | "Buy">(
-    "Rent",
+    demoTarget?.intent ?? "Rent",
   );
-  const [serviceLaunch, setServiceLaunch] =
-    useState<ServiceLaunchMode>("discover");
+  const [serviceLaunch, setServiceLaunch] = useState<ServiceLaunchMode>(
+    demoTarget?.service ?? "discover",
+  );
   const [serviceArea, setServiceArea] = useState<"discover" | "tasks" | "work">(
-    "discover",
+    demoTarget?.service === "jobs" || demoTarget?.service === "hire"
+      ? "work"
+      : (demoTarget?.service ?? "discover"),
   );
 
   const visibleNav = useMemo(
