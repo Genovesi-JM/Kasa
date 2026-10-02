@@ -19,7 +19,7 @@ The public [GitHub Pages URL](https://genovesi-jm.github.io/Kasa/) opens the sof
 | Portuguese-first localisation                | Portuguese, English, Spanish, French, Arabic RTL and Simplified Chinese                   |
 | Safe fallback catalogue                      | The UI falls back to typed demo data if the local API is unavailable                      |
 
-Screen/property links preserve the GitHub Pages path and support browser Back/Forward navigation. Scoped search filters the home, service and Spaces catalogues and the current open Work opportunities, including posts published locally in this tab. Rent and Buy retain separate discovery filters, map areas and sort choices while navigating.
+Screen/property links preserve the GitHub Pages path and support browser Back/Forward navigation. Scoped search filters the home, service and Spaces catalogues and the current open Work opportunities, including posts published locally in this tab. Rent and Buy retain separate discovery filters, map areas and sort choices while navigating. Spaces discovery retains its own filters, category, query, sort and drawn map area per workspace. Catalogue venue/unit links preserve the Pages path and support direct entry, sharing and browser Back/Forward; invalid venues return to discovery. New global searches clear conflicting filters, and category changes remove options that no longer apply.
 
 ## Working as an interactive demo
 
@@ -90,7 +90,7 @@ Run the frontend state checks directly:
 npm run test:ui-state
 ```
 
-They cover URL routing and validation, scoped search, workspace-isolated messages, saved collections and documents, application submissions/transitions, viewing drafts, ownership, proposal decisions, agreed appointments and history, Work post review/publication, application snapshots, withdrawal and business scope, maintenance ownership, visit no-ops and status changes, service request/quote revisions and explicit decisions, rent validation/review and CSV escaping, live property summaries and date rollover, document translation coverage, notification counts, booking changes, operator venue draft validation/readiness, unit and photo integrity, independent Rent/Buy discovery filters, and unavailable browser preference storage. These checks validate local behaviour, not production delivery or payment integrations.
+They cover URL routing and validation, scoped search, workspace-isolated messages, saved collections and documents, application submissions/transitions, viewing drafts, ownership, proposal decisions, agreed appointments and history, Work post review/publication, application snapshots, withdrawal and business scope, maintenance ownership, visit no-ops and status changes, service request/quote revisions and explicit decisions, rent validation/review and CSV escaping, live property summaries and date rollover, document translation coverage, notification counts, booking changes, operator venue draft validation/readiness, unit and photo integrity, venue/unit URLs, retained workspace-scoped Spaces filters and category normalization, independent Rent/Buy discovery filters, and unavailable browser preference storage. These checks validate local behaviour, not production delivery or payment integrations.
 
 The Pages staging check preserves prior content-hashed screens, rejects changed bytes under an existing asset name and validates the destination checkout and entry references before replacing the public index.
 

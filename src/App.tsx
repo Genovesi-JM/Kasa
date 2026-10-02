@@ -87,6 +87,18 @@ import { propertyOperationStatus } from "./components/propertyOperationStatus";
 import type { PortfolioFilters } from "./components/PropertyPortfolio";
 import { createInitialPropertyListingState } from "./components/propertyListingState";
 import { createInitialSpaceListingState } from "./components/spaceListingState";
+import { SpaceVenueShareButton } from "./components/SpaceVenueShareButton";
+import {
+  createInitialSpacesDiscoveryState,
+  spacesDiscoveryFilters,
+  updateSpacesDiscovery,
+  resetSpacesDiscoveryFilters,
+  startSpacesDiscoverySearch,
+  spacesDiscoveryActivityOptions,
+  spacesDiscoveryAmenityOptions,
+  spacesDiscoveryPriceOptions,
+  type SpacesDiscoveryFilters,
+} from "./components/spacesDiscoveryState";
 import {
   createInitialServiceRequestState,
   visibleServiceRequests,
@@ -165,7 +177,7 @@ import {
   MortgageEstimator,
 } from "./components/MortgageEstimator";
 import { isPointInsideZone, type ZonePoint } from "./components/mapGeometry";
-import type { Property, Role, SpaceUnit, SpaceVenue, View } from "./types";
+import type { Property, Role, SpaceVenue, View } from "./types";
 import { appConfig } from "./platform/config";
 import type { DemoTarget } from "./presentation/journeys";
 import {
@@ -3262,8 +3274,14 @@ function SpacesMarketplace({
   setBookingsState,
   onGoBookings,
   onListSpace,
-  initialQuery = "",
-  onQueryChange,
+  filters,
+  onFiltersChange,
+  onResetFilters,
+  venueId,
+  spaceId,
+  onOpenVenue,
+  onBrowse,
+  onSelectSpace,
 }: {
   role: Role;
   bookingsState: SpaceBookingsState;
@@ -3272,8 +3290,16 @@ function SpacesMarketplace({
   setBookingsState: React.Dispatch<React.SetStateAction<SpaceBookingsState>>;
   onGoBookings: () => void;
   onListSpace: () => void;
-  initialQuery?: string;
-  onQueryChange?: (query: string) => void;
+  filters: SpacesDiscoveryFilters;
+  onFiltersChange: (
+    update: Parameters<typeof updateSpacesDiscovery>[2],
+  ) => void;
+  onResetFilters: () => void;
+  venueId: number | null;
+  spaceId: number | null;
+  onOpenVenue: (venue: SpaceVenue) => void;
+  onBrowse: () => void;
+  onSelectSpace: (spaceId: number) => void;
 }) {
   const { tr, language } = useKasaI18n();
   const copy = (en: string, pt: string) =>
@@ -3281,24 +3307,67 @@ function SpacesMarketplace({
   const canRequest = role === "tenant" || role === "landlord";
   const [requestOpen, setRequestOpen] = useState(false);
   const [catalogVenues, setCatalogVenues] = useState(spaceVenues);
-  type SpaceStage = "browse" | "venue";
-  const [stage, setStage] = useState<SpaceStage>("browse");
-  const [category, setCategory] = useState(initialQuery ? "All" : "Sports");
-  const [query, setQuery] = useState(initialQuery);
-  useEffect(() => onQueryChange?.(query), [query, onQueryChange]);
-  const [sort, setSort] = useState("Recommended");
-  const [savedOnly, setSavedOnly] = useState(false);
-  const [mapView, setMapView] = useState(false);
-  const [activity, setActivity] = useState("Any activity");
-  const [availableToday, setAvailableToday] = useState(false);
-  const [bookingMode, setBookingMode] = useState("Any booking mode");
-  const [capacity, setCapacity] = useState("Any capacity");
-  const [spaceMaxPrice, setSpaceMaxPrice] = useState("Any price");
-  const [spaceAmenities, setSpaceAmenities] = useState<string[]>([]);
-  const [drawnZone, setDrawnZone] = useState<ZonePoint[]>([]);
-  const [venue, setVenue] = useState<SpaceVenue>(spaceVenues[0]);
-  const [space, setSpace] = useState<SpaceUnit>(spaceVenues[0].spaces[0]);
-  const [slot, setSlot] = useState(spaceVenues[0].spaces[0].slots[0]);
+  const {
+    category,
+    query,
+    sort,
+    savedOnly,
+    mapView,
+    activity,
+    availableToday,
+    bookingMode,
+    capacity,
+    spaceMaxPrice,
+    spaceAmenities,
+    drawnZone,
+  } = filters;
+  function updateFilter<K extends keyof SpacesDiscoveryFilters>(
+    key: K,
+    update: React.SetStateAction<SpacesDiscoveryFilters[K]>,
+  ) {
+    onFiltersChange((current) => ({
+      [key]:
+        typeof update === "function"
+          ? (
+              update as (
+                value: SpacesDiscoveryFilters[K],
+              ) => SpacesDiscoveryFilters[K]
+            )(current[key])
+          : update,
+    }));
+  }
+  const setCategory = (value: string) =>
+    updateFilter("category", value as SpacesDiscoveryFilters["category"]);
+  const setQuery = (value: string) => updateFilter("query", value);
+  const setSort = (value: string) =>
+    updateFilter("sort", value as SpacesDiscoveryFilters["sort"]);
+  const setSavedOnly = (value: React.SetStateAction<boolean>) =>
+    updateFilter("savedOnly", value);
+  const setMapView = (value: boolean) => updateFilter("mapView", value);
+  const setActivity = (value: string) =>
+    updateFilter("activity", value as SpacesDiscoveryFilters["activity"]);
+  const setAvailableToday = (value: React.SetStateAction<boolean>) =>
+    updateFilter("availableToday", value);
+  const setBookingMode = (value: string) =>
+    updateFilter("bookingMode", value as SpacesDiscoveryFilters["bookingMode"]);
+  const setCapacity = (value: string) =>
+    updateFilter("capacity", value as SpacesDiscoveryFilters["capacity"]);
+  const setSpaceMaxPrice = (value: string) =>
+    updateFilter(
+      "spaceMaxPrice",
+      value as SpacesDiscoveryFilters["spaceMaxPrice"],
+    );
+  const setSpaceAmenities = (value: React.SetStateAction<string[]>) =>
+    updateFilter("spaceAmenities", value);
+  const setDrawnZone = (value: ZonePoint[]) => updateFilter("drawnZone", value);
+  const venue =
+    catalogVenues.find((item) => item.id === venueId) ??
+    spaceVenues.find((item) => item.id === venueId) ??
+    spaceVenues[0];
+  const space =
+    venue.spaces.find((item) => item.id === spaceId) ?? venue.spaces[0];
+  const slot =
+    space.slots.find((item) => item.status !== "Booked") ?? space.slots[0];
   useEffect(() => {
     if (!appConfig.apiUrl) return;
     let active = true;
@@ -3320,48 +3389,8 @@ function SpacesMarketplace({
     ["Sports", Zap, tr("space.sportsNote")],
     ["Events", Sparkles, tr("space.eventsNote")],
   ];
-  const activityOptions =
-    category === "All"
-      ? [
-          "Padel",
-          "Football",
-          "Tennis",
-          "Basketball",
-          "Celebration",
-          "Workshop",
-          "Community event",
-          "Reception",
-        ]
-      : category === "Sports"
-        ? ["Padel", "Football", "Tennis", "Basketball"]
-        : ["Celebration", "Workshop", "Community event", "Reception"];
-  const spaceAmenityOptions =
-    category === "All"
-      ? [
-          "Lighting",
-          "Changing rooms",
-          "Parking",
-          "Equipment rental",
-          "Accessible entry",
-          "Kitchen",
-          "Catering allowed",
-          "Sound system",
-        ]
-      : category === "Sports"
-        ? [
-            "Lighting",
-            "Changing rooms",
-            "Parking",
-            "Equipment rental",
-            "Accessible entry",
-          ]
-        : [
-            "Kitchen",
-            "Catering allowed",
-            "Parking",
-            "Sound system",
-            "Accessible entry",
-          ];
+  const activityOptions = spacesDiscoveryActivityOptions(category);
+  const spaceAmenityOptions = spacesDiscoveryAmenityOptions(category);
   const activityLabel = (item: string) => {
     const key =
       item === "Football"
@@ -3464,27 +3493,8 @@ function SpacesMarketplace({
     Number(spaceMaxPrice !== "Any price") +
     Number(drawnZone.length >= 3) +
     spaceAmenities.length;
-  const resetSpaceFilters = () => {
-    setSavedOnly(false);
-    setActivity("Any activity");
-    setAvailableToday(false);
-    setBookingMode("Any booking mode");
-    setCapacity("Any capacity");
-    setSpaceMaxPrice("Any price");
-    setSpaceAmenities([]);
-    setSort("Recommended");
-    setDrawnZone([]);
-  };
-  const openVenue = (nextVenue: SpaceVenue) => {
-    setVenue(nextVenue);
-    setSpace(nextVenue.spaces[0]);
-    setSlot(
-      nextVenue.spaces[0].slots.find((item) => item.status !== "Booked") ??
-        nextVenue.spaces[0].slots[0],
-    );
-    setStage("venue");
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  };
+  const resetSpaceFilters = onResetFilters;
+  const openVenue = onOpenVenue;
   const requestComposer =
     requestOpen && canRequest ? (
       <SpaceBookingRequest
@@ -3493,8 +3503,8 @@ function SpacesMarketplace({
         setState={setBookingsState}
         venueId={venue.id}
         spaceId={space.id}
-        initialStart={slot.time.split("–")[0]}
-        initialEnd={slot.time.split("–")[1]}
+        initialStart={slot?.time.split("–")[0] ?? ""}
+        initialEnd={slot?.time.split("–")[1] ?? ""}
         onClose={() => setRequestOpen(false)}
         onSaved={() => {
           setRequestOpen(false);
@@ -3502,12 +3512,13 @@ function SpacesMarketplace({
         }}
       />
     ) : null;
-  if (stage === "venue")
+  if (venueId !== null)
     return (
       <div className="page-stack">
-        <button className="back-link" onClick={() => setStage("browse")}>
+        <button className="back-link" onClick={onBrowse}>
           <ArrowLeft size={16} /> {copy("Back to spaces", "Voltar aos espaços")}
         </button>
+        <SpaceVenueShareButton venue={venue} spaceId={space.id} />
         <div className="space-gallery">
           <img src={venue.gallery[0]} alt={venue.name} />
           <img src={venue.gallery[1]} alt="" />
@@ -3591,12 +3602,7 @@ function SpacesMarketplace({
                             : undefined
                         }
                         onClick={() => {
-                          setSpace(item);
-                          setSlot(
-                            item.slots.find(
-                              (entry) => entry.status !== "Booked",
-                            ) ?? item.slots[0],
-                          );
+                          onSelectSpace(item.id);
                           setRequestOpen(true);
                         }}
                       >
@@ -3760,11 +3766,7 @@ function SpacesMarketplace({
             className={category === label ? "active" : ""}
             aria-pressed={category === label}
             key={label}
-            onClick={() => {
-              setCategory(label);
-              setActivity("Any activity");
-              setSpaceAmenities([]);
-            }}
+            onClick={() => setCategory(label)}
           >
             <span>
               <Icon size={20} />
@@ -3837,19 +3839,11 @@ function SpacesMarketplace({
           onChange={(event) => setSpaceMaxPrice(event.target.value)}
         >
           <option value="Any price">{tr("space.priceRange")}</option>
-          {category === "Sports" ? (
-            <>
-              <option value="30">≤ €30</option>
-              <option value="60">≤ €60</option>
-              <option value="100">≤ €100</option>
-            </>
-          ) : (
-            <>
-              <option value="500">≤ €500</option>
-              <option value="800">≤ €800</option>
-              <option value="1200">≤ €1,200</option>
-            </>
-          )}
+          {spacesDiscoveryPriceOptions(category).map((price) => (
+            <option key={price} value={price}>
+              ≤ {formatEuro(Number(price))}
+            </option>
+          ))}
         </select>
         <button
           className={`filter-chip-toggle ${availableToday ? "active" : ""}`}
@@ -4806,6 +4800,30 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
     properties.find((property) => property.id === initialRoute.propertyId) ??
       properties[0],
   );
+  const [selectedVenueId, setSelectedVenueId] = useState(initialRoute.venueId);
+  const [selectedSpaceId, setSelectedSpaceId] = useState(initialRoute.spaceId);
+  const [spacesDiscovery, setSpacesDiscovery] = useState(() => {
+    let state = createInitialSpacesDiscoveryState();
+    if (initialRoute.view === "spaces" || initialRoute.view === "spaceVenue") {
+      if (initialRoute.query)
+        state = startSpacesDiscoverySearch(
+          state,
+          initialRoute.role,
+          initialRoute.query,
+        );
+      else if (initialRoute.venueId !== null) {
+        const venue = spaceVenues.find(
+          (item) => item.id === initialRoute.venueId,
+        );
+        if (venue)
+          state = updateSpacesDiscovery(state, initialRoute.role, {
+            category: venue.category,
+          });
+      }
+    }
+    return state;
+  });
+  const currentSpacesFilters = spacesDiscoveryFilters(spacesDiscovery, role);
   const [workspaceSaved, setWorkspaceSaved] = useState(
     createInitialWorkspaceSavedState,
   );
@@ -4998,8 +5016,13 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
       view,
       intent: discoveryIntent,
       propertyId: selectedProperty.id,
+      venueId: view === "spaceVenue" ? selectedVenueId : null,
+      spaceId: view === "spaceVenue" ? selectedSpaceId : null,
       service: serviceLaunch,
-      query: searchQuery,
+      query:
+        view === "spaces" || view === "spaceVenue"
+          ? currentSpacesFilters.query
+          : searchQuery,
       returnTo: propertyReturnTo,
     };
     if (restoringHistory.current) {
@@ -5014,6 +5037,7 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
       (previous.role !== role ||
         previous.view !== view ||
         (view === "property" && previous.propertyId !== selectedProperty.id) ||
+        (view === "spaceVenue" && previous.venueId !== selectedVenueId) ||
         (view === "services" && previous.service !== serviceLaunch));
     if (url !== window.location.search) {
       if (screenChanged) window.history.pushState(null, "", url);
@@ -5026,6 +5050,9 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
     view,
     discoveryIntent,
     selectedProperty.id,
+    selectedVenueId,
+    selectedSpaceId,
+    currentSpacesFilters.query,
     serviceLaunch,
     searchQuery,
     propertyReturnTo,
@@ -5039,6 +5066,13 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
       restoringHistory.current = true;
       setRole(route.role);
       setView(route.view);
+      setSelectedVenueId(route.venueId);
+      setSelectedSpaceId(route.spaceId);
+      if (route.view === "spaces" || route.view === "spaceVenue") {
+        setSpacesDiscovery((current) =>
+          updateSpacesDiscovery(current, route.role, { query: route.query }),
+        );
+      }
       setDiscoveryIntent(route.intent);
       setSelectedProperty(
         properties.find((property) => property.id === route.propertyId) ??
@@ -5355,6 +5389,11 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
   const go = useCallback(
     (next: View, query?: string) => {
       setView(canonicalRoleView(role, next));
+      if (next === "spaces" && query !== undefined) {
+        setSpacesDiscovery((current) =>
+          startSpacesDiscoverySearch(current, role, query),
+        );
+      }
       if (query !== undefined) setSearchQuery(query);
       else if (
         next !== view &&
@@ -5371,6 +5410,13 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
     },
     [role, view, reduceMotion, systemReduceMotion],
   );
+  const openSpaceVenue = (venue: SpaceVenue) => {
+    const canonical = spaceVenues.find((item) => item.id === venue.id);
+    if (!canonical) return;
+    setSelectedVenueId(canonical.id);
+    setSelectedSpaceId(canonical.spaces[0]?.id ?? null);
+    go("spaceVenue");
+  };
   const openViewings = (id?: string) => {
     if (id)
       setPropertyRequestState((current) =>
@@ -5823,26 +5869,10 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
           />
         );
       case "spaces":
-        return (
-          <SpacesMarketplace
-            role={role}
-            bookingsState={bookingsState}
-            setBookingsState={setBookingsState}
-            savedVenueIds={workspaceSaved[role].spaceFavourites}
-            onToggleSavedVenue={(id) =>
-              setWorkspaceSaved((current) =>
-                toggleWorkspaceSpaceFavourite(current, role, id),
-              )
-            }
-            initialQuery={searchQuery}
-            onQueryChange={setSearchQuery}
-            onGoBookings={() => go("spaceBookings")}
-            onListSpace={openSpaceListing}
-          />
-        );
       case "spaceVenue":
         return (
           <SpacesMarketplace
+            key={`${role}:${view === "spaceVenue" ? selectedVenueId : "browse"}`}
             role={role}
             bookingsState={bookingsState}
             setBookingsState={setBookingsState}
@@ -5852,8 +5882,22 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
                 toggleWorkspaceSpaceFavourite(current, role, id),
               )
             }
-            initialQuery={searchQuery}
-            onQueryChange={setSearchQuery}
+            filters={currentSpacesFilters}
+            onFiltersChange={(update) =>
+              setSpacesDiscovery((current) =>
+                updateSpacesDiscovery(current, role, update),
+              )
+            }
+            onResetFilters={() =>
+              setSpacesDiscovery((current) =>
+                resetSpacesDiscoveryFilters(current, role),
+              )
+            }
+            venueId={view === "spaceVenue" ? selectedVenueId : null}
+            spaceId={view === "spaceVenue" ? selectedSpaceId : null}
+            onOpenVenue={openSpaceVenue}
+            onSelectSpace={setSelectedSpaceId}
+            onBrowse={() => go("spaces")}
             onGoBookings={() => go("spaceBookings")}
             onListSpace={openSpaceListing}
           />

@@ -1,0 +1,124 @@
+.space-venue-share-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 44px;
+}
+
+.space-venue-share-layer .space-venue-share-dialog {
+  width: min(570px, 100%);
+}
+
+.space-venue-share-dialog > header {
+  align-items: start;
+  gap: 12px;
+}
+
+.space-venue-share-dialog > header h2 {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.space-venue-share-dialog > header button {
+  flex-shrink: 0;
+}
+
+.space-venue-share-body {
+  min-width: 0;
+  padding: 22px;
+}
+
+.space-venue-share-body > p {
+  color: #61716a;
+  font-size: 14px;
+  line-height: 1.6;
+  margin: 0 0 18px;
+}
+
+.space-venue-share-unit {
+  display: grid;
+  gap: 4px;
+  padding: 13px 15px;
+  border-radius: 11px;
+  background: #f3f6ed;
+  overflow-wrap: anywhere;
+}
+
+.space-venue-share-unit strong {
+  font-size: 12px;
+  color: #52695a;
+}
+
+.space-venue-share-unit span {
+  color: #244f40;
+  font-weight: 600;
+}
+
+.space-venue-share-body > label {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: #365440;
+  margin-bottom: 8px;
+}
+
+.space-venue-share-body > input {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+  min-height: 44px;
+  padding: 12px;
+  border: 1px solid #c9d7cd;
+  border-radius: 9px;
+  background: #fff;
+  color: #234b3b;
+  font: inherit;
+  font-size: 14px;
+  text-align: start;
+}
+
+.space-venue-share-copy {
+  margin-top: 16px;
+  width: 100%;
+  min-height: 44px;
+  justify-content: center;
+}
+
+.space-venue-share-copy[aria-disabled="true"] {
+  opacity: 0.7;
+  cursor: wait;
+}
+
+.space-venue-share-body > .space-venue-share-status {
+  margin: 12px 0 0;
+  color: #285d45;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.space-venue-share-status:empty {
+  display: none;
+}
+
+.space-venue-share-trigger:focus-visible,
+.space-venue-share-dialog :is(button, input):focus-visible {
+  outline: 3px solid #829954;
+  outline-offset: 3px;
+}
+
+@media (max-width: 620px) {
+  .space-venue-share-layer {
+    padding: 8px;
+  }
+
+  .space-venue-share-layer .space-venue-share-dialog {
+    width: 100%;
+  }
+
+  .space-venue-share-body {
+    padding: 18px;
+  }
+}

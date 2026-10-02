@@ -5,6 +5,7 @@ import "./application-state-check";
 import "./notification-check";
 import "./bookings-check";
 import "./discover-state-check";
+import "./spaces-discovery-state-check";
 import "./preferences-check";
 import "./saved-search-state-check";
 import "./workspace-saved-state-check";

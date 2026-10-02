@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { properties } from "../src/data";
+import { properties, spaceVenues } from "../src/data";
 import {
   appRouteUrl,
   canonicalRoleView,
@@ -54,6 +54,8 @@ assert.deepEqual(initial, {
   view: "overview",
   intent: "Rent",
   propertyId: firstRental.id,
+  venueId: null,
+  spaceId: null,
   service: "discover",
   query: "",
   returnTo: "discover",
@@ -61,7 +63,14 @@ assert.deepEqual(initial, {
 
 for (const role of roles) {
   for (const view of views) {
-    const route: AppRoute = { ...initial, role, view, query: "Gràcia & lift" };
+    const route: AppRoute = {
+      ...initial,
+      role,
+      view,
+      query: "Gràcia & lift",
+      venueId: view === "spaceVenue" ? spaceVenues[0].id : null,
+      spaceId: view === "spaceVenue" ? spaceVenues[0].spaces[0].id : null,
+    };
     const url = appRouteUrl(route, "");
     assert.deepEqual(
       readAppRoute(url),
@@ -304,6 +313,8 @@ const defaults: Partial<AppRoute> = {
 assert.deepEqual(readAppRoute("", defaults), {
   ...defaults,
   propertyId: firstSale.id,
+  venueId: null,
+  spaceId: null,
   query: "electrician",
 });
 assert.equal(
@@ -357,10 +368,10 @@ for (const original of [
 const cleaned = new URLSearchParams(
   appRouteUrl(
     initial,
-    "?property=6&from=saved&service=hire&q=old&campaign=phone&tag=one&tag=two",
+    "?property=6&from=saved&service=hire&venue=1&space=11&q=old&campaign=phone&tag=one&tag=two",
   ),
 );
-for (const key of ["property", "from", "service", "q"])
+for (const key of ["property", "from", "service", "venue", "space", "q"])
   assert.equal(cleaned.has(key), false);
 assert.equal(cleaned.get("campaign"), "phone");
 assert.deepEqual(
@@ -375,6 +386,245 @@ assert.equal(
   200,
 );
 
+// Venue links are public catalogue references, independent of customer requests.
+for (const role of roles) {
+  for (const venue of spaceVenues) {
+    for (const unit of venue.spaces) {
+      const route = readAppRoute(
+        `?role=${role}&view=spaceVenue&venue=${venue.id}&space=${unit.id}&q=party`,
+      );
+      assert.equal(route.view, "spaceVenue");
+      assert.equal(route.venueId, venue.id);
+      assert.equal(route.spaceId, unit.id);
+      assert.equal(route.role, role, "Opening a venue never changes workspace");
+      const serialized = appRouteUrl(
+        route,
+        "?campaign=phone&tag=one&tag=two&property=4&from=saved&service=hire",
+      );
+      assert.deepEqual(readAppRoute(serialized), route);
+      const resolved = new URL(
+        serialized,
+        "https://example.com/Kasa/?view=overview",
+      );
+      assert.equal(resolved.pathname, "/Kasa/");
+      assert.equal(resolved.origin, "https://example.com");
+      assert.equal(resolved.searchParams.get("venue"), String(venue.id));
+      assert.equal(resolved.searchParams.get("space"), String(unit.id));
+      assert.equal(resolved.searchParams.get("q"), "party");
+      assert.equal(resolved.searchParams.get("campaign"), "phone");
+      assert.deepEqual(resolved.searchParams.getAll("tag"), ["one", "two"]);
+      for (const key of ["property", "from", "service"])
+        assert.equal(resolved.searchParams.has(key), false);
+    }
+  }
+}
+
+for (const venue of spaceVenues) {
+  const firstUnit = venue.spaces[0];
+  const defaultUnit = venue.spaces.at(-1)!;
+  const withoutUnit = readAppRoute(`?view=spaceVenue&venue=${venue.id}`);
+  assert.equal(withoutUnit.spaceId, firstUnit.id);
+  assert.equal(withoutUnit.venueId, venue.id);
+  for (const invalidUnit of [
+    "",
+    "0",
+    "-1",
+    "1.2",
+    "1e1",
+    "+11",
+    "011",
+    `0${defaultUnit.id}`,
+    " 11",
+    "11 ",
+    "0xB",
+    "99999",
+    "NaN",
+    "Infinity",
+    "9007199254740993",
+    "__proto__",
+    "space-draft-1-unit-1",
+  ]) {
+    const route = readAppRoute(
+      `?view=spaceVenue&venue=${venue.id}&space=${encodeURIComponent(invalidUnit)}`,
+      { spaceId: defaultUnit.id },
+    );
+    assert.equal(route.view, "spaceVenue");
+    assert.equal(
+      route.spaceId,
+      firstUnit.id,
+      `Invalid unit ${invalidUnit} falls back within its venue, not to a supplied default`,
+    );
+  }
+  const foreignUnit = spaceVenues.find((item) => item.id !== venue.id)!
+    .spaces[0];
+  assert.equal(
+    readAppRoute(`?view=spaceVenue&venue=${venue.id}&space=${foreignUnit.id}`)
+      .spaceId,
+    firstUnit.id,
+  );
+  const canonicalized = readAppRoute(
+    appRouteUrl(
+      {
+        ...initial,
+        view: "spaceVenue",
+        venueId: venue.id,
+        spaceId: foreignUnit.id,
+      },
+      "",
+    ),
+  );
+  assert.equal(
+    canonicalized.spaceId,
+    firstUnit.id,
+    "Serialization also prevents a cross-venue unit",
+  );
+  assert.equal(
+    readAppRoute("", {
+      view: "spaceVenue",
+      venueId: venue.id,
+      spaceId: defaultUnit.id,
+    }).spaceId,
+    defaultUnit.id,
+  );
+  assert.equal(
+    readAppRoute(`?view=spaceVenue&venue=${venue.id}`, {
+      spaceId: defaultUnit.id,
+    }).spaceId,
+    defaultUnit.id,
+  );
+  assert.equal(
+    readAppRoute(
+      appRouteUrl(
+        { ...initial, view: "spaceVenue", venueId: venue.id, spaceId: null },
+        "",
+      ),
+    ).spaceId,
+    firstUnit.id,
+  );
+}
+
+for (const invalidVenue of [
+  "",
+  "0",
+  "-1",
+  "1.2",
+  "1.0",
+  "1e0",
+  "+1",
+  "01",
+  " 1",
+  "1 ",
+  "0x1",
+  "99999",
+  "NaN",
+  "Infinity",
+  "9007199254740993",
+  "__proto__",
+  "space-draft-1",
+]) {
+  const route = readAppRoute(
+    `?role=landlord&view=spaceVenue&venue=${encodeURIComponent(invalidVenue)}&space=11&q=hall`,
+    { venueId: spaceVenues[0].id, spaceId: spaceVenues[0].spaces[0].id },
+  );
+  assert.equal(
+    route.view,
+    "spaces",
+    `Invalid venue ${invalidVenue} returns to browse`,
+  );
+  assert.equal(route.venueId, null);
+  assert.equal(route.spaceId, null);
+  assert.equal(route.query, "hall");
+  assert.equal(route.role, "landlord");
+  const canonical = new URLSearchParams(
+    appRouteUrl(route, "?venue=bad&space=11&campaign=phone"),
+  );
+  assert.equal(canonical.get("view"), "spaces");
+  assert.equal(canonical.has("venue"), false);
+  assert.equal(canonical.has("space"), false);
+  assert.equal(canonical.get("campaign"), "phone");
+}
+for (const legacy of [
+  "?view=spaceVenue",
+  "?view=spaceVenue&space=11",
+  "?view=spaceVenue&venueId=1",
+  "?view=spaceVenue&venue=+1",
+]) {
+  const route = readAppRoute(legacy);
+  assert.equal(route.view, "spaces");
+  assert.equal(route.venueId, null);
+  assert.equal(route.spaceId, null);
+}
+for (const venueId of [
+  null,
+  undefined,
+  0,
+  -1,
+  1.1,
+  NaN,
+  Infinity,
+  99999,
+  Number.MAX_SAFE_INTEGER + 1,
+]) {
+  const serialized = new URLSearchParams(
+    appRouteUrl(
+      {
+        ...initial,
+        view: "spaceVenue",
+        venueId: venueId as number | null,
+        spaceId: 11,
+      },
+      "?venue=1&space=11",
+    ),
+  );
+  assert.equal(serialized.get("view"), "spaces");
+  assert.equal(serialized.has("venue"), false);
+  assert.equal(serialized.has("space"), false);
+}
+for (const view of views.filter((view) => view !== "spaceVenue")) {
+  const route = readAppRoute(`?view=${view}&venue=1&space=11`, {
+    venueId: 1,
+    spaceId: 11,
+  });
+  assert.equal(route.venueId, null);
+  assert.equal(route.spaceId, null);
+  const serialized = new URLSearchParams(
+    appRouteUrl({ ...route, venueId: 1, spaceId: 11 }, "?venue=1&space=11"),
+  );
+  assert.equal(
+    serialized.has("venue"),
+    false,
+    `${view} must not retain a venue target`,
+  );
+  assert.equal(
+    serialized.has("space"),
+    false,
+    `${view} must not retain a unit target`,
+  );
+}
+for (const original of [
+  "?present=1&journey=spaces&step=3&finished=1",
+  "?device=ios&present=1",
+  "?device=android&simulator=1",
+  "?simulator=1",
+  "?app=0",
+]) {
+  const before = new URLSearchParams(original);
+  const after = new URLSearchParams(
+    appRouteUrl(
+      {
+        ...initial,
+        view: "spaceVenue",
+        venueId: spaceVenues[0].id,
+        spaceId: null,
+      },
+      original,
+    ),
+  );
+  for (const [key, value] of before) assert.equal(after.get(key), value);
+  if (!before.has("app")) assert.equal(after.has("app"), false);
+  assert.equal(after.get("space"), String(spaceVenues[0].spaces[0].id));
+}
+
 console.log(
-  `Application navigation passed: ${roles.length * views.length} role/view routes, scoped venue setup and viewing inbox/return, every property, owner-scoped Insights return, all service modes, invalid URLs, query limits, defaults and entry-mode preservation.`,
+  `Application navigation passed: ${roles.length * views.length} role/view routes, every canonical venue/unit and property, invalid/legacy venue fallback, scoped venue setup and viewing inbox/return, owner-scoped Insights return, all service modes, strict venue IDs, query limits, defaults and entry-mode preservation.`,
 );

@@ -1,4 +1,4 @@
-import { properties } from "./data";
+import { properties, spaceVenues } from "./data";
 import type { Role, View } from "./types";
 
 export interface AppRoute {
@@ -6,6 +6,8 @@ export interface AppRoute {
   view: View;
   intent: "Rent" | "Buy";
   propertyId: number;
+  venueId: number | null;
+  spaceId: number | null;
   service: "discover" | "tasks" | "jobs" | "hire";
   query: string;
   returnTo:
@@ -84,6 +86,32 @@ function normalizeQuery(query: string) {
   return query.trim().slice(0, 200);
 }
 
+function positiveId(value: number | null | undefined): value is number {
+  return typeof value === "number" && Number.isSafeInteger(value) && value > 0;
+}
+
+function readSpaceId(
+  value: string | null,
+  suppliedDefault: number | null | undefined,
+) {
+  if (value === null) return suppliedDefault;
+  return /^[1-9]\d*$/.test(value) ? Number(value) : null;
+}
+
+/** Resolve only canonical catalogue records, never a local listing draft. */
+function spaceSelection(
+  venueId: number | null | undefined,
+  spaceId: number | null | undefined,
+) {
+  const venue = positiveId(venueId)
+    ? spaceVenues.find((item) => item.id === venueId)
+    : undefined;
+  if (!venue) return null;
+  const units = venue.spaces.filter((unit) => positiveId(unit.id));
+  const unit = units.find((item) => item.id === spaceId) ?? units[0];
+  return unit ? { venueId: venue.id, spaceId: unit.id } : null;
+}
+
 /** Keep scoped operational screens inside their authorised workspace. */
 export function canonicalRoleView(role: Role, view: View): View {
   if (view === "viewings" && role !== "tenant" && role !== "landlord")
@@ -104,7 +132,7 @@ export function readAppRoute(
 ): AppRoute {
   const params = new URLSearchParams(search);
   const role = readChoice(params.get("role"), defaults.role, roles, "tenant");
-  const view = canonicalRoleView(
+  let view = canonicalRoleView(
     role,
     readChoice(params.get("view"), defaults.view, views, "overview"),
   );
@@ -131,12 +159,22 @@ export function readAppRoute(
     suppliedProperty ??
     properties.find((property) => property.listingType === intent) ??
     properties[0];
+  const selectedSpace =
+    view === "spaceVenue"
+      ? spaceSelection(
+          readSpaceId(params.get("venue"), defaults.venueId),
+          readSpaceId(params.get("space"), defaults.spaceId),
+        )
+      : null;
+  if (view === "spaceVenue" && !selectedSpace) view = "spaces";
 
   return {
     role,
     view,
     intent,
     propertyId: selectedProperty.id,
+    venueId: selectedSpace?.venueId ?? null,
+    spaceId: selectedSpace?.spaceId ?? null,
     service: readChoice(
       params.get("service"),
       defaults.service,
@@ -158,7 +196,10 @@ export function readAppRoute(
 
 export function appRouteUrl(route: AppRoute, currentSearch: string): string {
   const params = new URLSearchParams(currentSearch);
-  const view = canonicalRoleView(route.role, route.view);
+  let view = canonicalRoleView(route.role, route.view);
+  const selectedSpace =
+    view === "spaceVenue" ? spaceSelection(route.venueId, route.spaceId) : null;
+  if (view === "spaceVenue" && !selectedSpace) view = "spaces";
   const hasEntryMode = [
     "present",
     "journey",
@@ -182,6 +223,14 @@ export function appRouteUrl(route: AppRoute, currentSearch: string): string {
   }
   if (view === "services") params.set("service", route.service);
   else params.delete("service");
+
+  if (selectedSpace) {
+    params.set("venue", String(selectedSpace.venueId));
+    params.set("space", String(selectedSpace.spaceId));
+  } else {
+    params.delete("venue");
+    params.delete("space");
+  }
 
   const query = normalizeQuery(route.query);
   if (query) params.set("q", query);
