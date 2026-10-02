@@ -2,6 +2,11 @@ import { applications, properties } from "../data";
 import type { Application, Property, Role } from "../types";
 import { ownsProperty } from "../propertyScope";
 import {
+  documentFileDescriptor,
+  documentFileIssue,
+  type DocumentKind,
+} from "./documentState";
+import {
   validateRentalApplication,
   type RentalApplicationDraft,
 } from "./propertyRequestState";
@@ -13,6 +18,68 @@ export interface ApplicationDocument {
   name: string;
   status: "Supplied" | "Missing" | "Requested";
   summary: string;
+}
+
+export const MAX_APPLICATION_EVIDENCE_BYTES = 50 * 1024 * 1024;
+export const MAX_APPLICATION_EVIDENCE_FILES = 10;
+export const MAX_APPLICATION_EVIDENCE_NOTE = 1000;
+
+export interface ApplicationEvidenceFile {
+  id: string;
+  documentId: string;
+  file: File;
+  kind: DocumentKind;
+  mimeType: string;
+  addedAt: string;
+}
+
+export interface ApplicationEvidenceRequest {
+  id: string;
+  version: number;
+  documentIds: readonly string[];
+  note: string;
+  createdAt: string;
+}
+
+export interface ApplicationEvidenceResponse {
+  id: string;
+  version: number;
+  requestId: string | null;
+  note: string;
+  files: readonly ApplicationEvidenceFile[];
+  submittedAt: string;
+}
+
+export interface ApplicationEvidenceDraft {
+  requestId: string | null;
+  revision: number;
+  note: string;
+  files: ApplicationEvidenceFile[];
+}
+
+export interface ApplicationEvidenceIssue {
+  code:
+    | "unavailable"
+    | "staleRequest"
+    | "emptyResponse"
+    | "noteTooLong"
+    | "unknownDocument"
+    | "empty"
+    | "fileTooLarge"
+    | "unsupportedFormat"
+    | "alreadyAdded"
+    | "evidenceFull"
+    | "tooManyFiles";
+  fileName?: string;
+}
+
+export interface ApplicationEvidenceSummary {
+  phase: "none" | "requested" | "submitted" | "reviewed";
+  latestRequest: ApplicationEvidenceRequest | null;
+  latestResponse: ApplicationEvidenceResponse | null;
+  requestOpen: boolean;
+  outstandingDocumentIds: string[];
+  unreviewedResponseIds: string[];
 }
 
 export interface ApplicationRecord extends Omit<
@@ -27,17 +94,26 @@ export interface ApplicationRecord extends Omit<
   documents: ApplicationDocument[];
   reviewed: boolean;
   documentRequest: string;
+  evidenceRequests?: readonly ApplicationEvidenceRequest[];
+  evidenceResponses?: readonly ApplicationEvidenceResponse[];
+  evidenceReviews?: readonly { responseId: string; at: string }[];
+  evidenceClosures?: readonly { requestId: string; at: string }[];
   activity: Array<{ id: string; label: string; at: string }>;
 }
 
 export interface ApplicationState {
   records: ApplicationRecord[];
+  evidenceDrafts?: Record<number, ApplicationEvidenceDraft>;
+  evidenceRevision?: number;
+  nextEvidenceId?: number;
 }
 
 export type ApplicationAction =
   | { type: "mark-reviewed" }
   | { type: "approve" }
-  | { type: "request-documents"; documentIds: string[]; note: string };
+  | { type: "request-documents"; documentIds: string[]; note: string }
+  | { type: "acknowledge-evidence"; responseId: string }
+  | { type: "close-evidence-request"; requestId: string };
 
 export function createInitialApplicationState(): ApplicationState {
   const dates = [
@@ -66,6 +142,18 @@ export function createInitialApplicationState(): ApplicationState {
         application.status === "Documents"
           ? "Please add the missing proof-of-income summary."
           : "",
+      evidenceRequests:
+        application.status === "Documents"
+          ? [
+              {
+                id: `evidence-request-${application.id}-1`,
+                version: 1,
+                documentIds: ["income"],
+                note: "Please add the missing proof-of-income summary.",
+                createdAt: dates[index],
+              },
+            ]
+          : [],
       profileFields: [
         { label: "Contact details", present: true },
         { label: "Household details", present: true },
@@ -162,6 +250,353 @@ export function canReviewApplication(
     record.status !== "Draft" &&
     record.status !== "Approved"
   );
+}
+
+export function canRequestApplicationEvidence(
+  record: ApplicationRecord,
+  role: Role,
+): boolean {
+  return (
+    record.propertyId !== undefined &&
+    ownsProperty(role, record.propertyId) &&
+    record.status !== "Draft"
+  );
+}
+
+export function applicationEvidenceSummary(
+  record: ApplicationRecord,
+): ApplicationEvidenceSummary {
+  const latestRequest = record.evidenceRequests?.at(-1) ?? null;
+  const latestResponse = record.evidenceResponses?.at(-1) ?? null;
+  const requestOpen = Boolean(
+    latestRequest &&
+    !record.evidenceClosures?.some(
+      (event) => event.requestId === latestRequest.id,
+    ),
+  );
+  const unreviewedResponseIds = (record.evidenceResponses ?? [])
+    .filter(
+      (response) =>
+        !record.evidenceReviews?.some(
+          (event) => event.responseId === response.id,
+        ),
+    )
+    .map((response) => response.id);
+  const supplied = new Set(
+    (record.evidenceResponses ?? [])
+      .filter((response) => response.requestId === latestRequest?.id)
+      .flatMap((response) => response.files.map((file) => file.documentId)),
+  );
+  const outstandingDocumentIds = requestOpen
+    ? latestRequest!.documentIds.filter((id) => !supplied.has(id))
+    : [];
+  const hasCurrentResponse = latestRequest
+    ? (record.evidenceResponses ?? []).some(
+        (response) => response.requestId === latestRequest.id,
+      )
+    : Boolean(latestResponse);
+  return {
+    latestRequest,
+    latestResponse,
+    requestOpen,
+    outstandingDocumentIds,
+    unreviewedResponseIds,
+    phase: unreviewedResponseIds.length
+      ? "submitted"
+      : requestOpen && !hasCurrentResponse
+        ? "requested"
+        : latestResponse
+          ? "reviewed"
+          : "none",
+  };
+}
+
+function currentEvidenceRequestId(record: ApplicationRecord): string | null {
+  const summary = applicationEvidenceSummary(record);
+  return summary.requestOpen ? summary.latestRequest!.id : null;
+}
+
+export function canRespondApplicationEvidence(
+  record: ApplicationRecord,
+  role: Role,
+): boolean {
+  return (
+    role === "tenant" &&
+    isTenantApplication(record) &&
+    (record.status === "Review" ||
+      record.status === "Documents" ||
+      (record.status === "Approved" &&
+        applicationEvidenceSummary(record).requestOpen))
+  );
+}
+
+/** Drafts are private to the applicant workspace; owners see explicit responses only. */
+export function applicationEvidenceDraft(
+  state: ApplicationState,
+  role: Role,
+  id: number,
+): ApplicationEvidenceDraft | null {
+  const record = state.records.find((item) => item.id === id);
+  if (role !== "tenant" || !record || !isTenantApplication(record)) return null;
+  return (
+    state.evidenceDrafts?.[id] ?? {
+      requestId: currentEvidenceRequestId(record),
+      revision: state.evidenceRevision ?? 0,
+      note: "",
+      files: [],
+    }
+  );
+}
+
+function evidenceDraftIssue(
+  state: ApplicationState,
+  role: Role,
+  id: number,
+): ApplicationEvidenceIssue | null {
+  const record = state.records.find((item) => item.id === id);
+  if (!record || !canRespondApplicationEvidence(record, role))
+    return { code: "unavailable" };
+  const draft = applicationEvidenceDraft(state, role, id)!;
+  return draft.requestId === currentEvidenceRequestId(record)
+    ? null
+    : { code: "staleRequest" };
+}
+
+function retainEvidenceDraft(
+  state: ApplicationState,
+  id: number,
+  draft: ApplicationEvidenceDraft,
+): ApplicationState {
+  const revision = (state.evidenceRevision ?? 0) + 1;
+  return {
+    ...state,
+    evidenceRevision: revision,
+    evidenceDrafts: {
+      ...state.evidenceDrafts,
+      [id]: { ...draft, revision, files: [...draft.files] },
+    },
+  };
+}
+
+export function updateApplicationEvidenceNote(
+  state: ApplicationState,
+  role: Role,
+  id: number,
+  note: string,
+): ApplicationState {
+  if (evidenceDraftIssue(state, role, id)) return state;
+  const draft = applicationEvidenceDraft(state, role, id)!;
+  return note === draft.note
+    ? state
+    : retainEvidenceDraft(state, id, { ...draft, note });
+}
+
+/** Count retained File objects once, including immutable responses and current drafts. */
+export function applicationEvidenceBytes(state: ApplicationState): number {
+  const files = new Set<File>();
+  for (const draft of Object.values(state.evidenceDrafts ?? {}))
+    for (const attachment of draft.files) files.add(attachment.file);
+  for (const record of state.records)
+    for (const response of record.evidenceResponses ?? [])
+      for (const attachment of response.files) files.add(attachment.file);
+  return [...files].reduce((total, file) => total + file.size, 0);
+}
+
+export function addApplicationEvidenceFiles(
+  state: ApplicationState,
+  role: Role,
+  id: number,
+  documentId: string,
+  files: readonly File[],
+  now = new Date(),
+): {
+  state: ApplicationState;
+  added: number;
+  issues: ApplicationEvidenceIssue[];
+} {
+  const issue = evidenceDraftIssue(state, role, id);
+  if (issue) return { state, added: 0, issues: [issue] };
+  const record = state.records.find((item) => item.id === id)!;
+  if (!record.documents.some((document) => document.id === documentId))
+    return { state, added: 0, issues: [{ code: "unknownDocument" }] };
+  const draft = applicationEvidenceDraft(state, role, id)!;
+  const retainedFiles = new Set<File>();
+  for (const saved of Object.values(state.evidenceDrafts ?? {}))
+    for (const attachment of saved.files) retainedFiles.add(attachment.file);
+  for (const saved of state.records)
+    for (const response of saved.evidenceResponses ?? [])
+      for (const attachment of response.files)
+        retainedFiles.add(attachment.file);
+  let bytes = applicationEvidenceBytes(state);
+  let nextId = state.nextEvidenceId ?? 1;
+  const attachments = [...draft.files];
+  const issues: ApplicationEvidenceIssue[] = [];
+  for (const file of files) {
+    const fileIssue = documentFileIssue(file);
+    let code: ApplicationEvidenceIssue["code"] | undefined = fileIssue?.code as
+      "empty" | "fileTooLarge" | "unsupportedFormat" | undefined;
+    if (
+      !code &&
+      attachments.some(
+        (item) => item.documentId === documentId && item.file === file,
+      )
+    )
+      code = "alreadyAdded";
+    if (!code && attachments.length >= MAX_APPLICATION_EVIDENCE_FILES)
+      code = "tooManyFiles";
+    if (
+      !code &&
+      !retainedFiles.has(file) &&
+      bytes + file.size > MAX_APPLICATION_EVIDENCE_BYTES
+    )
+      code = "evidenceFull";
+    if (code) {
+      issues.push({ code, fileName: file.name });
+      continue;
+    }
+    const descriptor = documentFileDescriptor(file)!;
+    attachments.push({
+      id: `application-evidence-file-${nextId++}`,
+      documentId,
+      file,
+      ...descriptor,
+      addedAt: now.toISOString(),
+    });
+    if (!retainedFiles.has(file)) bytes += file.size;
+    retainedFiles.add(file);
+  }
+  const added = attachments.length - draft.files.length;
+  return {
+    state: added
+      ? {
+          ...retainEvidenceDraft(state, id, { ...draft, files: attachments }),
+          nextEvidenceId: nextId,
+        }
+      : state,
+    added,
+    issues,
+  };
+}
+
+export function removeApplicationEvidenceFile(
+  state: ApplicationState,
+  role: Role,
+  id: number,
+  fileId: string,
+): ApplicationState {
+  const draft = applicationEvidenceDraft(state, role, id);
+  if (!draft || !draft.files.some((file) => file.id === fileId)) return state;
+  return retainEvidenceDraft(state, id, {
+    ...draft,
+    files: draft.files.filter((file) => file.id !== fileId),
+  });
+}
+
+export function discardApplicationEvidenceDraft(
+  state: ApplicationState,
+  role: Role,
+  id: number,
+): ApplicationState {
+  if (!applicationEvidenceDraft(state, role, id) || !state.evidenceDrafts?.[id])
+    return state;
+  const drafts = { ...state.evidenceDrafts };
+  delete drafts[id];
+  return {
+    ...state,
+    evidenceDrafts: drafts,
+    evidenceRevision: (state.evidenceRevision ?? 0) + 1,
+  };
+}
+
+export function submitApplicationEvidence(
+  state: ApplicationState,
+  role: Role,
+  id: number,
+  expectedDraftRevision: number,
+  expectedRequestId: string | null,
+  now = new Date(),
+): {
+  state: ApplicationState;
+  responseId: string | null;
+  issue: ApplicationEvidenceIssue | null;
+} {
+  const issue = evidenceDraftIssue(state, role, id);
+  if (issue) return { state, responseId: null, issue };
+  const record = state.records.find((item) => item.id === id)!;
+  const draft = applicationEvidenceDraft(state, role, id)!;
+  if (
+    draft.revision !== expectedDraftRevision ||
+    draft.requestId !== expectedRequestId
+  )
+    return { state, responseId: null, issue: { code: "staleRequest" } };
+  if (draft.note.trim().length > MAX_APPLICATION_EVIDENCE_NOTE)
+    return { state, responseId: null, issue: { code: "noteTooLong" } };
+  if (!draft.files.length && draft.note.trim().length < 3)
+    return { state, responseId: null, issue: { code: "emptyResponse" } };
+  if (draft.files.length > MAX_APPLICATION_EVIDENCE_FILES)
+    return { state, responseId: null, issue: { code: "tooManyFiles" } };
+  if (applicationEvidenceBytes(state) > MAX_APPLICATION_EVIDENCE_BYTES)
+    return { state, responseId: null, issue: { code: "evidenceFull" } };
+  for (const attachment of draft.files) {
+    if (
+      !record.documents.some(
+        (document) => document.id === attachment.documentId,
+      )
+    )
+      return { state, responseId: null, issue: { code: "unknownDocument" } };
+    const descriptor = documentFileDescriptor(attachment.file);
+    if (
+      !descriptor ||
+      descriptor.kind !== attachment.kind ||
+      descriptor.mimeType !== attachment.mimeType
+    )
+      return {
+        state,
+        responseId: null,
+        issue: { code: "unsupportedFormat", fileName: attachment.file.name },
+      };
+  }
+  const version = (record.evidenceResponses?.at(-1)?.version ?? 0) + 1;
+  const response: ApplicationEvidenceResponse = {
+    id: `application-evidence-response-${id}-${version}`,
+    version,
+    requestId: draft.requestId,
+    note: draft.note.trim(),
+    files: draft.files.map((file) => ({ ...file })),
+    submittedAt: now.toISOString(),
+  };
+  const suppliedIds = new Set(response.files.map((file) => file.documentId));
+  const updated: ApplicationRecord = {
+    ...record,
+    evidenceResponses: [...(record.evidenceResponses ?? []), response],
+    documents: record.documents.map((document) =>
+      suppliedIds.has(document.id)
+        ? {
+            ...document,
+            status: "Supplied",
+            summary:
+              "File supplied in this tab for owner inspection. It has not been verified or sent outside this tab.",
+          }
+        : document,
+    ),
+    activity: [
+      ...record.activity,
+      {
+        id: response.id,
+        label: `Applicant saved evidence response ${version} in this tab; no files were verified or sent`,
+        at: response.submittedAt,
+      },
+    ],
+  };
+  const cleared = discardApplicationEvidenceDraft(state, role, id);
+  return {
+    state: {
+      ...cleared,
+      records: cleared.records.map((item) => (item.id === id ? updated : item)),
+    },
+    responseId: response.id,
+    issue: null,
+  };
 }
 
 export function tenantApplicationForProperty(
@@ -261,7 +696,17 @@ export function updateApplication(
   now = new Date(),
 ): ApplicationState {
   const record = state.records.find((item) => item.id === id);
-  if (!record || !canReviewApplication(record, role)) return state;
+  const isEvidenceAction =
+    action.type === "request-documents" ||
+    action.type === "acknowledge-evidence" ||
+    action.type === "close-evidence-request";
+  if (
+    !record ||
+    !(isEvidenceAction
+      ? canRequestApplicationEvidence(record, role)
+      : canReviewApplication(record, role))
+  )
+    return state;
 
   let updated: ApplicationRecord;
   let label: string;
@@ -274,18 +719,85 @@ export function updateApplication(
     updated = { ...record, status: "Approved" };
     label =
       "Owner explicitly marked this application approved in this workspace";
+  } else if (action.type === "acknowledge-evidence") {
+    if (
+      !record.evidenceResponses?.some(
+        (response) => response.id === action.responseId,
+      ) ||
+      record.evidenceReviews?.some(
+        (event) => event.responseId === action.responseId,
+      )
+    )
+      return state;
+    updated = {
+      ...record,
+      evidenceReviews: [
+        ...(record.evidenceReviews ?? []),
+        {
+          responseId: action.responseId,
+          at: now.toISOString(),
+        },
+      ],
+    };
+    label =
+      "Owner acknowledged an evidence response in this tab; no attachment was verified";
+  } else if (action.type === "close-evidence-request") {
+    const summary = applicationEvidenceSummary(record);
+    if (!summary.requestOpen || summary.latestRequest!.id !== action.requestId)
+      return state;
+    updated = {
+      ...record,
+      documentRequest: "",
+      evidenceClosures: [
+        ...(record.evidenceClosures ?? []),
+        {
+          requestId: action.requestId,
+          at: now.toISOString(),
+        },
+      ],
+    };
+    label =
+      "Owner explicitly closed the evidence request in this tab; application decision unchanged";
   } else {
     const documentIds = new Set(
       action.documentIds.filter((documentId) =>
         record.documents.some((document) => document.id === documentId),
       ),
     );
-    if (!documentIds.size) return state;
+    if (
+      !documentIds.size ||
+      action.note.trim().length > MAX_APPLICATION_EVIDENCE_NOTE
+    )
+      return state;
+    const summary = applicationEvidenceSummary(record);
+    const currentRequest = summary.latestRequest;
+    if (
+      summary.requestOpen &&
+      currentRequest &&
+      currentRequest.note === action.note.trim() &&
+      currentRequest.documentIds.length === documentIds.size &&
+      currentRequest.documentIds.every((documentId) =>
+        documentIds.has(documentId),
+      ) &&
+      !record.evidenceResponses?.some(
+        (response) => response.requestId === currentRequest.id,
+      )
+    )
+      return state;
+    const version = (currentRequest?.version ?? 0) + 1;
+    const request: ApplicationEvidenceRequest = {
+      id: `evidence-request-${id}-${version}`,
+      version,
+      documentIds: [...documentIds],
+      note: action.note.trim(),
+      createdAt: now.toISOString(),
+    };
     updated = {
       ...record,
-      status: "Documents",
-      reviewed: false,
-      documentRequest: action.note.trim().slice(0, 1000),
+      status: record.status === "Approved" ? "Approved" : "Documents",
+      reviewed: record.status === "Approved" ? record.reviewed : false,
+      documentRequest: request.note,
+      evidenceRequests: [...(record.evidenceRequests ?? []), request],
       documents: record.documents.map((document) =>
         documentIds.has(document.id)
           ? { ...document, status: "Requested" }

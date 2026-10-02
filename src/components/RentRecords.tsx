@@ -36,6 +36,7 @@ import {
   canRecordRentTransfer,
   canReviewRentRecord,
   confirmRentRecord,
+  createRentRecordFilters,
   filterRentRecords,
   recordRentTransfer,
   rentRecordSummary,
@@ -53,12 +54,7 @@ import {
 } from "./rentRecordState";
 import "./rentRecords.css";
 
-const defaultFilters = (): RentRecordFilters => ({
-  status: "All statuses",
-  property: "All properties",
-  period: "All periods",
-  sort: "Most recently updated",
-});
+const defaultFilters = createRentRecordFilters;
 
 function RentStatus({ record }: { record: RentRecord }) {
   const { tr } = useOperationsI18n();
@@ -600,14 +596,17 @@ export function RentRecords({
   role,
   state,
   setState,
+  filters,
+  setFilters,
 }: {
   role: Role;
   state: RentRecordState;
   setState: Dispatch<SetStateAction<RentRecordState>>;
+  filters: RentRecordFilters;
+  setFilters: Dispatch<SetStateAction<RentRecordFilters>>;
 }) {
   const { tr, locale } = useOperationsI18n();
   const { money, periodLabel } = rentFormatters(locale);
-  const [filters, setFilters] = useState(defaultFilters);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [initiallyEditing, setInitiallyEditing] = useState(false);
   const [feedback, setFeedback] = useState<OperationsMessage | null>(null);
@@ -739,7 +738,12 @@ export function RentRecords({
             }
           >
             <option value="All periods">{tr("rent_allPeriods")}</option>
-            {[...new Set(records.map((record) => record.period))]
+            {[
+              ...new Set([
+                ...records.map((record) => record.period),
+                ...(filters.period === "All periods" ? [] : [filters.period]),
+              ]),
+            ]
               .sort()
               .reverse()
               .map((period) => (

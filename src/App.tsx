@@ -68,7 +68,11 @@ import {
   type LanguageCode,
 } from "./i18n";
 import { DeviceSimulator } from "./components/DeviceSimulator";
-import { createInitialRentRecordState } from "./components/rentRecordState";
+import {
+  createInitialRentRecordState,
+  createRentRecordFilters,
+  type RentRecordFilters,
+} from "./components/rentRecordState";
 import {
   createInitialMaintenanceState,
   visibleMaintenanceRecords,
@@ -97,7 +101,6 @@ import {
   createInitialNotificationState,
   type KasaNotification,
 } from "./components/notificationState";
-import { Applications } from "./components/Applications";
 import {
   createInitialApplicationState,
   submitRentalApplication,
@@ -211,6 +214,16 @@ const PropertyPortfolio = lazy(() =>
 const PropertyListingWorkspace = lazy(() =>
   import("./components/PropertyListingWorkspace").then((module) => ({
     default: module.PropertyListingWorkspace,
+  })),
+);
+const PropertyInsights = lazy(() =>
+  import("./components/PropertyInsightsView").then((module) => ({
+    default: module.PropertyInsights,
+  })),
+);
+const Applications = lazy(() =>
+  import("./components/Applications").then((module) => ({
+    default: module.Applications,
   })),
 );
 const PropertyOverview = lazy(() =>
@@ -1174,20 +1187,6 @@ function PropertyCard({
         </div>
       </button>
     </article>
-  );
-}
-
-function ProgressRing({ value, label }: { value: number; label: string }) {
-  return (
-    <div
-      className="progress-ring"
-      style={{ "--progress": `${value * 3.6}deg` } as React.CSSProperties}
-    >
-      <div>
-        <strong>{value}%</strong>
-        <span>{label}</span>
-      </div>
-    </div>
   );
 }
 
@@ -5223,136 +5222,6 @@ function AdminConsole({ notify }: { notify: (message: string) => void }) {
   );
 }
 
-function Insights() {
-  const bars = [72, 84, 78, 90, 92, 96, 96, 96];
-  return (
-    <div className="page-stack">
-      <section className="metrics-grid">
-        <Metric
-          label="Portfolio value tracked"
-          value="€1.42m"
-          note="4 property records"
-          icon={Building2}
-        />
-        <Metric
-          label="Gross monthly rent"
-          value="€6,730"
-          note="Across occupied homes"
-          icon={CircleDollarSign}
-          tone="blue"
-        />
-        <Metric
-          label="Average occupancy"
-          value="96%"
-          note="Last 12 months"
-          icon={Users}
-          tone="lilac"
-        />
-        <Metric
-          label="Response time"
-          value="2.1h"
-          note="Maintenance average"
-          icon={Clock3}
-          tone="sun"
-        />
-      </section>
-      <div className="two-column wide-left">
-        <section className="card padded chart-card">
-          <div className="chart-title">
-            <div>
-              <h2>Occupancy trend</h2>
-              <p>Across all property records</p>
-            </div>
-            <select>
-              <option>Last 8 months</option>
-            </select>
-          </div>
-          <div className="bar-chart">
-            <div className="axis">
-              <span>100%</span>
-              <span>75%</span>
-              <span>50%</span>
-              <span>25%</span>
-              <span>0%</span>
-            </div>
-            <div className="bars">
-              {bars.map((bar, index) => (
-                <div className="bar-column" key={index}>
-                  <i style={{ height: `${bar}%` }}>
-                    <b>{bar}%</b>
-                  </i>
-                  <span>
-                    {
-                      ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug"][
-                        index
-                      ]
-                    }
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
-        <section className="card padded health-card">
-          <SectionHeading title="Portfolio health" />
-          <div className="health-score">
-            <ProgressRing value={92} label="healthy" />
-          </div>
-          <div className="health-item">
-            <CheckCircle2 size={17} />
-            <span>
-              <strong>Rent records</strong>
-              <small>100% reconciled</small>
-            </span>
-          </div>
-          <div className="health-item">
-            <CheckCircle2 size={17} />
-            <span>
-              <strong>Documents</strong>
-              <small>All required files present</small>
-            </span>
-          </div>
-          <div className="health-item warning">
-            <Clock3 size={17} />
-            <span>
-              <strong>Maintenance</strong>
-              <small>1 new request</small>
-            </span>
-          </div>
-        </section>
-      </div>
-      <section className="card padded">
-        <SectionHeading title="Property performance" />
-        <div className="performance-table">
-          <div>
-            <span>Property</span>
-            <span>Occupancy</span>
-            <span>Monthly rent</span>
-            <span>Open items</span>
-          </div>
-          {properties.map((property, index) => (
-            <div key={property.id}>
-              <span>
-                <img src={property.image} alt="" />
-                <strong>{property.title}</strong>
-              </span>
-              <span>{index === 3 ? "87%" : "100%"}</span>
-              <span>{formatEuro(property.price)}</span>
-              <span>
-                {index === 0
-                  ? "1 maintenance"
-                  : index === 3
-                    ? "3 applications"
-                    : "All clear"}
-              </span>
-            </div>
-          ))}
-        </div>
-      </section>
-    </div>
-  );
-}
-
 function Plan({ notify }: { notify: (message: string) => void }) {
   return (
     <div className="page-stack">
@@ -5505,6 +5374,15 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
   const [rentRecordState, setRentRecordState] = useState(
     createInitialRentRecordState,
   );
+  const [rentFiltersByRole, setRentFiltersByRole] = useState<
+    Record<Role, RentRecordFilters>
+  >(() => ({
+    tenant: createRentRecordFilters(),
+    landlord: createRentRecordFilters(),
+    provider: createRentRecordFilters(),
+    spaceOperator: createRentRecordFilters(),
+    admin: createRentRecordFilters(),
+  }));
   const [serviceRequestState, setServiceRequestState] = useState(
     createInitialServiceRequestState,
   );
@@ -5530,6 +5408,7 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
     createInitialApplicationState,
   );
   const [operationsNow, setOperationsNow] = useState(() => new Date());
+  const [insightsPeriod, setInsightsPeriod] = useState<string>();
   useEffect(() => {
     const refresh = () => setOperationsNow(new Date());
     const timer = window.setInterval(refresh, 60_000);
@@ -6193,7 +6072,9 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
                   ? `${tr("common.back")} · ${tr("common.overview")}`
                   : propertyReturnTo === "saved"
                     ? `${tr("common.back")} · ${tr("nav.savedHomes")}`
-                    : undefined
+                    : propertyReturnTo === "insights"
+                      ? `${tr("common.back")} · ${tr("nav.insights")}`
+                      : undefined
             }
             onMessage={() => {
               if (!isWorkspaceListingOwner(role, selectedProperty.id)) {
@@ -6355,6 +6236,13 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
             role={role}
             state={rentRecordState}
             setState={setRentRecordState}
+            filters={rentFiltersByRole[role]}
+            setFilters={(next) =>
+              setRentFiltersByRole((current) => ({
+                ...current,
+                [role]: typeof next === "function" ? next(current[role]) : next,
+              }))
+            }
           />
         );
       case "maintenance":
@@ -6469,7 +6357,22 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
       case "diagnostics":
         return <Diagnostics />;
       case "insights":
-        return <Insights />;
+        return operationsSummary ? (
+          <PropertyInsights
+            summary={operationsSummary}
+            go={go}
+            onOpenProperty={(property) => openProperty(property, "insights")}
+            selectedPeriod={insightsPeriod}
+            onPeriodChange={setInsightsPeriod}
+            onOpenRentPeriod={(period) => {
+              setRentFiltersByRole((current) => ({
+                ...current,
+                [role]: { ...createRentRecordFilters(), period },
+              }));
+              go("rent");
+            }}
+          />
+        ) : null;
       case "plan":
         return <Plan notify={notify} />;
     }

@@ -4,6 +4,8 @@ import {
   categoriesForRole,
   createInitialDocumentState,
   documentBytes,
+  documentFileDescriptor,
+  documentFileIssue,
   MAX_DOCUMENT_BYTES,
   MAX_WORKSPACE_DOCUMENT_BYTES,
   removeDocument,
@@ -58,6 +60,38 @@ const pdf = new File(["%PDF-1.7 sample"], "record.pdf", {
 const noMime = new File(["%PDF-1.7 sample"], "local.PDF", { lastModified: 45 });
 for (const file of [note, image, pdf, noMime])
   assert.equal(validateDocumentFile(file), null);
+
+// Every entry point receives the same canonical preview type, including files
+// whose browsers omit MIME metadata. Text variants are always rendered as text.
+for (const [extension, mimeType, kind, canonicalMime] of [
+  ["PDF", "APPLICATION/PDF", "pdf", "application/pdf"],
+  ["pdf", "", "pdf", "application/pdf"],
+  ["png", "image/png", "image", "image/png"],
+  ["jpg", "image/jpeg", "image", "image/jpeg"],
+  ["jpeg", "", "image", "image/jpeg"],
+  ["gif", "image/gif", "image", "image/gif"],
+  ["webp", "image/webp", "image", "image/webp"],
+  ["txt", "text/plain; charset=utf-8", "text", "text/plain"],
+  ["md", "text/markdown", "text", "text/plain"],
+  ["csv", "text/csv", "text", "text/plain"],
+] as const) {
+  const file = { name: `evidence.${extension}`, type: mimeType, size: 1 };
+  assert.equal(documentFileIssue(file), null);
+  assert.deepEqual(documentFileDescriptor(file), {
+    kind,
+    mimeType: canonicalMime,
+  });
+}
+assert.equal(
+  documentBytes({
+    source: "local",
+    kind: "text",
+    mimeType: "text/plain",
+    file: note,
+  }),
+  note.size,
+  "A shared preview needs file content without fabricated library metadata",
+);
 for (const file of [
   new File([], "empty.txt", { type: "text/plain" }),
   new File(["<svg></svg>"], "drawing.svg", { type: "image/svg+xml" }),
@@ -66,8 +100,28 @@ for (const file of [
   new File(["code"], "script.js", { type: "text/javascript" }),
   new File(["data"], "constructor"),
   new File(["data"], "__proto__"),
-])
+]) {
   assert.ok(validateDocumentFile(file), `Must reject ${file.name}`);
+  assert.equal(
+    documentFileDescriptor(file),
+    null,
+    `Invalid ${file.name} must not obtain preview metadata`,
+  );
+}
+assert.deepEqual(
+  documentFileDescriptor({
+    name: "boundary.pdf",
+    type: "application/pdf",
+    size: MAX_DOCUMENT_BYTES,
+  }),
+  { kind: "pdf", mimeType: "application/pdf" },
+);
+for (const size of [0, -1, NaN, Infinity, MAX_DOCUMENT_BYTES + 1])
+  assert.equal(
+    documentFileDescriptor({ name: "invalid.pdf", type: "", size }),
+    null,
+    `Invalid size ${size} must not obtain preview metadata`,
+  );
 assert.ok(
   validateDocumentFile({
     name: "huge.pdf",
@@ -97,6 +151,11 @@ assert.deepEqual(
   locals.map((record) => record.kind),
   ["text", "image", "pdf", "pdf"],
 );
+for (const record of locals)
+  assert.deepEqual(documentFileDescriptor(record.file), {
+    kind: record.kind,
+    mimeType: record.mimeType,
+  });
 assert.equal(
   locals[0].source === "local" ? locals[0].file : null,
   note,
@@ -274,5 +333,5 @@ assert.equal(
   "A new app instance starts without selected local files",
 );
 console.log(
-  "Document state checks passed: labelled samples, supported MIME/types, size limits, real File retention, workspace isolation, mixed batches, object-identity deduplication, matching-metadata preservation and safe remove/undo.",
+  "Document state checks passed: labelled samples, canonical shared file descriptors, supported MIME/types, size limits, real File retention, workspace isolation, mixed batches, object-identity deduplication, matching-metadata preservation and safe remove/undo.",
 );

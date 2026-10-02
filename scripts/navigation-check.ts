@@ -87,7 +87,7 @@ for (const property of properties) {
   assert.equal(route.returnTo, "saved");
   assert.deepEqual(readAppRoute(appRouteUrl(route, "")), route);
 }
-for (const returnTo of ["portfolio", "overview"] as const) {
+for (const returnTo of ["portfolio", "overview", "insights"] as const) {
   const route = readAppRoute(
     `?role=landlord&view=property&property=1&from=${returnTo}`,
   );
@@ -99,6 +99,48 @@ for (const returnTo of ["portfolio", "overview"] as const) {
     "/Kasa/",
   );
 }
+for (const role of roles.filter((role) => role !== "landlord")) {
+  assert.equal(
+    readAppRoute(`?role=${role}&view=property&property=1&from=insights`)
+      .returnTo,
+    "discover",
+    `${role} must not receive a return link to the owner-only Insights workspace`,
+  );
+  assert.equal(
+    readAppRoute(`?role=${role}&view=property`, {
+      role: "landlord",
+      returnTo: "insights",
+    }).returnTo,
+    "discover",
+    "Changing workspace also scopes a supplied Insights return default",
+  );
+  const url = appRouteUrl(
+    { ...initial, role, view: "property", returnTo: "insights" },
+    "",
+  );
+  assert.equal(new URLSearchParams(url).get("from"), "discover");
+}
+assert.equal(
+  readAppRoute("?view=property", {
+    role: "landlord",
+    returnTo: "insights",
+  }).returnTo,
+  "insights",
+);
+for (const from of [
+  "Insights",
+  "insights/",
+  " insights",
+  "https://example.com/insights",
+  "__proto__",
+])
+  assert.equal(
+    readAppRoute(
+      `?role=landlord&view=property&from=${encodeURIComponent(from)}`,
+    ).returnTo,
+    "discover",
+    `Malformed return target ${from} falls back safely`,
+  );
 assert.equal(
   readAppRoute(`?view=discover&property=${firstSale.id}&intent=Rent`).intent,
   "Rent",
@@ -227,5 +269,5 @@ assert.equal(
 );
 
 console.log(
-  `Application navigation passed: ${roles.length * views.length} role/view routes, every property, all service modes, invalid URLs, query limits, defaults and entry-mode preservation.`,
+  `Application navigation passed: ${roles.length * views.length} role/view routes, every property, owner-scoped Insights return, all service modes, invalid URLs, query limits, defaults and entry-mode preservation.`,
 );

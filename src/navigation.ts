@@ -8,7 +8,7 @@ export interface AppRoute {
   propertyId: number;
   service: "discover" | "tasks" | "jobs" | "hire";
   query: string;
-  returnTo: "discover" | "saved" | "portfolio" | "overview";
+  returnTo: "discover" | "saved" | "portfolio" | "overview" | "insights";
 }
 
 const roles: Record<Role, true> = {
@@ -58,6 +58,7 @@ const returnTargets: Record<AppRoute["returnTo"], true> = {
   saved: true,
   portfolio: true,
   overview: true,
+  insights: true,
 };
 
 function readChoice<T extends string>(
@@ -78,6 +79,10 @@ function readChoice<T extends string>(
 
 function normalizeQuery(query: string) {
   return query.trim().slice(0, 200);
+}
+
+function returnTargetForRole(target: AppRoute["returnTo"], role: Role) {
+  return target === "insights" && role !== "landlord" ? "discover" : target;
 }
 
 export function readAppRoute(
@@ -123,11 +128,14 @@ export function readAppRoute(
       "discover",
     ),
     query: normalizeQuery(params.get("q") ?? defaults.query ?? ""),
-    returnTo: readChoice(
-      params.get("from"),
-      defaults.returnTo,
-      returnTargets,
-      "discover",
+    returnTo: returnTargetForRole(
+      readChoice(
+        params.get("from"),
+        defaults.returnTo,
+        returnTargets,
+        "discover",
+      ),
+      role,
     ),
   };
 }
@@ -150,7 +158,7 @@ export function appRouteUrl(route: AppRoute, currentSearch: string): string {
 
   if (route.view === "property") {
     params.set("property", String(route.propertyId));
-    params.set("from", route.returnTo);
+    params.set("from", returnTargetForRole(route.returnTo, route.role));
   } else {
     params.delete("property");
     params.delete("from");

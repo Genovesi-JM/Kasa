@@ -24,11 +24,11 @@ interface DocumentMetadata {
   addedAt: string;
 }
 
-export type WorkspaceDocument = DocumentMetadata &
-  (
-    | { source: "sample"; kind: "text"; content: string }
-    | { source: "local"; kind: DocumentKind; mimeType: string; file: File }
-  );
+export type DocumentContent =
+  | { source: "sample"; kind: "text"; content: string }
+  | { source: "local"; kind: DocumentKind; mimeType: string; file: File };
+
+export type WorkspaceDocument = DocumentMetadata & DocumentContent;
 
 export interface DocumentState {
   records: WorkspaceDocument[];
@@ -192,7 +192,7 @@ export function workspaceDocuments(
   return state.records.filter((record) => record.role === role);
 }
 
-export function documentBytes(record: WorkspaceDocument): number {
+export function documentBytes(record: DocumentContent): number {
   return record.source === "local"
     ? record.file.size
     : new TextEncoder().encode(record.content).length;
@@ -219,6 +219,15 @@ export function documentFileIssue(
   if (!format || (mimeType && !format.acceptedTypes.includes(mimeType)))
     return { code: "unsupportedFormat" };
   return null;
+}
+
+/** Canonical preview metadata for files accepted by the shared document policy. */
+export function documentFileDescriptor(
+  file: Pick<File, "name" | "type" | "size">,
+): { kind: DocumentKind; mimeType: string } | null {
+  if (documentFileIssue(file)) return null;
+  const format = formats[file.name.split(".").at(-1)!.toLowerCase()];
+  return { kind: format.kind, mimeType: format.mimeType };
 }
 
 /** Preserve the existing English API for non-UI callers. */
@@ -272,7 +281,7 @@ export function addLocalDocuments(
       issues.push({ ...issue, fileName: file.name });
       continue;
     }
-    const format = formats[file.name.split(".").at(-1)!.toLowerCase()];
+    const format = documentFileDescriptor(file)!;
     records.push({
       id: `local-document-${nextId}`,
       role,

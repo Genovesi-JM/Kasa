@@ -1,4 +1,4 @@
-import { useState, type Dispatch, type SetStateAction } from "react";
+import { useRef, useState, type Dispatch, type SetStateAction } from "react";
 import {
   Check,
   CheckCircle2,
@@ -14,6 +14,7 @@ import {
 import type { Role } from "../types";
 import {
   applicationCompleteness,
+  applicationEvidenceSummary,
   canReviewApplication,
   updateApplication,
   visibleApplicationRecords,
@@ -22,32 +23,34 @@ import {
   type ApplicationState,
 } from "./applicationState";
 import { useDialogFocus } from "./useDialogFocus";
+import { ApplicationEvidence } from "./ApplicationEvidence";
+import { useApplicationCopy } from "./applicationEvidenceCopy";
 import "./applications.css";
 
 const statuses = ["All", "Review", "Documents", "Approved", "Draft"] as const;
-const displayStatus = (status: ApplicationRecord["status"]) =>
-  status === "Review"
-    ? "Under review"
-    : status === "Documents"
-      ? "Documents requested"
-      : status;
-const displayDate = (value: string) =>
-  new Date(value).toLocaleDateString("en-GB", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
-
-function ApplicationStatus({
-  status,
-}: {
-  status: ApplicationRecord["status"];
-}) {
+function applicationDisplayStatus(record: ApplicationRecord) {
+  return record.status === "Documents" &&
+    record.evidenceRequests?.length &&
+    !applicationEvidenceSummary(record).requestOpen
+    ? "Review"
+    : record.status;
+}
+function ApplicationStatus({ record }: { record: ApplicationRecord }) {
+  const { text } = useApplicationCopy();
+  const status = applicationDisplayStatus(record);
+  const label =
+    status === "Review"
+      ? text("Under review", "Em análise")
+      : status === "Documents"
+        ? text("Documents requested", "Documentos pedidos")
+        : status === "Approved"
+          ? text("Approved", "Aprovada")
+          : text("Draft", "Rascunho");
   return (
     <span
       className={`pill pill-${status === "Approved" ? "mint" : status === "Documents" ? "amber" : status === "Draft" ? "neutral" : "blue"}`}
     >
-      {displayStatus(status)}
+      {label}
     </span>
   );
 }
@@ -57,23 +60,33 @@ function ApplicationDetail({
   role,
   onAction,
   onClose,
+  state,
+  setState,
 }: {
   record: ApplicationRecord;
   role: Role;
-  onAction: (action: ApplicationAction) => void;
+  onAction: (action: ApplicationAction) => boolean;
   onClose: () => void;
+  state: ApplicationState;
+  setState: Dispatch<SetStateAction<ApplicationState>>;
 }) {
+  const { text, date: displayDate, documentName } = useApplicationCopy();
+  const closeButton = useRef<HTMLButtonElement>(null);
   const dialogRef = useDialogFocus<HTMLDivElement>(onClose);
-  const [requesting, setRequesting] = useState(false);
-  const [requestedDocuments, setRequestedDocuments] = useState<string[]>([]);
-  const [note, setNote] = useState("");
   const [confirmApproval, setConfirmApproval] = useState(false);
-  const [feedback, setFeedback] = useState("");
+  const [feedback, setFeedback] = useState<"reviewed" | "approved" | null>(
+    null,
+  );
   const ownerCanAct = canReviewApplication(record, role);
   const completeness = applicationCompleteness(record);
-  const applyAction = (action: ApplicationAction, message: string) => {
-    onAction(action);
+  const evidenceSummary = applicationEvidenceSummary(record);
+  const applyAction = (
+    action: ApplicationAction,
+    message: "reviewed" | "approved",
+  ) => {
+    if (!onAction(action)) return;
     setFeedback(message);
+    requestAnimationFrame(() => closeButton.current?.focus());
   };
 
   return (
@@ -95,14 +108,17 @@ function ApplicationDetail({
       <section className="modal-card application-detail-card">
         <header>
           <div>
-            <span className="eyebrow">APPLICATION #{100 + record.id}</span>
+            <span className="eyebrow">
+              {text("APPLICATION", "CANDIDATURA")} #{100 + record.id}
+            </span>
             <h2 id="application-detail-title">{record.applicant}</h2>
           </div>
           <button
             type="button"
             className="icon-button"
             onClick={onClose}
-            aria-label="Close application"
+            ref={closeButton}
+            aria-label={text("Close application", "Fechar candidatura")}
             data-dialog-initial-focus
           >
             <X size={20} />
@@ -114,19 +130,24 @@ function ApplicationDetail({
               <h3>{record.property}</h3>
               <p>
                 {record.submission
-                  ? "Recorded locally"
+                  ? text("Recorded locally", "Registada localmente")
                   : record.status === "Draft"
-                    ? "Draft created"
-                    : "Submitted"}{" "}
+                    ? text("Draft created", "Rascunho criado")
+                    : text("Submitted", "Submetida")}{" "}
                 {displayDate(record.submittedAt)}
               </p>
             </div>
-            <ApplicationStatus status={record.status} />
+            <ApplicationStatus record={record} />
           </div>
           <p className="application-local-note">
-            {record.submission ? "Local application" : "Sample record"} ·
-            Changes stay in this browser session. No documents or notifications
-            are sent.
+            {record.submission
+              ? text("Local application", "Candidatura local")
+              : text("Sample record", "Registo de exemplo")}{" "}
+            ·{" "}
+            {text(
+              "Changes stay in this tab until reload. No documents or notifications are sent.",
+              "As alterações ficam neste separador até recarregar. Nenhum documento ou notificação é enviado.",
+            )}
           </p>
 
           {record.submission && (
@@ -134,22 +155,30 @@ function ApplicationDetail({
               className="application-detail-section"
               aria-labelledby="application-submission-title"
             >
-              <h3 id="application-submission-title">Application details</h3>
+              <h3 id="application-submission-title">
+                {text("Application details", "Detalhes da candidatura")}
+              </h3>
               <dl className="application-submission-details">
                 <div>
-                  <dt>Preferred move-in date</dt>
+                  <dt>
+                    {text(
+                      "Preferred move-in date",
+                      "Data de entrada preferida",
+                    )}
+                  </dt>
                   <dd>
                     {displayDate(`${record.submission.moveInDate}T12:00:00`)}
                   </dd>
                 </div>
                 <div>
-                  <dt>Number of people</dt>
+                  <dt>{text("Number of people", "Número de pessoas")}</dt>
                   <dd>{record.submission.householdSize}</dd>
                 </div>
                 <div>
-                  <dt>Introduction</dt>
+                  <dt>{text("Introduction", "Apresentação")}</dt>
                   <dd>
-                    {record.submission.introduction || "Not added (optional)"}
+                    {record.submission.introduction ||
+                      text("Not added (optional)", "Não adicionada (opcional)")}
                   </dd>
                 </div>
               </dl>
@@ -161,13 +190,18 @@ function ApplicationDetail({
             aria-labelledby="application-profile-title"
           >
             <div className="application-section-heading">
-              <h3 id="application-profile-title">Profile completeness</h3>
+              <h3 id="application-profile-title">
+                {text("Profile completeness", "Preenchimento do perfil")}
+              </h3>
               <strong>{completeness}%</strong>
             </div>
             <progress
               max={100}
               value={completeness}
-              aria-label="Profile completeness"
+              aria-label={text(
+                "Profile completeness",
+                "Preenchimento do perfil",
+              )}
             />
             <ul className="application-profile-checklist">
               {record.profileFields.map((field) => (
@@ -184,13 +218,19 @@ function ApplicationDetail({
                     )}
                   </span>
                   <span>{field.label}</span>
-                  <small>{field.present ? "Present" : "Not added"}</small>
+                  <small>
+                    {field.present
+                      ? text("Present", "Preenchido")
+                      : text("Not added", "Não preenchido")}
+                  </small>
                 </li>
               ))}
             </ul>
             <p className="application-explanation">
-              Completeness counts supplied fields. It does not rank applicants
-              or determine approval.
+              {text(
+                "Completeness counts supplied fields. It does not rank applicants or determine approval.",
+                "O preenchimento conta os campos fornecidos. Não classifica candidatos nem determina a aprovação.",
+              )}
             </p>
           </section>
 
@@ -199,14 +239,17 @@ function ApplicationDetail({
             aria-labelledby="application-documents-title"
           >
             <div className="application-section-heading">
-              <h3 id="application-documents-title">Document summaries</h3>
+              <h3 id="application-documents-title">
+                {text("Document summaries", "Resumos dos documentos")}
+              </h3>
               <span>
                 {
                   record.documents.filter(
                     (document) => document.status === "Supplied",
                   ).length
                 }{" "}
-                / {record.documents.length} supplied
+                / {record.documents.length}{" "}
+                {text("recorded as supplied", "registados como fornecidos")}
               </span>
             </div>
             <div className="application-document-list">
@@ -214,11 +257,21 @@ function ApplicationDetail({
                 <details key={document.id}>
                   <summary>
                     <FileText size={18} aria-hidden="true" />
-                    <strong>{document.name}</strong>
+                    <strong>{documentName(document.id, document.name)}</strong>
                     <span
                       className={`application-document-status ${document.status.toLowerCase()}`}
                     >
-                      {document.status}
+                      {document.status === "Supplied"
+                        ? text("Supplied", "Fornecido")
+                        : document.status === "Requested"
+                          ? evidenceSummary.latestRequest &&
+                            !evidenceSummary.requestOpen
+                            ? text(
+                                "Previously requested",
+                                "Pedido anteriormente",
+                              )
+                            : text("Requested", "Pedido")
+                          : text("Missing", "Em falta")}
                     </span>
                     <ChevronRight size={16} aria-hidden="true" />
                   </summary>
@@ -226,48 +279,43 @@ function ApplicationDetail({
                 </details>
               ))}
             </div>
-            {record.documentRequest && (
-              <div className="application-request-note">
-                <strong>Document request</strong>
-                <p>{record.documentRequest}</p>
-              </div>
-            )}
           </section>
+
+          <ApplicationEvidence
+            key={`${role}-${record.id}`}
+            role={role}
+            record={record}
+            state={state}
+            setState={setState}
+          />
 
           {ownerCanAct && (
             <section
               className="application-detail-section application-owner-actions"
               aria-labelledby="application-review-title"
             >
-              <h3 id="application-review-title">Owner review</h3>
+              <h3 id="application-review-title">
+                {text("Owner review", "Análise do proprietário")}
+              </h3>
               <p className="application-explanation">
-                Review the record and choose the next step yourself.
+                {text(
+                  "Review the record and choose the next step yourself.",
+                  "Analise o registo e escolha o próximo passo.",
+                )}
               </p>
               <div className="application-review-actions">
                 <button
                   type="button"
                   className="button button-secondary"
-                  onClick={() => {
-                    setRequesting((value) => !value);
-                    setConfirmApproval(false);
-                  }}
-                  aria-expanded={requesting}
-                >
-                  Request documents
-                </button>
-                <button
-                  type="button"
-                  className="button button-secondary"
                   disabled={record.reviewed}
                   onClick={() =>
-                    applyAction(
-                      { type: "mark-reviewed" },
-                      "Marked as reviewed in this workspace.",
-                    )
+                    applyAction({ type: "mark-reviewed" }, "reviewed")
                   }
                 >
                   <ClipboardCheck size={16} />
-                  {record.reviewed ? "Reviewed" : "Mark as reviewed"}
+                  {record.reviewed
+                    ? text("Reviewed", "Analisada")
+                    : text("Mark as reviewed", "Marcar como analisada")}
                 </button>
                 <button
                   type="button"
@@ -278,10 +326,9 @@ function ApplicationDetail({
                   }
                   onClick={() => {
                     setConfirmApproval(true);
-                    setRequesting(false);
                   }}
                 >
-                  Approve application
+                  {text("Approve application", "Aprovar candidatura")}
                 </button>
               </div>
               {!record.reviewed && (
@@ -289,103 +336,47 @@ function ApplicationDetail({
                   id="application-review-hint"
                   className="application-explanation"
                 >
-                  Mark the record as reviewed before choosing approval.
+                  {text(
+                    "Mark the record as reviewed before choosing approval.",
+                    "Marque o registo como analisado antes de escolher a aprovação.",
+                  )}
                 </p>
-              )}
-              {requesting && (
-                <form
-                  className="application-request-form"
-                  onSubmit={(event) => {
-                    event.preventDefault();
-                    if (!requestedDocuments.length) return;
-                    applyAction(
-                      {
-                        type: "request-documents",
-                        documentIds: requestedDocuments,
-                        note,
-                      },
-                      "Document request saved locally. Nothing has been sent to the applicant.",
-                    );
-                    setRequesting(false);
-                    setRequestedDocuments([]);
-                    setNote("");
-                  }}
-                >
-                  <fieldset>
-                    <legend>Which documents do you need?</legend>
-                    {record.documents.map((document) => (
-                      <label key={document.id}>
-                        <input
-                          type="checkbox"
-                          checked={requestedDocuments.includes(document.id)}
-                          onChange={(event) =>
-                            setRequestedDocuments((current) =>
-                              event.target.checked
-                                ? [...current, document.id]
-                                : current.filter((id) => id !== document.id),
-                            )
-                          }
-                        />
-                        {document.name}
-                      </label>
-                    ))}
-                  </fieldset>
-                  <label>
-                    Note to include in the record
-                    <textarea
-                      value={note}
-                      onChange={(event) => setNote(event.target.value)}
-                      maxLength={1000}
-                      rows={3}
-                      placeholder="Describe what is missing or needs updating"
-                    />
-                  </label>
-                  <div className="application-review-actions">
-                    <button
-                      type="submit"
-                      className="button"
-                      disabled={!requestedDocuments.length}
-                    >
-                      Save document request
-                    </button>
-                    <button
-                      type="button"
-                      className="button button-secondary"
-                      onClick={() => setRequesting(false)}
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                </form>
               )}
               {confirmApproval && (
                 <div className="application-approval-confirm">
-                  <strong>Mark this sample application approved?</strong>
+                  <strong>
+                    {text(
+                      "Mark this application approved locally?",
+                      "Marcar esta candidatura como aprovada localmente?",
+                    )}
+                  </strong>
                   <p>
-                    This records your decision locally. It does not create a
-                    tenancy or notify the applicant.
+                    {text(
+                      "This records your decision locally. It does not create a tenancy or notify the applicant.",
+                      "A sua decisão é registada localmente. Não é criado um arrendamento nem enviada uma notificação ao candidato.",
+                    )}
                   </p>
                   <div className="application-review-actions">
                     <button
                       type="button"
                       className="button"
                       onClick={() => {
-                        applyAction(
-                          { type: "approve" },
-                          "Application marked approved in this workspace.",
-                        );
+                        applyAction({ type: "approve" }, "approved");
                         setConfirmApproval(false);
                       }}
                     >
                       <CheckCircle2 size={16} />
-                      Confirm local approval
+                      {text(
+                        "Confirm local approval",
+                        "Confirmar aprovação local",
+                      )}
                     </button>
                     <button
                       type="button"
                       className="button button-secondary"
                       onClick={() => setConfirmApproval(false)}
                     >
-                      Cancel
+                      {text("Cancel", "Cancelar")}
                     </button>
                   </div>
                 </div>
@@ -396,25 +387,42 @@ function ApplicationDetail({
             <div className="application-approved-note">
               <CheckCircle2 size={20} />
               <span>
-                Approval is recorded in this sample workspace. No tenancy has
-                been created.
+                {text(
+                  "Approval is recorded in this workspace. No tenancy has been created.",
+                  "A aprovação está registada nesta área de trabalho. Nenhum arrendamento foi criado.",
+                )}
               </span>
             </div>
           )}
           {record.status === "Draft" && (
             <p className="application-explanation">
-              This draft has not been submitted for owner review.
+              {text(
+                "This draft has not been submitted for owner review.",
+                "Este rascunho ainda não foi submetido à análise do proprietário.",
+              )}
             </p>
           )}
           <p className="application-action-feedback" role="status">
-            {feedback}
+            {feedback === "reviewed"
+              ? text(
+                  "Marked as reviewed in this workspace.",
+                  "Análise registada nesta área de trabalho.",
+                )
+              : feedback === "approved"
+                ? text(
+                    "Application marked approved in this workspace.",
+                    "Candidatura marcada como aprovada nesta área de trabalho.",
+                  )
+                : null}
           </p>
 
           <section
             className="application-detail-section"
             aria-labelledby="application-activity-title"
           >
-            <h3 id="application-activity-title">Record history</h3>
+            <h3 id="application-activity-title">
+              {text("Record history", "Histórico do registo")}
+            </h3>
             <ol className="application-record-history">
               {[...record.activity].reverse().map((event) => (
                 <li key={event.id}>
@@ -441,6 +449,7 @@ export function Applications({
   setState: Dispatch<SetStateAction<ApplicationState>>;
   onNewApplication: () => void;
 }) {
+  const { text, date: displayDate, phase } = useApplicationCopy();
   const [tab, setTab] = useState<(typeof statuses)[number]>("All");
   const [propertyFilter, setPropertyFilter] = useState("All properties");
   const [completeness, setCompleteness] = useState("Any completeness");
@@ -452,7 +461,7 @@ export function Applications({
   const visible = baseApplications
     .filter(
       (record) =>
-        (tab === "All" || record.status === tab) &&
+        (tab === "All" || applicationDisplayStatus(record) === tab) &&
         (propertyFilter === "All properties" ||
           record.property === propertyFilter) &&
         (completeness === "Any completeness" ||
@@ -488,7 +497,10 @@ export function Applications({
   return (
     <div className="page-stack applications-workspace">
       <div className="page-actions">
-        <div className="segment compact" aria-label="Application status">
+        <div
+          className="segment compact"
+          aria-label={text("Application status", "Estado da candidatura")}
+        >
           {statuses.map((status) => (
             <button
               type="button"
@@ -497,11 +509,21 @@ export function Applications({
               onClick={() => setTab(status)}
               aria-pressed={tab === status}
             >
-              {status}
+              {status === "All"
+                ? text("All", "Todas")
+                : status === "Review"
+                  ? text("Review", "Em análise")
+                  : status === "Documents"
+                    ? text("Documents", "Documentos")
+                    : status === "Approved"
+                      ? text("Approved", "Aprovadas")
+                      : text("Draft", "Rascunhos")}
               <span>
                 {
                   baseApplications.filter(
-                    (record) => status === "All" || record.status === status,
+                    (record) =>
+                      status === "All" ||
+                      applicationDisplayStatus(record) === status,
                   ).length
                 }
               </span>
@@ -511,13 +533,15 @@ export function Applications({
         {role === "tenant" && (
           <button type="button" className="button" onClick={onNewApplication}>
             <Plus size={17} />
-            New rental application
+            {text("New rental application", "Nova candidatura a arrendamento")}
           </button>
         )}
       </div>
       <p className="application-local-note">
-        Sample workspace · Application changes stay available while you navigate
-        this session.
+        {text(
+          "Application changes stay available in this tab while you navigate. Reloading clears local responses and files.",
+          "As alterações às candidaturas mantêm-se neste separador ao mudar de página. Recarregar elimina as respostas e os ficheiros locais.",
+        )}
       </p>
       <div className="filter-toolbar">
         <span className="filter-toolbar-icon">
@@ -527,18 +551,26 @@ export function Applications({
           <label className="filter-search">
             <Search size={15} />
             <input
-              aria-label="Search applications"
-              placeholder="Search applicant or property"
+              aria-label={text("Search applications", "Pesquisar candidaturas")}
+              placeholder={text(
+                "Search applicant or property",
+                "Pesquisar candidato ou imóvel",
+              )}
               value={query}
               onChange={(event) => setQuery(event.target.value)}
             />
           </label>
           <select
-            aria-label="Filter applications by property"
+            aria-label={text(
+              "Filter applications by property",
+              "Filtrar candidaturas por imóvel",
+            )}
             value={propertyFilter}
             onChange={(event) => setPropertyFilter(event.target.value)}
           >
-            <option>All properties</option>
+            <option value="All properties">
+              {text("All properties", "Todos os imóveis")}
+            </option>
             {[
               ...new Set(baseApplications.map((record) => record.property)),
             ].map((property) => (
@@ -546,44 +578,64 @@ export function Applications({
             ))}
           </select>
           <select
-            aria-label="Filter by profile completeness"
+            aria-label={text(
+              "Filter by profile completeness",
+              "Filtrar por preenchimento do perfil",
+            )}
             value={completeness}
             onChange={(event) => setCompleteness(event.target.value)}
           >
-            <option>Any completeness</option>
-            <option value="80">80%+ complete</option>
-            <option value="100">100% complete</option>
+            <option value="Any completeness">
+              {text("Any completeness", "Qualquer preenchimento")}
+            </option>
+            <option value="80">80%+ {text("complete", "preenchido")}</option>
+            <option value="100">100% {text("complete", "preenchido")}</option>
           </select>
           <select
-            aria-label="Sort applications"
+            aria-label={text("Sort applications", "Ordenar candidaturas")}
             value={applicationSort}
             onChange={(event) => setApplicationSort(event.target.value)}
           >
-            <option>Newest submitted</option>
-            <option>Oldest submitted</option>
-            <option>Most complete</option>
-            <option>Action required first</option>
+            <option value="Newest submitted">
+              {text("Newest submitted", "Mais recentes")}
+            </option>
+            <option value="Oldest submitted">
+              {text("Oldest submitted", "Mais antigas")}
+            </option>
+            <option value="Most complete">
+              {text("Most complete", "Mais preenchidas")}
+            </option>
+            <option value="Action required first">
+              {text("Action required first", "Com ações pendentes primeiro")}
+            </option>
           </select>
         </div>
         {activeFilters > 0 && (
           <button type="button" className="text-button" onClick={resetFilters}>
-            Reset ({activeFilters})
+            {text("Reset", "Limpar")} ({activeFilters})
           </button>
         )}
       </div>
       <p className="application-results-count" role="status">
-        {visible.length} {visible.length === 1 ? "application" : "applications"}
+        {visible.length}{" "}
+        {visible.length === 1
+          ? text("application", "candidatura")
+          : text("applications", "candidaturas")}
       </p>
       <section
         className="card application-record-list"
-        aria-label="Rental applications"
+        aria-label={text("Rental applications", "Candidaturas a arrendamento")}
       >
         <div className="application-record-head" aria-hidden="true">
-          <span>{role === "landlord" ? "Applicant" : "Application"}</span>
-          <span>Property</span>
-          <span>Submitted</span>
-          <span>Profile</span>
-          <span>Status</span>
+          <span>
+            {role === "landlord"
+              ? text("Applicant", "Candidato")
+              : text("Application", "Candidatura")}
+          </span>
+          <span>{text("Property", "Imóvel")}</span>
+          <span>{text("Submitted", "Registada")}</span>
+          <span>{text("Profile", "Perfil")}</span>
+          <span>{text("Status", "Estado")}</span>
           <span />
         </div>
         {visible.map((record) => (
@@ -592,7 +644,7 @@ export function Applications({
             className="application-record-row"
             key={record.id}
             onClick={() => setSelectedId(record.id)}
-            aria-label={`Open ${role === "tenant" ? `application ${100 + record.id}` : record.applicant} · ${record.property}`}
+            aria-label={`${text("Open", "Abrir")} ${role === "tenant" ? `${text("application", "candidatura")} ${100 + record.id}` : record.applicant} · ${record.property}`}
           >
             <span className="applicant-cell">
               <span className="avatar">{record.avatar}</span>
@@ -600,12 +652,12 @@ export function Applications({
                 <strong>
                   {role === "landlord"
                     ? record.applicant
-                    : `Application #${100 + record.id}`}
+                    : `${text("Application", "Candidatura")} #${100 + record.id}`}
                 </strong>
                 {record.reviewed && (
                   <small>
                     <Check size={12} />
-                    Reviewed
+                    {text("Reviewed", "Analisada")}
                   </small>
                 )}
               </span>
@@ -615,10 +667,14 @@ export function Applications({
               {displayDate(record.submittedAt)}
             </span>
             <span className="application-row-completeness">
-              <b>{applicationCompleteness(record)}%</b> complete
+              <b>{applicationCompleteness(record)}%</b>{" "}
+              {text("complete", "preenchido")}
             </span>
             <span className="application-row-status">
-              <ApplicationStatus status={record.status} />
+              <ApplicationStatus record={record} />
+              {applicationEvidenceSummary(record).phase !== "none" && (
+                <small>{phase(applicationEvidenceSummary(record).phase)}</small>
+              )}
             </span>
             <ChevronRight className="application-row-arrow" size={18} />
           </button>
@@ -626,14 +682,19 @@ export function Applications({
         {!visible.length && (
           <div className="table-empty">
             <Search size={24} />
-            <span>No rental applications match these filters.</span>
+            <span>
+              {text(
+                "No rental applications match these filters.",
+                "Nenhuma candidatura corresponde a estes filtros.",
+              )}
+            </span>
             {activeFilters > 0 && (
               <button
                 type="button"
                 className="button button-secondary"
                 onClick={resetFilters}
               >
-                Reset filters
+                {text("Reset filters", "Limpar filtros")}
               </button>
             )}
           </div>
@@ -642,22 +703,26 @@ export function Applications({
       <div className="scope-note">
         <ShieldCheck size={17} />
         <span>
-          Kasa organizes rental applications and documents. Completeness only
-          counts supplied profile fields; the property owner makes every review
-          and approval decision.
+          {text(
+            "Kasa organizes rental applications and documents. Completeness only counts supplied profile fields; the property owner makes every review and approval decision.",
+            "A Kasa organiza candidaturas e documentos. O preenchimento conta apenas campos do perfil; cada decisão de análise e aprovação cabe ao proprietário.",
+          )}
         </span>
       </div>
       {selected && (
         <ApplicationDetail
-          key={selected.id}
+          key={`${role}-${selected.id}`}
           record={selected}
+          state={state}
+          setState={setState}
           role={role}
           onClose={() => setSelectedId(null)}
-          onAction={(action) =>
-            setState((current) =>
-              updateApplication(current, selected.id, role, action),
-            )
-          }
+          onAction={(action) => {
+            const next = updateApplication(state, selected.id, role, action);
+            if (next === state) return false;
+            setState(next);
+            return true;
+          }}
         />
       )}
     </div>

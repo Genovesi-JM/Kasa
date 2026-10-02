@@ -53,6 +53,13 @@ export interface RentRecordFilters {
   sort: "Most recently updated" | "Amount: high to low" | "Property name";
 }
 
+export const createRentRecordFilters = (): RentRecordFilters => ({
+  status: "All statuses",
+  property: "All properties",
+  period: "All periods",
+  sort: "Most recently updated",
+});
+
 export const tenantRentIdentity = "tenant-ines";
 export const landlordRentIdentity = workspaceLandlordName;
 
