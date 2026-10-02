@@ -90,7 +90,7 @@ function positiveId(value: number | null | undefined): value is number {
   return typeof value === "number" && Number.isSafeInteger(value) && value > 0;
 }
 
-function readSpaceId(
+function readCatalogueId(
   value: string | null,
   suppliedDefault: number | null | undefined,
 ) {
@@ -142,18 +142,16 @@ export function readAppRoute(
     intents,
     "Rent",
   );
-  const rawProperty = params.get("property");
-  const propertyId =
-    rawProperty === null
-      ? defaults.propertyId
-      : /^\d+$/.test(rawProperty)
-        ? Number(rawProperty)
-        : undefined;
-  const suppliedProperty = Number.isSafeInteger(propertyId)
+  const propertyId = readCatalogueId(
+    params.get("property"),
+    defaults.propertyId,
+  );
+  const suppliedProperty = positiveId(propertyId)
     ? properties.find((property) => property.id === propertyId)
     : undefined;
-  if (view === "property" && suppliedProperty) {
-    intent = suppliedProperty.listingType;
+  if (view === "property") {
+    if (suppliedProperty) intent = suppliedProperty.listingType;
+    else view = "discover";
   }
   const selectedProperty =
     suppliedProperty ??
@@ -162,8 +160,8 @@ export function readAppRoute(
   const selectedSpace =
     view === "spaceVenue"
       ? spaceSelection(
-          readSpaceId(params.get("venue"), defaults.venueId),
-          readSpaceId(params.get("space"), defaults.spaceId),
+          readCatalogueId(params.get("venue"), defaults.venueId),
+          readCatalogueId(params.get("space"), defaults.spaceId),
         )
       : null;
   if (view === "spaceVenue" && !selectedSpace) view = "spaces";
@@ -197,6 +195,11 @@ export function readAppRoute(
 export function appRouteUrl(route: AppRoute, currentSearch: string): string {
   const params = new URLSearchParams(currentSearch);
   let view = canonicalRoleView(route.role, route.view);
+  const selectedProperty =
+    view === "property" && positiveId(route.propertyId)
+      ? properties.find((property) => property.id === route.propertyId)
+      : undefined;
+  if (view === "property" && !selectedProperty) view = "discover";
   const selectedSpace =
     view === "spaceVenue" ? spaceSelection(route.venueId, route.spaceId) : null;
   if (view === "spaceVenue" && !selectedSpace) view = "spaces";
@@ -212,10 +215,10 @@ export function appRouteUrl(route: AppRoute, currentSearch: string): string {
   if (!hasEntryMode) params.set("app", "1");
   params.set("role", route.role);
   params.set("view", view);
-  params.set("intent", route.intent);
+  params.set("intent", selectedProperty?.listingType ?? route.intent);
 
   if (view === "property") {
-    params.set("property", String(route.propertyId));
+    params.set("property", String(selectedProperty!.id));
     params.set("from", returnTargetForRole(route.returnTo, route.role));
   } else {
     params.delete("property");

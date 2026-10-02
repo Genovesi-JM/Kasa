@@ -178,7 +178,8 @@ for (const role of ["provider", "spaceOperator", "admin"] as const) {
     `${role} cannot open the property-party viewing inbox`,
   );
   assert.equal(
-    readAppRoute(`?role=${role}&view=property&from=viewings`).returnTo,
+    readAppRoute(`?role=${role}&view=property&property=1&from=viewings`)
+      .returnTo,
     "discover",
   );
   const defaultRoute = readAppRoute(`?role=${role}`, {
@@ -223,7 +224,7 @@ for (const role of roles.filter((role) => role !== "landlord")) {
     `${role} must not receive a return link to the owner-only Insights workspace`,
   );
   assert.equal(
-    readAppRoute(`?role=${role}&view=property`, {
+    readAppRoute(`?role=${role}&view=property&property=1`, {
       role: "landlord",
       returnTo: "insights",
     }).returnTo,
@@ -240,6 +241,7 @@ assert.equal(
   readAppRoute("?view=property", {
     role: "landlord",
     returnTo: "insights",
+    propertyId: firstRental.id,
   }).returnTo,
   "insights",
 );
@@ -252,7 +254,7 @@ for (const from of [
 ])
   assert.equal(
     readAppRoute(
-      `?role=landlord&view=property&from=${encodeURIComponent(from)}`,
+      `?role=landlord&view=property&property=1&from=${encodeURIComponent(from)}`,
     ).returnTo,
     "discover",
     `Malformed return target ${from} falls back safely`,
@@ -264,15 +266,22 @@ assert.equal(
 
 for (const invalidProperty of [
   "",
+  "0",
   "unknown",
   "NaN",
   "Infinity",
   "1.2",
+  "1.0",
   "-1",
+  "+1",
+  "01",
+  " 1",
+  "1 ",
   "9999",
   "1e0",
   "0x1",
   "9007199254740993",
+  "property-draft-1",
 ]) {
   const route = readAppRoute(
     `?view=property&intent=Buy&property=${encodeURIComponent(invalidProperty)}`,
@@ -281,10 +290,128 @@ for (const invalidProperty of [
   assert.equal(
     route.propertyId,
     firstSale.id,
-    `Invalid property ${invalidProperty} falls back by intent`,
+    `Invalid property ${invalidProperty} retains a safe browse selection by intent`,
+  );
+  assert.equal(
+    route.view,
+    "discover",
+    "An invalid link cannot display the fallback property's detail",
   );
   assert.equal(route.intent, "Buy");
+  const serialized = new URLSearchParams(
+    appRouteUrl(
+      route,
+      "?property=bad&from=saved&venue=1&space=11&campaign=phone",
+    ),
+  );
+  assert.equal(serialized.get("view"), "discover");
+  assert.equal(serialized.get("intent"), "Buy");
+  assert.equal(serialized.get("campaign"), "phone");
+  for (const key of ["property", "from", "venue", "space"])
+    assert.equal(serialized.has(key), false);
 }
+
+for (const role of roles) {
+  for (const intent of ["Rent", "Buy"] as const) {
+    for (const legacy of ["", "&propertyId=1", "&property=+1"]) {
+      const route = readAppRoute(
+        `?role=${role}&view=property&intent=${intent}&q=terrace${legacy}`,
+      );
+      assert.equal(route.view, "discover");
+      assert.equal(route.role, role);
+      assert.equal(route.intent, intent);
+      assert.equal(route.query, "terrace");
+    }
+    assert.equal(
+      readAppRoute("", { role, intent, view: "property" }).view,
+      "discover",
+    );
+  }
+}
+for (const propertyId of [
+  undefined,
+  null,
+  0,
+  -1,
+  1.1,
+  NaN,
+  Infinity,
+  99999,
+  Number.MAX_SAFE_INTEGER + 1,
+]) {
+  const defaultsRoute = readAppRoute("?view=property&intent=Buy", {
+    propertyId: propertyId as number,
+  });
+  assert.equal(defaultsRoute.view, "discover");
+  const serialized = new URLSearchParams(
+    appRouteUrl(
+      {
+        ...initial,
+        view: "property",
+        propertyId: propertyId as number,
+        intent: "Buy",
+        query: "terrace",
+      },
+      "?property=1&from=saved&campaign=phone",
+    ),
+  );
+  assert.equal(serialized.get("view"), "discover");
+  assert.equal(serialized.get("intent"), "Buy");
+  assert.equal(serialized.get("q"), "terrace");
+  assert.equal(serialized.get("campaign"), "phone");
+  assert.equal(serialized.has("property"), false);
+  assert.equal(serialized.has("from"), false);
+}
+for (const role of roles) {
+  for (const property of properties) {
+    for (const returnTo of [
+      "discover",
+      "saved",
+      "portfolio",
+      "overview",
+      "insights",
+      "viewings",
+    ] as const) {
+      const expectedReturn =
+        (returnTo === "insights" && role !== "landlord") ||
+        (returnTo === "viewings" && role !== "tenant" && role !== "landlord")
+          ? "discover"
+          : returnTo;
+      const route = readAppRoute("", {
+        role,
+        view: "property",
+        propertyId: property.id,
+        returnTo,
+      });
+      assert.equal(route.view, "property");
+      assert.equal(route.propertyId, property.id);
+      assert.equal(route.intent, property.listingType);
+      assert.equal(route.returnTo, expectedReturn);
+      const url = appRouteUrl(
+        { ...route, intent: property.listingType === "Rent" ? "Buy" : "Rent" },
+        "?app=1&campaign=phone&tag=one&tag=two",
+      );
+      const resolved = new URL(url, "https://example.com/Kasa/");
+      assert.equal(resolved.pathname, "/Kasa/");
+      assert.equal(
+        resolved.searchParams.get("intent"),
+        property.listingType,
+        "Serialization derives intent from the actual listing",
+      );
+      assert.equal(resolved.searchParams.get("from"), expectedReturn);
+      assert.equal(resolved.searchParams.get("campaign"), "phone");
+      assert.deepEqual(resolved.searchParams.getAll("tag"), ["one", "two"]);
+      assert.deepEqual(readAppRoute(url), route);
+    }
+  }
+}
+assert.equal(
+  readAppRoute(`?view=property&property=${firstSale.id}`, {
+    propertyId: firstRental.id,
+  }).propertyId,
+  firstSale.id,
+  "An explicit valid URL takes precedence over defaults",
+);
 for (const invalidValue of [
   "",
   "bogus",
@@ -626,5 +753,5 @@ for (const original of [
 }
 
 console.log(
-  `Application navigation passed: ${roles.length * views.length} role/view routes, every canonical venue/unit and property, invalid/legacy venue fallback, scoped venue setup and viewing inbox/return, owner-scoped Insights return, all service modes, strict venue IDs, query limits, defaults and entry-mode preservation.`,
+  `Application navigation passed: ${roles.length * views.length} role/view routes, every canonical venue/unit and property, invalid/legacy property and venue fallbacks, scoped venue setup and viewing inbox/return, all valid property return origins, all service modes, strict catalogue IDs, query limits, defaults and entry-mode preservation.`,
 );

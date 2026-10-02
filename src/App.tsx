@@ -148,12 +148,27 @@ import {
   type SavedSearchStateUpdate,
 } from "./components/workspaceSavedState";
 import {
+  applyDiscoverSearch,
   createInitialDiscoverState,
+  discoverSearch,
   resetDiscoverFilters,
+  startDiscoverSearch,
+  updateDiscoverQuery,
   updateDiscoverState,
   type DiscoverFilters,
   type DiscoverFilterUpdate,
 } from "./components/discoverState";
+import {
+  createDiscoverHistory,
+  readDiscoverHistory,
+} from "./components/discoverHistory";
+import {
+  createInitialSavedHomesViewState,
+  resetSavedHomesView,
+  savedHomesView,
+  updateSavedHomesView,
+  type SavedHomesView,
+} from "./components/savedHomesViewState";
 import {
   createInitialWorkspaceMessageState,
   openPropertyConversation,
@@ -1670,7 +1685,7 @@ function Discover({
   toggleFavourite,
   onOpen,
   initialIntent,
-  initialQuery = "",
+  query,
   onIntentChange,
   onQueryChange,
   filters,
@@ -1683,9 +1698,9 @@ function Discover({
   toggleFavourite: (id: number) => void;
   onOpen: (property: Property) => void;
   initialIntent: "Rent" | "Buy";
-  initialQuery?: string;
+  query: string;
   onIntentChange: (intent: "Rent" | "Buy") => void;
-  onQueryChange?: (query: string) => void;
+  onQueryChange: (query: string) => void;
   filters: DiscoverFilters;
   onFiltersChange: (update: DiscoverFilterUpdate) => void;
   savedSearchState: SavedSearchState;
@@ -1694,8 +1709,7 @@ function Discover({
 }) {
   const { tr } = useKasaI18n();
   const [catalogProperties, setCatalogProperties] = useState(properties);
-  const [query, setQuery] = useState(initialQuery);
-  useEffect(() => onQueryChange?.(query), [query, onQueryChange]);
+  const setQuery = onQueryChange;
   const intent = initialIntent;
   const {
     maxPrice,
@@ -2411,15 +2425,25 @@ function Saved({
   onOpen,
   savedSearches,
   onDiscover,
+  view,
+  onViewChange,
+  onResetView,
 }: {
   favourites: number[];
   toggleFavourite: (id: number) => void;
   onOpen: (property: Property) => void;
   savedSearches: React.ReactNode;
   onDiscover: () => void;
+  view: SavedHomesView;
+  onViewChange: (update: { intent?: string; sort?: string }) => void;
+  onResetView: () => void;
 }) {
-  const [intent, setIntent] = useState("All");
-  const [sort, setSort] = useState("Recently saved");
+  const { intent, sort } = view;
+  const { i18n } = useTranslation();
+  const portuguese = (i18n.resolvedLanguage || i18n.language || "pt")
+    .toLowerCase()
+    .startsWith("pt");
+  const copy = (en: string, pt: string) => (portuguese ? pt : en);
   const saved = properties
     .filter(
       (property) =>
@@ -2439,35 +2463,45 @@ function Saved({
     <div className="page-stack">
       {savedSearches}
       <FilterToolbar
-        activeCount={intent === "All" ? 0 : 1}
-        onReset={() => {
-          setIntent("All");
-          setSort("Recently saved");
-        }}
+        activeCount={
+          Number(intent !== "All") + Number(sort !== "Recently saved")
+        }
+        onReset={onResetView}
       >
         <select
-          aria-label="Saved listing type"
+          aria-label={copy("Saved listing type", "Tipo de imóvel guardado")}
           value={intent}
-          onChange={(event) => setIntent(event.target.value)}
+          onChange={(event) => onViewChange({ intent: event.target.value })}
         >
-          <option>All</option>
-          <option>Rent</option>
-          <option>Buy</option>
+          <option value="All">{copy("All", "Todos")}</option>
+          <option value="Rent">{copy("Rent", "Arrendar")}</option>
+          <option value="Buy">{copy("Buy", "Comprar")}</option>
         </select>
         <select
-          aria-label="Sort saved homes"
+          aria-label={copy("Sort saved homes", "Ordenar imóveis guardados")}
           value={sort}
-          onChange={(event) => setSort(event.target.value)}
+          onChange={(event) => onViewChange({ sort: event.target.value })}
         >
-          <option>Recently saved</option>
-          <option>Newest listing</option>
-          <option>Price: low to high</option>
-          <option>Price: high to low</option>
+          <option value="Recently saved">
+            {copy("Recently saved", "Guardados recentemente")}
+          </option>
+          <option value="Newest listing">
+            {copy("Newest listing", "Anúncio mais recente")}
+          </option>
+          <option value="Price: low to high">
+            {copy("Price: low to high", "Preço: menor primeiro")}
+          </option>
+          <option value="Price: high to low">
+            {copy("Price: high to low", "Preço: maior primeiro")}
+          </option>
         </select>
       </FilterToolbar>
       <SectionHeading
-        title={`${saved.length} saved homes`}
-        action="Discover more"
+        title={copy(
+          `${saved.length} saved ${saved.length === 1 ? "home" : "homes"}`,
+          `${saved.length} ${saved.length === 1 ? "imóvel guardado" : "imóveis guardados"}`,
+        )}
+        action={copy("Discover more", "Descobrir mais")}
         onAction={onDiscover}
       />
       {saved.length ? (
@@ -2485,8 +2519,15 @@ function Saved({
       ) : (
         <div className="empty-state">
           <Heart size={30} />
-          <h3>No saved homes match</h3>
-          <p>Reset the filter or save more properties from discovery.</p>
+          <h3>
+            {copy("No saved homes match", "Nenhum imóvel guardado corresponde")}
+          </h3>
+          <p>
+            {copy(
+              "Reset the filter or save more properties from discovery.",
+              "Limpe o filtro ou guarde mais imóveis na pesquisa.",
+            )}
+          </p>
         </div>
       )}
     </div>
@@ -4785,6 +4826,13 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
       view: demoTarget?.view,
       intent: demoTarget?.intent,
       service: demoTarget?.service,
+      propertyId:
+        demoTarget?.view === "property"
+          ? properties.find(
+              (property) =>
+                property.listingType === (demoTarget.intent ?? "Rent"),
+            )?.id
+          : undefined,
     }),
   );
   const isDevicePreview =
@@ -4826,6 +4874,9 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
   const currentSpacesFilters = spacesDiscoveryFilters(spacesDiscovery, role);
   const [workspaceSaved, setWorkspaceSaved] = useState(
     createInitialWorkspaceSavedState,
+  );
+  const [savedHomesViews, setSavedHomesViews] = useState(
+    createInitialSavedHomesViewState,
   );
   const favourites = workspaceSaved[role].favourites;
   const setFavourites = useCallback(
@@ -4980,8 +5031,20 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
   const [discoveryIntent, setDiscoveryIntent] = useState<"Rent" | "Buy">(
     initialRoute.intent,
   );
-  const [discoverState, setDiscoverState] = useState(
-    createInitialDiscoverState,
+  const [discoverState, setDiscoverState] = useState(() => {
+    const state = createInitialDiscoverState();
+    return initialRoute.view === "discover" || initialRoute.view === "property"
+      ? startDiscoverSearch(
+          state,
+          initialRoute.role,
+          initialRoute.intent,
+          initialRoute.query,
+        )
+      : state;
+  });
+  const currentDiscoverSearch = useMemo(
+    () => discoverSearch(discoverState, role, discoveryIntent),
+    [discoverState, role, discoveryIntent],
   );
   const savedSearchState = workspaceSaved[role].searches;
   const setSavedSearchState = useCallback(
@@ -5022,7 +5085,9 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
       query:
         view === "spaces" || view === "spaceVenue"
           ? currentSpacesFilters.query
-          : searchQuery,
+          : view === "discover" || view === "property"
+            ? currentDiscoverSearch.query
+            : searchQuery,
       returnTo: propertyReturnTo,
     };
     if (restoringHistory.current) {
@@ -5039,9 +5104,12 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
         (view === "property" && previous.propertyId !== selectedProperty.id) ||
         (view === "spaceVenue" && previous.venueId !== selectedVenueId) ||
         (view === "services" && previous.service !== serviceLaunch));
+    const historySnapshot = createDiscoverHistory(route, currentDiscoverSearch);
     if (url !== window.location.search) {
-      if (screenChanged) window.history.pushState(null, "", url);
-      else window.history.replaceState(null, "", url);
+      if (screenChanged) window.history.pushState(historySnapshot, "", url);
+      else window.history.replaceState(historySnapshot, "", url);
+    } else if (historySnapshot) {
+      window.history.replaceState(historySnapshot, "", url);
     }
     previousRoute.current = route;
   }, [
@@ -5053,6 +5121,7 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
     selectedVenueId,
     selectedSpaceId,
     currentSpacesFilters.query,
+    currentDiscoverSearch,
     serviceLaunch,
     searchQuery,
     propertyReturnTo,
@@ -5071,6 +5140,19 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
       if (route.view === "spaces" || route.view === "spaceVenue") {
         setSpacesDiscovery((current) =>
           updateSpacesDiscovery(current, route.role, { query: route.query }),
+        );
+      }
+      if (route.view === "discover" || route.view === "property") {
+        const snapshot = readDiscoverHistory(window.history.state, route);
+        setDiscoverState((current) =>
+          snapshot
+            ? applyDiscoverSearch(current, route.role, route.intent, snapshot)
+            : updateDiscoverQuery(
+                current,
+                route.role,
+                route.intent,
+                route.query,
+              ),
         );
       }
       setDiscoveryIntent(route.intent);
@@ -5394,6 +5476,11 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
           startSpacesDiscoverySearch(current, role, query),
         );
       }
+      if (next === "discover" && query !== undefined) {
+        setDiscoverState((current) =>
+          startDiscoverSearch(current, role, discoveryIntent, query),
+        );
+      }
       if (query !== undefined) setSearchQuery(query);
       else if (
         next !== view &&
@@ -5408,7 +5495,7 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
         behavior: reduceMotion || systemReduceMotion ? "instant" : "smooth",
       });
     },
-    [role, view, reduceMotion, systemReduceMotion],
+    [role, view, discoveryIntent, reduceMotion, systemReduceMotion],
   );
   const openSpaceVenue = (venue: SpaceVenue) => {
     const canonical = spaceVenues.find((item) => item.id === venue.id);
@@ -5569,13 +5656,9 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
                 const nextIntent = intent ?? "Rent";
                 setDiscoveryIntent(nextIntent);
                 setDiscoverState((current) =>
-                  updateDiscoverState(
-                    current,
-                    nextIntent,
-                    resetDiscoverFilters,
-                  ),
+                  startDiscoverSearch(current, role, nextIntent, query),
                 );
-                go("discover", query);
+                go("discover");
               } else if (scope === "spaces") go("spaces", query);
               else openServices(scope === "work" ? "jobs" : "discover", query);
             }}
@@ -5599,19 +5682,24 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
       case "discover":
         return (
           <Discover
+            key={role}
             favourites={favourites}
             toggleFavourite={toggleFavourite}
             savedSearchState={savedSearchState}
             setSavedSearchState={setSavedSearchState}
             onManageSavedSearches={() => go("saved")}
             initialIntent={discoveryIntent}
-            initialQuery={searchQuery}
-            onQueryChange={setSearchQuery}
+            query={currentDiscoverSearch.query}
+            onQueryChange={(query) =>
+              setDiscoverState((current) =>
+                updateDiscoverQuery(current, role, discoveryIntent, query),
+              )
+            }
             onIntentChange={setDiscoveryIntent}
-            filters={discoverState[discoveryIntent]}
+            filters={currentDiscoverSearch.filters}
             onFiltersChange={(update) =>
               setDiscoverState((current) =>
-                updateDiscoverState(current, discoveryIntent, update),
+                updateDiscoverState(current, role, discoveryIntent, update),
               )
             }
             onOpen={(property) => openProperty(property, "discover")}
@@ -5620,6 +5708,17 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
       case "saved":
         return (
           <Saved
+            view={savedHomesView(savedHomesViews, role)}
+            onViewChange={(update) =>
+              setSavedHomesViews((current) =>
+                updateSavedHomesView(current, role, update),
+              )
+            }
+            onResetView={() =>
+              setSavedHomesViews((current) =>
+                resetSavedHomesView(current, role),
+              )
+            }
             favourites={favourites}
             toggleFavourite={toggleFavourite}
             onDiscover={() => go("discover")}
@@ -5632,13 +5731,12 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
                 onOpen={(search) => {
                   setDiscoveryIntent(search.intent);
                   setDiscoverState((current) =>
-                    updateDiscoverState(
-                      current,
-                      search.intent,
-                      copySavedSearchFilters(search.filters),
-                    ),
+                    applyDiscoverSearch(current, role, search.intent, {
+                      query: search.query,
+                      filters: copySavedSearchFilters(search.filters),
+                    }),
                   );
-                  go("discover", search.query);
+                  go("discover");
                 }}
               />
             }
