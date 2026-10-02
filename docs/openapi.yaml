@@ -39,10 +39,12 @@ paths:
       parameters:
         - in: query
           name: country
-          schema: { type: string, maxLength: 12 }
+          description: Single country code; surrounding whitespace is removed and case is normalized. Omit to use the configured default.
+          schema: { type: string, minLength: 2, maxLength: 12 }
       responses:
         "200":
           description: Country configuration
+        "400": { $ref: "#/components/responses/BadRequest" }
   /properties:
     get:
       operationId: listProperties
@@ -87,6 +89,7 @@ paths:
         - $ref: "#/components/parameters/NumericId"
       responses:
         "200": { description: Property listing }
+        "400": { $ref: "#/components/responses/BadRequest" }
         "404": { $ref: "#/components/responses/NotFound" }
   /spaces:
     get:
@@ -128,6 +131,7 @@ paths:
         - $ref: "#/components/parameters/NumericId"
       responses:
         "200": { description: Space venue }
+        "400": { $ref: "#/components/responses/BadRequest" }
         "404": { $ref: "#/components/responses/NotFound" }
   /space-reservations:
     post:
@@ -253,7 +257,8 @@ components:
       in: path
       name: id
       required: true
-      schema: { type: integer, minimum: 1 }
+      description: Positive safe decimal integer written with digits only; hexadecimal, exponent, signed and fractional forms are invalid.
+      schema: { type: integer, minimum: 1, maximum: 9007199254740991 }
     Limit:
       in: query
       name: limit

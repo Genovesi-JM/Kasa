@@ -16,6 +16,7 @@ const child = spawn(process.execPath, ["--import", "tsx", "server/index.ts"], {
     KASA_API_PORT: String(port),
     KASA_API_DEMO_WRITES: "true",
     KASA_API_DEMO_KEY: demoKey,
+    KASA_API_COUNTRY: "demo",
   },
   stdio: ["ignore", "pipe", "pipe"],
 });
@@ -96,6 +97,44 @@ try {
   assert.equal(features.mortgageIntermediation, false);
   passed("country flags preserve regulated product boundaries");
 
+  const defaultConfig = await json("/config");
+  assert.equal(defaultConfig.response.status, 200);
+  assert.equal(defaultConfig.payload.country, "demo");
+  assert.equal(defaultConfig.payload.readiness, "demo");
+  for (const country of ["AO", " AO ", "ao"]) {
+    const result = await json(`/config?country=${encodeURIComponent(country)}`);
+    assert.equal(result.response.status, 200);
+    assert.equal(result.payload.country, "ao");
+    assert.equal(result.payload.currency, "AOA");
+    assert.equal(result.payload.readiness, "requires_market_approval");
+  }
+  for (const country of ["ZZ", "ABCDEFGHIJKL"]) {
+    const result = await json(`/config?country=${country}`);
+    assert.equal(result.response.status, 200);
+    assert.equal(result.payload.country, country.toLowerCase());
+    assert.equal(result.payload.currency, "EUR");
+    assert.equal(result.payload.readiness, "requires_market_approval");
+  }
+  for (const query of [
+    "country=",
+    "country=%20%20",
+    "country=a",
+    "country=abcdefghijklm",
+    "country=ao&country=demo",
+    "country=ao&country=ao",
+  ]) {
+    assertApiError(
+      await json(`/config?${query}`, {
+        headers: { "x-request-id": "smoke-invalid-country" },
+      }),
+      400,
+      "smoke-invalid-country",
+    );
+  }
+  passed(
+    "country queries normalize case/whitespace, preserve unknown markets and reject malformed values",
+  );
+
   const propertySearch = await json(
     "/properties?intent=buy&verified=true&maxPrice=650000",
   );
@@ -117,6 +156,43 @@ try {
   const invalidSpaceSearch = await json("/spaces?category=overnight");
   assertApiError(invalidSpaceSearch, 400);
   passed("Spaces filters reject out-of-scope accommodation");
+
+  for (const catalogue of ["properties", "spaces"]) {
+    for (const validId of ["1", "01"]) {
+      const result = await json(`/${catalogue}/${validId}`);
+      assert.equal(result.response.status, 200);
+      assert.equal(result.payload.id, 1);
+    }
+    for (const missingId of ["999999", String(Number.MAX_SAFE_INTEGER)]) {
+      assertApiError(await json(`/${catalogue}/${missingId}`), 404);
+    }
+    for (const invalidId of [
+      "0x1",
+      "1e0",
+      "1.0",
+      "1.5",
+      "+1",
+      "-1",
+      " 1",
+      "1 ",
+      " ",
+      "0",
+      "NaN",
+      "Infinity",
+      "9007199254740992",
+    ]) {
+      assertApiError(
+        await json(`/${catalogue}/${encodeURIComponent(invalidId)}`, {
+          headers: { "x-request-id": "smoke-invalid-id" },
+        }),
+        400,
+        "smoke-invalid-id",
+      );
+    }
+  }
+  passed(
+    "both catalogue detail routes reject numeric aliases and distinguish invalid IDs from missing records",
+  );
 
   const openApi = await fetch(`${baseUrl}/openapi.yaml`);
   assert.equal(openApi.status, 200);

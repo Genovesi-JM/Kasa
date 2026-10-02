@@ -177,6 +177,27 @@ try {
   assert.match(unsafe.output, /must keep KASA_API_DEMO_WRITES=false/);
   passed("production launch refuses demo-write overrides even with a key");
 
+  const normalizedCountry = await start({ env: { KASA_API_COUNTRY: " AO " } });
+  assert.equal(normalizedCountry.child.exitCode, null);
+  const countryConfig = await fetch(`${normalizedCountry.base}/api/v1/config`);
+  assert.equal(countryConfig.status, 200);
+  const countryPayload = (await countryConfig.json()) as Record<
+    string,
+    unknown
+  >;
+  assert.equal(countryPayload.country, "ao");
+  assert.equal(countryPayload.currency, "AOA");
+  assert.equal(countryPayload.readiness, "requires_market_approval");
+  for (const country of ["", " ", "a", "abcdefghijklm"]) {
+    const invalidCountry = await start({ env: { KASA_API_COUNTRY: country } });
+    assert.equal(invalidCountry.child.exitCode, 1);
+    assert.match(invalidCountry.output, /Invalid Kasa API configuration/);
+    assert.match(invalidCountry.output, /KASA_API_COUNTRY/);
+  }
+  passed(
+    "server country defaults use the same normalization and bounds as query values",
+  );
+
   const exited = once(child, "exit");
   child.kill("SIGTERM");
   assert.equal((await exited)[0], 0);

@@ -1,8 +1,10 @@
 import type { OperationsDictionary } from "./types";
 import { rentAr } from "./rent-ar";
+import { maintenanceAr } from "./maintenance-ar";
 
 export const ar = {
   ...rentAr,
+  ...maintenanceAr,
   documents_samplePreview: "معاينة نموذج",
   documents_localFile: "ملف محلي",
   documents_closePreview: "إغلاق معاينة المستند",

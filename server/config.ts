@@ -1,5 +1,6 @@
 import { config as loadEnv } from "dotenv";
 import { z } from "zod";
+import { countrySchema } from "./schemas.ts";
 
 loadEnv({ path: process.env.KASA_API_ENV_FILE || ".env.api", quiet: true });
 
@@ -20,7 +21,7 @@ const envSchema = z.object({
     (value) => (value === "" ? undefined : value),
     z.string().min(16).optional(),
   ),
-  KASA_API_COUNTRY: z.string().min(2).max(12).default("demo"),
+  KASA_API_COUNTRY: countrySchema.default("demo"),
   KASA_API_SERVE_WEB: z
     .enum(["true", "false"])
     .default("false")

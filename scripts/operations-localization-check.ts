@@ -50,6 +50,28 @@ import {
   rentStatusKeys,
 } from "../src/locales/operations/rentLabels";
 import type { OperationsValues } from "../src/locales/operations/types";
+import {
+  createInitialMaintenanceState,
+  createMaintenanceFilters,
+  filterMaintenanceRecords,
+  maintenanceCategories,
+  maintenancePriorities,
+  maintenanceStatuses,
+  maintenanceIssueMessages,
+  maintenanceReportIssues,
+  maintenanceScheduleIssues,
+  validateMaintenanceReport,
+  validateMaintenanceSchedule,
+} from "../src/components/maintenanceState";
+import {
+  maintenanceCategoryKeys,
+  maintenancePriorityKeys,
+  maintenanceStatusKeys,
+  maintenanceSortKeys,
+  maintenanceViewKeys,
+  maintenanceIssueKeys,
+  maintenanceFormatters,
+} from "../src/locales/operations/maintenanceLabels";
 
 const languages = ["pt", "en", "es", "fr", "ar", "zh"] as const;
 const instance = createInstance();
@@ -512,6 +534,198 @@ for (const language of languages) {
   );
 }
 
+assert.deepEqual(Object.keys(maintenanceStatusKeys), [...maintenanceStatuses]);
+assert.deepEqual(Object.keys(maintenanceCategoryKeys), [
+  ...maintenanceCategories,
+]);
+assert.deepEqual(Object.keys(maintenancePriorityKeys), [
+  ...maintenancePriorities,
+]);
+assert.deepEqual(Object.keys(maintenanceViewKeys), ["Board", "List"]);
+assert.deepEqual(Object.keys(maintenanceSortKeys), [
+  "Urgent first",
+  "Newest reported",
+  "Oldest unresolved",
+  "Scheduled visit",
+]);
+assert.deepEqual(
+  Object.keys(maintenanceIssueKeys).sort(),
+  Object.keys(maintenanceIssueMessages).sort(),
+);
+const maintenanceComponent = ts.createSourceFile(
+  "Maintenance.tsx",
+  readFileSync(
+    new URL("../src/components/Maintenance.tsx", import.meta.url),
+    "utf8",
+  ),
+  ts.ScriptTarget.Latest,
+  true,
+  ts.ScriptKind.TSX,
+);
+let maintenanceOptions = 0;
+function visitMaintenance(node: ts.Node) {
+  if (
+    ts.isJsxOpeningElement(node) &&
+    node.tagName.getText(maintenanceComponent) === "option"
+  ) {
+    maintenanceOptions += 1;
+    const value = node.attributes.properties.find(
+      (attribute) =>
+        ts.isJsxAttribute(attribute) &&
+        attribute.name.getText(maintenanceComponent) === "value",
+    );
+    assert.ok(
+      value && ts.isJsxAttribute(value) && value.initializer,
+      "Maintenance options need canonical values",
+    );
+    if (ts.isStringLiteral(value.initializer)) {
+      assert.ok(
+        [
+          "",
+          "All statuses",
+          "All priorities",
+          "All categories",
+          "All properties",
+        ].includes(value.initializer.text),
+      );
+    } else {
+      assert.ok(
+        ts.isJsxExpression(value.initializer) && value.initializer.expression,
+      );
+      assert.ok(
+        ["home.id", "category", "priority", "status", "sort"].includes(
+          value.initializer.expression.getText(maintenanceComponent),
+        ),
+      );
+    }
+  }
+  if (ts.isJsxText(node))
+    assert.ok(
+      !/[\p{L}\p{N}]/u.test(node.text),
+      "Maintenance UI copy belongs in translation resources",
+    );
+  if (
+    ts.isJsxAttribute(node) &&
+    ["aria-label", "title", "placeholder"].includes(
+      node.name.getText(maintenanceComponent),
+    )
+  ) {
+    assert.ok(
+      node.initializer && ts.isJsxExpression(node.initializer),
+      "Maintenance accessible labels must be localized",
+    );
+  }
+  ts.forEachChild(node, visitMaintenance);
+}
+visitMaintenance(maintenanceComponent);
+assert.equal(maintenanceOptions, 13);
+
+const maintenanceState = createInitialMaintenanceState();
+const originalMaintenanceState = JSON.stringify(maintenanceState);
+const reportDraft = {
+  propertyId: "",
+  title: "",
+  description: "",
+  category: "",
+  priority: "",
+  accessNotes: "x".repeat(1001),
+};
+const reportIssues = maintenanceReportIssues(reportDraft, "tenant");
+const reportErrors = validateMaintenanceReport(reportDraft, "tenant");
+assert.equal(Object.keys(reportIssues).length, 6);
+for (const [field, code] of Object.entries(reportIssues))
+  assert.equal(
+    reportErrors[field as keyof typeof reportErrors],
+    maintenanceIssueMessages[code],
+  );
+const checkNow = new Date(2026, 9, 3, 12);
+const invalidVisit = { date: "2026-02-30", time: "24:00", provider: "" };
+const visitIssues = maintenanceScheduleIssues(invalidVisit, checkNow);
+const visitErrors = validateMaintenanceSchedule(invalidVisit, checkNow);
+assert.deepEqual(visitIssues, {
+  date: "invalidDate",
+  time: "invalidTime",
+  provider: "provider",
+});
+for (const [field, code] of Object.entries(visitIssues))
+  assert.equal(
+    visitErrors[field as keyof typeof visitErrors],
+    maintenanceIssueMessages[code],
+  );
+assert.equal(
+  maintenanceScheduleIssues(
+    { date: "2026-10-03", time: "10:00", provider: "Original provider" },
+    checkNow,
+  ).date,
+  "futureVisit",
+);
+for (const language of languages) {
+  const tr = (key: OperationsKey, values?: OperationsValues) =>
+    operationText(instance, language, key, values);
+  const labels = (record: (typeof maintenanceState.records)[number]) =>
+    [
+      tr(maintenanceCategoryKeys[record.category]),
+      tr(maintenancePriorityKeys[record.priority]),
+      tr(maintenanceStatusKeys[record.status]),
+    ].join(" ");
+  for (const code of Object.keys(maintenanceIssueMessages) as Array<
+    keyof typeof maintenanceIssueMessages
+  >) {
+    assert.ok(
+      tr(maintenanceIssueKeys[code]).includes(
+        operationsResources[language][maintenanceIssueKeys[code]],
+      ),
+    );
+  }
+  for (const status of maintenanceStatuses) {
+    const result = filterMaintenanceRecords(
+      maintenanceState.records,
+      { ...createMaintenanceFilters(), status },
+      labels,
+    );
+    assert.ok(result.every((record) => record.status === status));
+  }
+  const plumbing = filterMaintenanceRecords(
+    maintenanceState.records,
+    {
+      ...createMaintenanceFilters(),
+      query: operationsResources[language].maintenance_categoryPlumbing,
+    },
+    labels,
+  );
+  assert.ok(plumbing.length > 0);
+  assert.ok(
+    plumbing.every((record) => record.category === "Plumbing"),
+    "Search accepts displayed category names without rewriting enums",
+  );
+  for (const count of [0, 1, 2])
+    assert.ok(tr("maintenance_results", { count }).includes(String(count)));
+  const formats = maintenanceFormatters(operationsLocales[language]);
+  assert.equal(
+    formats.dateLabel("2026-10-03"),
+    new Date("2026-10-03T12:00:00").toLocaleDateString(
+      operationsLocales[language],
+      { day: "numeric", month: "short", year: "numeric" },
+    ),
+  );
+  assert.ok(
+    tr("maintenance_openRequest", {
+      title: "Original issue title",
+      property: "Original property name",
+    }).includes("Original issue title"),
+  );
+  assert.ok(
+    tr("maintenance_visitSaved").includes(
+      operationsResources[language].maintenance_visitSaved,
+    ),
+  );
+  assert.equal(
+    JSON.stringify(maintenanceState),
+    originalMaintenanceState,
+    "Translations must preserve original issue text, providers and history",
+  );
+}
+
 console.log(
-  "Operations localization checks passed: all six dictionaries, plurals, interpolation, bilingual labels, canonical document/rent filters, structured errors, localized rent exports and unchanged domain state.",
+  "Operations localization checks passed: all six dictionaries, plurals, interpolation, bilingual labels, canonical document/rent/maintenance filters, structured errors, localized exports/search and unchanged domain state.",
 );

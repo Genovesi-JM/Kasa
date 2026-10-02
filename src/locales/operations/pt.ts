@@ -1,8 +1,10 @@
 import type { OperationsDictionary } from "./types";
 import { rentPt } from "./rent-pt";
+import { maintenancePt } from "./maintenance-pt";
 
 export const pt = {
   ...rentPt,
+  ...maintenancePt,
   documents_samplePreview: "Pré-visualização de exemplo",
   documents_localFile: "Ficheiro local",
   documents_closePreview: "Fechar pré-visualização do documento",

@@ -8,7 +8,7 @@ Hosted independently on GitHub Pages and accessible to anyone with the link. No 
 
 The optional [guided tour](https://genovesi-jm.github.io/Kasa/?present=1) is available through `?present=1`; its [presentation guide](./docs/PRESENTATION_GUIDE.md) describes scene navigation and resets. `?app=1` also opens the software directly.
 
-The prototype uses synthetic records. Messages, drafts, saved searches, viewing requests, application updates, rent records, maintenance requests, selected documents, notification read state, booking changes and discovery filters stay in the current open tab while navigating. Inboxes, documents and saved collections are separate for each workspace. Reloading the app or resetting a tour scene restores sample state; these changes are not shared between tabs or saved to a production database. Messages and requests are not delivered to other people, and sample status changes do not perform real approvals, reservations or payments.
+The prototype uses synthetic records. Messages, drafts, saved searches, viewing requests, application updates, rent records, maintenance requests, service requests and quotes, selected documents, notification read state, booking changes and discovery filters stay in the current open tab while navigating. Inboxes, documents and saved collections are separate for each workspace. Reloading the app or resetting a tour scene restores sample state; these changes are not shared between tabs or saved to a production database. Messages and requests are not delivered to other people, and sample status changes do not perform real approvals, reservations or payments.
 
 Kasa is a non-brokerage property-operations platform for landlords and tenants. It helps people discover homes, manage applications and documents, communicate, reconcile direct rent payments, coordinate maintenance, and find service providers.
 
@@ -30,6 +30,8 @@ The web app runs at `http://127.0.0.1:5173` and the versioned API at `http://127
 API contract: [docs/openapi.yaml](./docs/openapi.yaml). Start only the API with `npm run dev:api`; verify it with `curl http://127.0.0.1:8787/api/v1/health`.
 
 Run `npm run test:ui-state` for routing, search, messages, applications, notifications, bookings and discovery-state checks. Run the complete repeatable quality gate with `npm run check` for formatting, lint, client/server types, the production build and API guardrails. The operational/demo/pending matrix is documented in [docs/FUNCTION_STATUS.md](./docs/FUNCTION_STATUS.md); **Admin → System status** shows runtime checks and integration status.
+
+For GitHub Pages, run `npm run check`, then `npm run prepare:pages -- /absolute/path/to/gh-pages-checkout`. The destination must be a clean `gh-pages` checkout of the same repository. Review, commit and push that checkout to publish. The preparation command preserves earlier content-hashed assets so people with an older open tab can still load its screens. Avoid deploying with a blanket delete of the assets directory; prune historical assets only after planning for existing sessions.
 
 For the bounded Azure pilot, [the container guide](./docs/AZURE_PILOT_CONTAINER.md)
 packages the web app and API together. Public deployments remain read-only,
@@ -65,7 +67,8 @@ The interface includes the product areas below. Connected production authenticat
 - Application details, document summaries, owner-controlled local review/status actions and activity history, with tenant access limited to the tenant's sample records.
 - One notification feed shared by the header and full page, with workspace-specific unread counts, individual/read-all actions and links to relevant screens.
 - Booking filters and details, local acceptance of proposed times, keeping an original request and local cancellation with a reason.
-- Maintenance reports with validated details, accessible board/list views, request history, owner scheduling and explicit start/resolve/reopen actions. Tenant and owner access follows the sample tenancy and property ownership.
+- Maintenance reports with validated details, accessible board/list views, request history, owner scheduling and explicit start/resolve/reopen actions. Tenant and owner access follows the sample tenancy and property ownership. Controls, validation and dates support all six interface languages; changing a visit preserves work already in progress.
+- Services requests linked to the provider inbox, with retained drafts, versioned quotes, explicit customer acceptance or refusal, cancellation reasons, provider start/completion and shared history. Only the selected sample provider can quote its requests; customers see their own records. No request, booking or payment is sent externally.
 - Rent transfer records with amount/date/reference validation, tenant corrections, explicit owner review, history, copyable summaries and CSV export, with controls and feedback in all six languages. No bank account or payment execution is provided.
 - Workspace document libraries with labelled examples, local PDF/image/text selection and preview, download, filtering, removal and undo, with controls and feedback in all six interface languages. Files stay in memory and are never uploaded or marked verified.
 - Functional Settings and Help panels, persistent language/reduced-motion preferences, and deferred loading of operational screens.
@@ -86,7 +89,7 @@ The broader UI and product scope includes:
 - Direct-to-venue Spaces payments: each operator receives customer funds through its own regulated provider; Kasa never receives the gross amount, and any approved commission is invoiced to the operator separately after settlement
 - Venue-operator workspace with a simple multi-space calendar, flexible availability, custom-time requests, explicit customer acceptance of operator-proposed changes, messages, reviews, onboarding and optional later-stage business tools
 - One Kasa identity for users or companies that operate both property and Spaces businesses, with separate dashboards, permissions, records and public profiles for each role
-- Provider workspace with availability, job inbox, quote actions, earnings, ratings, and team view
+- Provider workspace with a scoped request inbox, quote revisions, customer decision tracking, and explicit start/completion actions; commercial analytics, availability and team management remain future work
 - Admin workspace with listing/provider moderation, fraud signals, verification coverage, country configuration, and feature flags
 - Market-readiness guardrails for privacy, payments, property-mediation boundaries and Angola-specific pre-launch checks without presenting Angola as the selected launch market
 - Responsive desktop navigation plus a stable mobile foundation of Search, Kasa Chat, Notifications and Profile with one named contextual destination

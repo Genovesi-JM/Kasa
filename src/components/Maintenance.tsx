@@ -30,8 +30,9 @@ import {
   maintenancePriorities,
   maintenanceStatuses,
   scheduleMaintenanceVisit,
-  validateMaintenanceReport,
-  validateMaintenanceSchedule,
+  maintenanceReportIssues,
+  maintenanceScheduleIssues,
+  maintenanceNoteIssue,
   visibleMaintenanceRecords,
   type MaintenanceAction,
   type MaintenanceFilters,
@@ -39,26 +40,24 @@ import {
   type MaintenanceReportDraft,
   type MaintenanceScheduleDraft,
   type MaintenanceState,
-  type ReportErrors,
-  type ScheduleErrors,
+  type ReportIssues,
+  type ScheduleIssues,
+  type MaintenanceIssueCode,
 } from "./maintenanceState";
 import { useDialogFocus } from "./useDialogFocus";
+import { useOperationsI18n } from "./useOperationsI18n";
+import type { OperationsKey } from "../locales/operations/types";
+import {
+  maintenanceCategoryKeys,
+  maintenanceFormatters,
+  maintenanceIssueKeys,
+  maintenancePriorityKeys,
+  maintenanceSortKeys,
+  maintenanceStatusKeys,
+  maintenanceViewKeys,
+} from "../locales/operations/maintenanceLabels";
 import "./maintenance.css";
 
-const dateLabel = (date: string) =>
-  new Date(date).toLocaleDateString("en-GB", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
-const timeLabel = (date: string) =>
-  new Date(date).toLocaleString("en-GB", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
 const priorityTone = (priority: MaintenanceRecord["priority"]) =>
   priority === "Urgent" ? "red" : priority === "Medium" ? "amber" : "neutral";
 
@@ -71,6 +70,7 @@ function MaintenanceDialog({
   children: ReactNode;
   onClose: () => void;
 }) {
+  const { tr } = useOperationsI18n();
   const titleId = useId();
   const ref = useDialogFocus<HTMLDivElement>(onClose);
   return (
@@ -92,14 +92,14 @@ function MaintenanceDialog({
       <section className="modal-card maintenance-dialog-card">
         <header>
           <div>
-            <span className="eyebrow">MAINTENANCE</span>
+            <span className="eyebrow">{tr("maintenance_title")}</span>
             <h2 id={titleId}>{title}</h2>
           </div>
           <button
             type="button"
             className="icon-button"
             onClick={onClose}
-            aria-label="Close maintenance dialog"
+            aria-label={tr("maintenance_closeDialog")}
             data-dialog-initial-focus
           >
             <X size={20} />
@@ -111,10 +111,17 @@ function MaintenanceDialog({
   );
 }
 
-function FieldError({ id, message }: { id: string; message?: string }) {
+function FieldError({
+  id,
+  message,
+}: {
+  id: string;
+  message?: MaintenanceIssueCode | null;
+}) {
+  const { tr } = useOperationsI18n();
   return message ? (
     <span className="maintenance-field-error" id={id}>
-      {message}
+      {tr(maintenanceIssueKeys[message])}
     </span>
   ) : null;
 }
@@ -128,6 +135,7 @@ function ReportForm({
   onClose: () => void;
   onCreate: (draft: MaintenanceReportDraft) => void;
 }) {
+  const { tr } = useOperationsI18n();
   const homes = maintenanceHomesForRole(role);
   const [draft, setDraft] = useState<MaintenanceReportDraft>({
     propertyId: homes.length === 1 ? String(homes[0].id) : "",
@@ -137,7 +145,7 @@ function ReportForm({
     priority: "Medium",
     accessNotes: "",
   });
-  const [errors, setErrors] = useState<ReportErrors>({});
+  const [errors, setErrors] = useState<ReportIssues>({});
   const formRef = useRef<HTMLFormElement>(null);
   const update = (key: keyof MaintenanceReportDraft, value: string) => {
     setDraft((current) => ({ ...current, [key]: value }));
@@ -145,13 +153,14 @@ function ReportForm({
   };
   return (
     <MaintenanceDialog
-      title={role === "tenant" ? "Report an issue" : "Add maintenance request"}
+      title={tr(
+        role === "tenant"
+          ? "maintenance_reportIssue"
+          : "maintenance_addMaintenance",
+      )}
       onClose={onClose}
     >
-      <p className="maintenance-local-note">
-        This creates a local record for this session. No repair booking, message
-        or file is sent.
-      </p>
+      <p className="maintenance-local-note">{tr("maintenance_reportScope")}</p>
       <form
         ref={formRef}
         className="maintenance-report-form"
@@ -168,7 +177,7 @@ function ReportForm({
             accessNotes: String(fields.get("accessNotes") ?? ""),
           };
           setDraft(submitted);
-          const nextErrors = validateMaintenanceReport(submitted, role);
+          const nextErrors = maintenanceReportIssues(submitted, role);
           setErrors(nextErrors);
           if (Object.keys(nextErrors).length) {
             requestAnimationFrame(() =>
@@ -183,14 +192,14 @@ function ReportForm({
       >
         {Object.values(errors).some(Boolean) && (
           <p className="maintenance-error-summary" role="alert">
-            Check the highlighted fields before saving.
+            {tr("maintenance_checkFields")}
           </p>
         )}
         <label>
-          Property
+          {tr("maintenance_property")}
           <select
             name="propertyId"
-            aria-label="Property"
+            aria-label={tr("maintenance_property")}
             value={draft.propertyId}
             onChange={(event) => update("propertyId", event.target.value)}
             required
@@ -199,7 +208,7 @@ function ReportForm({
               errors.propertyId ? "maintenance-property-error" : undefined
             }
           >
-            <option value="">Choose a property</option>
+            <option value="">{tr("maintenance_chooseProperty")}</option>
             {homes.map((home) => (
               <option key={home.id} value={home.id}>
                 {home.title}
@@ -212,13 +221,13 @@ function ReportForm({
           />
         </label>
         <label>
-          Issue title
+          {tr("maintenance_issueTitle")}
           <input
             name="title"
-            aria-label="Issue title"
+            aria-label={tr("maintenance_issueTitle")}
             value={draft.title}
             onChange={(event) => update("title", event.target.value)}
-            placeholder="For example, kitchen tap leaking"
+            placeholder={tr("maintenance_titlePlaceholder")}
             maxLength={120}
             required
             aria-invalid={Boolean(errors.title)}
@@ -229,15 +238,15 @@ function ReportForm({
           <FieldError id="maintenance-title-error" message={errors.title} />
         </label>
         <label>
-          What happened?
+          {tr("maintenance_description")}
           <textarea
             name="description"
-            aria-label="What happened?"
+            aria-label={tr("maintenance_description")}
             value={draft.description}
             onChange={(event) => update("description", event.target.value)}
             rows={4}
             maxLength={2000}
-            placeholder="Describe the problem, where it is and when it started."
+            placeholder={tr("maintenance_descriptionPlaceholder")}
             required
             aria-invalid={Boolean(errors.description)}
             aria-describedby={
@@ -251,10 +260,10 @@ function ReportForm({
         </label>
         <div className="maintenance-form-columns">
           <label>
-            Category
+            {tr("maintenance_category")}
             <select
               name="category"
-              aria-label="Category"
+              aria-label={tr("maintenance_category")}
               value={draft.category}
               onChange={(event) => update("category", event.target.value)}
               aria-invalid={Boolean(errors.category)}
@@ -263,7 +272,9 @@ function ReportForm({
               }
             >
               {maintenanceCategories.map((category) => (
-                <option key={category}>{category}</option>
+                <option key={category} value={category}>
+                  {tr(maintenanceCategoryKeys[category])}
+                </option>
               ))}
             </select>
             <FieldError
@@ -272,10 +283,10 @@ function ReportForm({
             />
           </label>
           <label>
-            Priority
+            {tr("maintenance_priority")}
             <select
               name="priority"
-              aria-label="Priority"
+              aria-label={tr("maintenance_priority")}
               value={draft.priority}
               onChange={(event) => update("priority", event.target.value)}
               aria-invalid={Boolean(errors.priority)}
@@ -284,7 +295,9 @@ function ReportForm({
               }
             >
               {maintenancePriorities.map((priority) => (
-                <option key={priority}>{priority}</option>
+                <option key={priority} value={priority}>
+                  {tr(maintenancePriorityKeys[priority])}
+                </option>
               ))}
             </select>
             <FieldError
@@ -294,15 +307,18 @@ function ReportForm({
           </label>
         </div>
         <label>
-          Access notes <span className="maintenance-optional">(optional)</span>
+          {tr("maintenance_accessNotes")}{" "}
+          <span className="maintenance-optional">
+            {tr("maintenance_optional")}
+          </span>
           <textarea
             name="accessNotes"
-            aria-label="Access notes"
+            aria-label={tr("maintenance_accessNotes")}
             value={draft.accessNotes}
             onChange={(event) => update("accessNotes", event.target.value)}
             rows={2}
             maxLength={1000}
-            placeholder="Preferred access arrangements or useful details."
+            placeholder={tr("maintenance_accessPlaceholder")}
             aria-invalid={Boolean(errors.accessNotes)}
             aria-describedby={
               errors.accessNotes ? "maintenance-access-error" : undefined
@@ -319,11 +335,11 @@ function ReportForm({
             className="button button-secondary"
             onClick={onClose}
           >
-            Cancel
+            {tr("maintenance_cancel")}
           </button>
           <button type="submit" className="button">
             <Plus size={16} />
-            Save request
+            {tr("maintenance_saveRequest")}
           </button>
         </div>
       </form>
@@ -340,6 +356,7 @@ function ScheduleForm({
   onSave: (draft: MaintenanceScheduleDraft) => void;
   onCancel: () => void;
 }) {
+  const { tr } = useOperationsI18n();
   const [draft, setDraft] = useState<MaintenanceScheduleDraft>(() => {
     const now = new Date();
     const tomorrow = new Date(now);
@@ -356,7 +373,7 @@ function ScheduleForm({
       time: futureVisit?.time || "10:00",
     };
   });
-  const [errors, setErrors] = useState<ScheduleErrors>({});
+  const [errors, setErrors] = useState<ScheduleIssues>({});
   const formRef = useRef<HTMLFormElement>(null);
   const update = (key: keyof MaintenanceScheduleDraft, value: string) => {
     setDraft((current) => ({ ...current, [key]: value }));
@@ -376,7 +393,7 @@ function ScheduleForm({
           time: String(fields.get("time") ?? ""),
         };
         setDraft(submitted);
-        const nextErrors = validateMaintenanceSchedule(submitted);
+        const nextErrors = maintenanceScheduleIssues(submitted);
         setErrors(nextErrors);
         if (Object.keys(nextErrors).length) {
           requestAnimationFrame(() =>
@@ -389,24 +406,27 @@ function ScheduleForm({
         onSave(submitted);
       }}
     >
-      <h4>{record.visit ? "Update visit" : "Schedule a visit"}</h4>
-      <p>
-        Record arrangements you choose. The provider is not contacted by this
-        action.
-      </p>
+      <h4>
+        {tr(
+          record.visit
+            ? "maintenance_updateVisit"
+            : "maintenance_scheduleVisit",
+        )}
+      </h4>
+      <p>{tr("maintenance_scheduleScope")}</p>
       {Object.values(errors).some(Boolean) && (
         <p className="maintenance-error-summary" role="alert">
-          Check the visit details before saving.
+          {tr("maintenance_checkVisit")}
         </p>
       )}
       <label>
-        Provider name
+        {tr("maintenance_provider")}
         <input
           name="provider"
-          aria-label="Provider name"
+          aria-label={tr("maintenance_provider")}
           value={draft.provider}
           onChange={(event) => update("provider", event.target.value)}
-          placeholder="Name of your chosen service provider"
+          placeholder={tr("maintenance_providerPlaceholder")}
           maxLength={100}
           required
           aria-invalid={Boolean(errors.provider)}
@@ -418,11 +438,11 @@ function ScheduleForm({
       </label>
       <div className="maintenance-form-columns">
         <label>
-          Visit date
+          {tr("maintenance_visitDate")}
           <input
             type="date"
             name="date"
-            aria-label="Visit date"
+            aria-label={tr("maintenance_visitDate")}
             value={draft.date}
             min={maintenanceDateValue()}
             onInput={(event) => update("date", event.currentTarget.value)}
@@ -436,11 +456,11 @@ function ScheduleForm({
           <FieldError id="maintenance-date-error" message={errors.date} />
         </label>
         <label>
-          Visit time
+          {tr("maintenance_visitTime")}
           <input
             type="time"
             name="time"
-            aria-label="Visit time"
+            aria-label={tr("maintenance_visitTime")}
             value={draft.time}
             onInput={(event) => update("time", event.currentTarget.value)}
             onChange={(event) => update("time", event.target.value)}
@@ -459,10 +479,10 @@ function ScheduleForm({
           className="button button-secondary"
           onClick={onCancel}
         >
-          Cancel
+          {tr("maintenance_cancel")}
         </button>
         <button type="submit" className="button">
-          Save visit
+          {tr("maintenance_saveVisit")}
         </button>
       </div>
     </form>
@@ -478,8 +498,9 @@ function ResolutionForm({
   onSave: (note: string) => void;
   onCancel: () => void;
 }) {
+  const { tr } = useOperationsI18n();
   const [note, setNote] = useState("");
-  const [error, setError] = useState("");
+  const [error, setError] = useState<MaintenanceIssueCode | null>(null);
   const noteRef = useRef<HTMLTextAreaElement>(null);
   return (
     <form
@@ -491,11 +512,9 @@ function ResolutionForm({
           new FormData(event.currentTarget).get("note") ?? "",
         );
         setNote(submittedNote);
-        if (
-          submittedNote.trim().length < 8 ||
-          submittedNote.trim().length > 1000
-        ) {
-          setError("Add a note between 8 and 1,000 characters.");
+        const issue = maintenanceNoteIssue(submittedNote);
+        if (issue) {
+          setError(issue);
           noteRef.current?.focus();
           return;
         }
@@ -503,24 +522,30 @@ function ResolutionForm({
       }}
     >
       <h4>
-        {mode === "resolve" ? "Resolve this request" : "Reopen this request"}
+        {tr(
+          mode === "resolve"
+            ? "maintenance_resolveTitle"
+            : "maintenance_reopenTitle",
+        )}
       </h4>
       <label>
-        {mode === "resolve"
-          ? "What was repaired?"
-          : "Why does this need more work?"}
+        {tr(
+          mode === "resolve"
+            ? "maintenance_repairedQuestion"
+            : "maintenance_reopenQuestion",
+        )}
         <textarea
           ref={noteRef}
           name="note"
-          aria-label={
+          aria-label={tr(
             mode === "resolve"
-              ? "What was repaired?"
-              : "Why does this need more work?"
-          }
+              ? "maintenance_repairedQuestion"
+              : "maintenance_reopenQuestion",
+          )}
           value={note}
           onChange={(event) => {
             setNote(event.target.value);
-            setError("");
+            setError(null);
           }}
           rows={3}
           maxLength={1000}
@@ -536,10 +561,14 @@ function ResolutionForm({
           className="button button-secondary"
           onClick={onCancel}
         >
-          Cancel
+          {tr("maintenance_cancel")}
         </button>
         <button type="submit" className="button">
-          {mode === "resolve" ? "Mark resolved" : "Reopen request"}
+          {tr(
+            mode === "resolve"
+              ? "maintenance_markResolved"
+              : "maintenance_reopenRequest",
+          )}
         </button>
       </div>
     </form>
@@ -559,10 +588,12 @@ function RequestDetail({
   onAction: (action: MaintenanceAction) => void;
   onSchedule: (draft: MaintenanceScheduleDraft) => void;
 }) {
+  const { tr, locale } = useOperationsI18n();
+  const { timeLabel } = maintenanceFormatters(locale);
   const [panel, setPanel] = useState<"schedule" | "resolve" | "reopen" | null>(
     null,
   );
-  const [feedback, setFeedback] = useState("");
+  const [feedback, setFeedback] = useState<OperationsKey | null>(null);
   const scheduleActionRef = useRef<HTMLButtonElement>(null);
   const primaryActionRef = useRef<HTMLButtonElement>(null);
   const pendingFocus = useRef<"schedule" | "primary" | null>(null);
@@ -580,7 +611,7 @@ function RequestDetail({
     pendingFocus.current = panel === "schedule" ? "schedule" : "primary";
     setPanel(null);
   };
-  const act = (action: MaintenanceAction, message: string) => {
+  const act = (action: MaintenanceAction, message: OperationsKey) => {
     pendingFocus.current =
       action.type === "cancel-visit" ? "schedule" : "primary";
     onAction(action);
@@ -593,40 +624,39 @@ function RequestDetail({
         <span
           className={`pill pill-${record.status === "Resolved" ? "mint" : "blue"}`}
         >
-          {record.status}
+          {tr(maintenanceStatusKeys[record.status])}
         </span>
         <span className={`pill pill-${priorityTone(record.priority)}`}>
-          {record.priority} priority
+          {tr("maintenance_priority")}:{" "}
+          {tr(maintenancePriorityKeys[record.priority])}
         </span>
-        <small>Request #{record.id}</small>
+        <small>{tr("maintenance_requestId", { id: record.id })}</small>
       </div>
-      <p className="maintenance-local-note">
-        Local session record. Updates do not contact tenants or providers.
-      </p>
+      <p className="maintenance-local-note">{tr("maintenance_detailScope")}</p>
       <dl className="maintenance-detail-facts">
         <div>
-          <dt>Property</dt>
+          <dt>{tr("maintenance_property")}</dt>
           <dd>{record.property}</dd>
         </div>
         <div>
-          <dt>Occupant / context</dt>
+          <dt>{tr("maintenance_occupant")}</dt>
           <dd>{record.tenant}</dd>
         </div>
         <div>
-          <dt>Category</dt>
-          <dd>{record.category}</dd>
+          <dt>{tr("maintenance_category")}</dt>
+          <dd>{tr(maintenanceCategoryKeys[record.category])}</dd>
         </div>
         <div>
-          <dt>Reported</dt>
+          <dt>{tr("maintenance_reported")}</dt>
           <dd>{timeLabel(record.reportedAt)}</dd>
         </div>
       </dl>
       <section className="maintenance-detail-section">
-        <h3>Issue details</h3>
+        <h3>{tr("maintenance_issueDetails")}</h3>
         <p>{record.description}</p>
         {record.accessNotes && (
           <>
-            <h4>Access notes</h4>
+            <h4>{tr("maintenance_accessNotes")}</h4>
             <p>{record.accessNotes}</p>
           </>
         )}
@@ -636,9 +666,11 @@ function RequestDetail({
           <CalendarDays size={22} aria-hidden="true" />
           <div>
             <h3>
-              {record.status === "Resolved"
-                ? "Recorded visit"
-                : "Visit arrangements"}
+              {tr(
+                record.status === "Resolved"
+                  ? "maintenance_recordedVisit"
+                  : "maintenance_visitArrangements",
+              )}
             </h3>
             <strong>
               {timeLabel(`${record.visit.date}T${record.visit.time}`)}
@@ -651,14 +683,14 @@ function RequestDetail({
         <section className="maintenance-resolution-summary">
           <CheckCircle2 size={20} aria-hidden="true" />
           <div>
-            <h3>Resolution</h3>
+            <h3>{tr("maintenance_resolution")}</h3>
             <p>{record.resolution}</p>
           </div>
         </section>
       )}
       {owner && (
         <section className="maintenance-detail-section">
-          <h3>Manage request</h3>
+          <h3>{tr("maintenance_manage")}</h3>
           <div className="maintenance-owner-actions">
             {record.status !== "Resolved" && (
               <button
@@ -671,7 +703,11 @@ function RequestDetail({
                 aria-expanded={panel === "schedule"}
               >
                 <CalendarDays size={16} />
-                {record.visit ? "Update visit" : "Schedule visit"}
+                {tr(
+                  record.visit
+                    ? "maintenance_updateVisit"
+                    : "maintenance_scheduleVisit",
+                )}
               </button>
             )}
             {(record.status === "New" || record.status === "Scheduled") && (
@@ -679,12 +715,10 @@ function RequestDetail({
                 ref={primaryActionRef}
                 type="button"
                 className="button"
-                onClick={() =>
-                  act({ type: "start" }, "Work marked in progress locally.")
-                }
+                onClick={() => act({ type: "start" }, "maintenance_started")}
               >
                 <Wrench size={16} />
-                Start work
+                {tr("maintenance_startWork")}
               </button>
             )}
             {record.status === "Scheduled" && (
@@ -692,13 +726,10 @@ function RequestDetail({
                 type="button"
                 className="button button-secondary"
                 onClick={() =>
-                  act(
-                    { type: "cancel-visit" },
-                    "Visit removed. The request is back in New.",
-                  )
+                  act({ type: "cancel-visit" }, "maintenance_visitRemoved")
                 }
               >
-                Remove visit
+                {tr("maintenance_removeVisit")}
               </button>
             )}
             {record.status === "In progress" && (
@@ -710,7 +741,7 @@ function RequestDetail({
                 aria-expanded={panel === "resolve"}
               >
                 <CheckCircle2 size={16} />
-                Resolve request
+                {tr("maintenance_resolveRequest")}
               </button>
             )}
             {record.status === "Resolved" && (
@@ -721,7 +752,7 @@ function RequestDetail({
                 onClick={() => setPanel("reopen")}
                 aria-expanded={panel === "reopen"}
               >
-                Reopen request
+                {tr("maintenance_reopenRequest")}
               </button>
             )}
           </div>
@@ -733,9 +764,7 @@ function RequestDetail({
                 pendingFocus.current = "schedule";
                 onSchedule(draft);
                 setPanel(null);
-                setFeedback(
-                  "Visit saved locally. The provider has not been contacted.",
-                );
+                setFeedback("maintenance_visitSaved");
               }}
             />
           )}
@@ -748,8 +777,8 @@ function RequestDetail({
                 act(
                   { type: panel, note },
                   panel === "resolve"
-                    ? "Request marked resolved locally."
-                    : "Request reopened locally.",
+                    ? "maintenance_resolved"
+                    : "maintenance_reopened",
                 )
               }
             />
@@ -757,10 +786,10 @@ function RequestDetail({
         </section>
       )}
       <p className="maintenance-feedback" role="status">
-        {feedback}
+        {feedback && tr(feedback)}
       </p>
       <section className="maintenance-detail-section">
-        <h3>Request history</h3>
+        <h3>{tr("maintenance_history")}</h3>
         <ol className="maintenance-history">
           {[...record.history].reverse().map((entry) => (
             <li key={entry.id}>
@@ -784,15 +813,23 @@ export function Maintenance({
   state: MaintenanceState;
   setState: Dispatch<SetStateAction<MaintenanceState>>;
 }) {
+  const { tr, locale } = useOperationsI18n();
+  const { dateLabel } = maintenanceFormatters(locale);
   const [view, setView] = useState<"Board" | "List">("Board");
   const [filters, setFilters] = useState<MaintenanceFilters>(
     createMaintenanceFilters,
   );
   const [reporting, setReporting] = useState(false);
   const [selectedId, setSelectedId] = useState<number | null>(null);
-  const [feedback, setFeedback] = useState("");
+  const [feedback, setFeedback] = useState<OperationsKey | null>(null);
   const base = visibleMaintenanceRecords(state, role);
-  const visible = filterMaintenanceRecords(base, filters);
+  const visible = filterMaintenanceRecords(base, filters, (record) =>
+    [
+      tr(maintenanceCategoryKeys[record.category]),
+      tr(maintenancePriorityKeys[record.priority]),
+      tr(maintenanceStatusKeys[record.status]),
+    ].join(" "),
+  );
   const homes = maintenanceHomesForRole(role);
   const selected = base.find((record) => record.id === selectedId);
   const updateFilter = (key: keyof MaintenanceFilters, value: string) =>
@@ -812,13 +849,16 @@ export function Maintenance({
       key={record.id}
       className="maintenance-work-ticket"
       onClick={() => setSelectedId(record.id)}
-      aria-label={`Open ${record.title} at ${record.property}`}
+      aria-label={tr("maintenance_openRequest", {
+        title: record.title,
+        property: record.property,
+      })}
     >
       <span className="maintenance-work-ticket-top">
         <span className={`pill pill-${priorityTone(record.priority)}`}>
-          {record.priority}
+          {tr(maintenancePriorityKeys[record.priority])}
         </span>
-        <span>{record.category}</span>
+        <span>{tr(maintenanceCategoryKeys[record.category])}</span>
         <ChevronRight size={16} aria-hidden="true" />
       </span>
       <strong>{record.title}</strong>
@@ -833,7 +873,7 @@ export function Maintenance({
       {record.visit && (
         <span className="maintenance-work-ticket-provider">
           <Wrench size={13} aria-hidden="true" />
-          {record.visit.provider} · {record.visit.date}
+          {record.visit.provider} · {dateLabel(record.visit.date)}
         </span>
       )}
     </button>
@@ -842,7 +882,7 @@ export function Maintenance({
   return (
     <div className="page-stack maintenance-workspace">
       <div className="page-actions">
-        <div className="segment compact" aria-label="Maintenance layout">
+        <div className="segment compact" aria-label={tr("maintenance_layout")}>
           {(["Board", "List"] as const).map((mode) => (
             <button
               type="button"
@@ -851,7 +891,7 @@ export function Maintenance({
               aria-pressed={view === mode}
               onClick={() => setView(mode)}
             >
-              {mode}
+              {tr(maintenanceViewKeys[mode])}
             </button>
           ))}
         </div>
@@ -862,19 +902,21 @@ export function Maintenance({
             onClick={() => setReporting(true)}
           >
             <Plus size={17} />
-            {role === "tenant" ? "Report an issue" : "Add request"}
+            {tr(
+              role === "tenant"
+                ? "maintenance_reportIssue"
+                : "maintenance_addRequest",
+            )}
           </button>
         )}
       </div>
-      <p className="maintenance-local-note">
-        Sample workspace · Requests and updates stay available as you navigate
-        this session.
-      </p>
+      <p className="maintenance-local-note">{tr("maintenance_sessionScope")}</p>
       <div className="maintenance-summary-grid">
         <div>
           <Wrench size={19} aria-hidden="true" />
           <span>
-            <strong>{openCount}</strong>Open requests
+            <strong>{openCount}</strong>
+            {tr("maintenance_openRequests")}
           </span>
         </div>
         <div>
@@ -883,13 +925,14 @@ export function Maintenance({
             <strong>
               {base.filter((record) => record.status === "Scheduled").length}
             </strong>
-            Scheduled visits
+            {tr("maintenance_scheduledVisits")}
           </span>
         </div>
         <div>
           <CheckCircle2 size={19} aria-hidden="true" />
           <span>
-            <strong>{base.length - openCount}</strong>Resolved
+            <strong>{base.length - openCount}</strong>
+            {tr("maintenance_statusResolved")}
           </span>
         </div>
       </div>
@@ -901,49 +944,63 @@ export function Maintenance({
           <label className="filter-search">
             <Search size={15} aria-hidden="true" />
             <input
-              aria-label="Search maintenance"
-              placeholder="Search requests"
+              aria-label={tr("maintenance_search")}
+              placeholder={tr("maintenance_searchPlaceholder")}
               value={filters.query}
               onChange={(event) => updateFilter("query", event.target.value)}
             />
           </label>
           <select
-            aria-label="Maintenance status"
+            aria-label={tr("maintenance_statusFilter")}
             value={filters.status}
             onChange={(event) => updateFilter("status", event.target.value)}
           >
-            <option>All statuses</option>
+            <option value="All statuses">
+              {tr("maintenance_allStatuses")}
+            </option>
             {maintenanceStatuses.map((status) => (
-              <option key={status}>{status}</option>
+              <option key={status} value={status}>
+                {tr(maintenanceStatusKeys[status])}
+              </option>
             ))}
           </select>
           <select
-            aria-label="Maintenance priority"
+            aria-label={tr("maintenance_priorityFilter")}
             value={filters.priority}
             onChange={(event) => updateFilter("priority", event.target.value)}
           >
-            <option>All priorities</option>
+            <option value="All priorities">
+              {tr("maintenance_allPriorities")}
+            </option>
             {maintenancePriorities.map((priority) => (
-              <option key={priority}>{priority}</option>
+              <option key={priority} value={priority}>
+                {tr(maintenancePriorityKeys[priority])}
+              </option>
             ))}
           </select>
           <select
-            aria-label="Maintenance category"
+            aria-label={tr("maintenance_categoryFilter")}
             value={filters.category}
             onChange={(event) => updateFilter("category", event.target.value)}
           >
-            <option>All categories</option>
+            <option value="All categories">
+              {tr("maintenance_allCategories")}
+            </option>
             {maintenanceCategories.map((category) => (
-              <option key={category}>{category}</option>
+              <option key={category} value={category}>
+                {tr(maintenanceCategoryKeys[category])}
+              </option>
             ))}
           </select>
           {role === "landlord" && (
             <select
-              aria-label="Maintenance property"
+              aria-label={tr("maintenance_propertyFilter")}
               value={filters.property}
               onChange={(event) => updateFilter("property", event.target.value)}
             >
-              <option value="All properties">All properties</option>
+              <option value="All properties">
+                {tr("maintenance_allProperties")}
+              </option>
               {homes.map((home) => (
                 <option key={home.id} value={home.id}>
                   {home.title}
@@ -952,17 +1009,14 @@ export function Maintenance({
             </select>
           )}
           <select
-            aria-label="Sort maintenance"
+            aria-label={tr("maintenance_sort")}
             value={filters.sort}
             onChange={(event) => updateFilter("sort", event.target.value)}
           >
-            {[
-              "Urgent first",
-              "Newest reported",
-              "Oldest unresolved",
-              "Scheduled visit",
-            ].map((sort) => (
-              <option key={sort}>{sort}</option>
+            {Object.entries(maintenanceSortKeys).map(([sort, key]) => (
+              <option key={sort} value={sort}>
+                {tr(key)}
+              </option>
             ))}
           </select>
         </div>
@@ -972,25 +1026,25 @@ export function Maintenance({
             className="text-button"
             onClick={() => setFilters(createMaintenanceFilters())}
           >
-            Reset ({activeFilters})
+            {tr("maintenance_resetActive", { count: activeFilters })}
           </button>
         )}
       </div>
       <div className="maintenance-results-line">
         <p role="status">
-          {visible.length} {visible.length === 1 ? "request" : "requests"}
+          {tr("maintenance_results", { count: visible.length })}
           {filters.sort === "Oldest unresolved"
-            ? " · resolved requests hidden"
+            ? ` · ${tr("maintenance_resolvedHidden")}`
             : ""}
         </p>
         <p className="maintenance-feedback" role="status">
-          {feedback}
+          {feedback && tr(feedback)}
         </p>
       </div>
       {view === "Board" ? (
         <section
           className="maintenance-work-board"
-          aria-label="Maintenance request board"
+          aria-label={tr("maintenance_boardLabel")}
         >
           {maintenanceStatuses
             .filter(
@@ -1005,15 +1059,17 @@ export function Maintenance({
                 <section
                   className="maintenance-work-column"
                   key={status}
-                  aria-label={status}
+                  aria-label={tr(maintenanceStatusKeys[status])}
                 >
                   <header>
-                    <h3>{status}</h3>
+                    <h3>{tr(maintenanceStatusKeys[status])}</h3>
                     <span>{records.length}</span>
                   </header>
                   {records.map(renderTicket)}
                   {!records.length && (
-                    <p className="maintenance-column-empty">No requests</p>
+                    <p className="maintenance-column-empty">
+                      {tr("maintenance_noRequests")}
+                    </p>
                   )}
                 </section>
               );
@@ -1022,29 +1078,33 @@ export function Maintenance({
       ) : (
         <section
           className="card maintenance-work-list"
-          aria-label="Maintenance requests"
+          aria-label={tr("maintenance_listLabel")}
         >
           {visible.map((record) => (
             <button
               type="button"
               key={record.id}
               onClick={() => setSelectedId(record.id)}
-              aria-label={`Open ${record.title} at ${record.property}`}
+              aria-label={tr("maintenance_openRequest", {
+                title: record.title,
+                property: record.property,
+              })}
             >
               <Wrench size={20} aria-hidden="true" />
               <span className="maintenance-work-list-title">
                 <strong>{record.title}</strong>
                 <small>
-                  {record.property} · {record.category}
+                  {record.property} ·{" "}
+                  {tr(maintenanceCategoryKeys[record.category])}
                 </small>
               </span>
               <span className={`pill pill-${priorityTone(record.priority)}`}>
-                {record.priority}
+                {tr(maintenancePriorityKeys[record.priority])}
               </span>
               <span
                 className={`pill pill-${record.status === "Resolved" ? "mint" : "blue"}`}
               >
-                {record.status}
+                {tr(maintenanceStatusKeys[record.status])}
               </span>
               <time dateTime={record.reportedAt}>
                 {dateLabel(record.reportedAt)}
@@ -1058,9 +1118,9 @@ export function Maintenance({
         <div className="maintenance-work-empty">
           <Search size={25} aria-hidden="true" />
           <h3>
-            {homes.length
-              ? "No requests match these filters"
-              : "No maintenance records in this workspace"}
+            {tr(
+              homes.length ? "maintenance_noMatches" : "maintenance_noRecords",
+            )}
           </h3>
           {activeFilters > 0 && (
             <button
@@ -1068,7 +1128,7 @@ export function Maintenance({
               className="button button-secondary"
               onClick={() => setFilters(createMaintenanceFilters())}
             >
-              Reset filters
+              {tr("maintenance_resetFilters")}
             </button>
           )}
         </div>
@@ -1082,7 +1142,7 @@ export function Maintenance({
             setState((current) => addMaintenanceReport(current, role, draft));
             setReporting(false);
             setFilters(createMaintenanceFilters());
-            setFeedback("Maintenance request recorded locally.");
+            setFeedback("maintenance_recorded");
           }}
         />
       )}

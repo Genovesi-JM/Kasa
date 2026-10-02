@@ -88,6 +88,26 @@ export type ReportErrors = Partial<
 export type ScheduleErrors = Partial<
   Record<keyof MaintenanceScheduleDraft, string>
 >;
+export const maintenanceIssueMessages = {
+  propertyId: "Choose a property available in this workspace.",
+  title: "Use a title between 5 and 120 characters.",
+  description: "Describe the issue in 12 to 2,000 characters.",
+  category: "Choose an issue category.",
+  priority: "Choose a priority.",
+  accessNotes: "Keep access notes under 1,000 characters.",
+  invalidDate: "Choose a valid visit date.",
+  invalidTime: "Choose a valid visit time.",
+  futureVisit: "Choose a future visit date and time.",
+  provider: "Enter a provider name between 2 and 100 characters.",
+  note: "Add a note between 8 and 1,000 characters.",
+} as const;
+export type MaintenanceIssueCode = keyof typeof maintenanceIssueMessages;
+export type ReportIssues = Partial<
+  Record<keyof MaintenanceReportDraft, MaintenanceIssueCode>
+>;
+export type ScheduleIssues = Partial<
+  Record<keyof MaintenanceScheduleDraft, MaintenanceIssueCode>
+>;
 export interface MaintenanceFilters {
   query: string;
   status: string;
@@ -192,31 +212,42 @@ export function createInitialMaintenanceState(): MaintenanceState {
   };
 }
 
-export function validateMaintenanceReport(
+export function maintenanceReportIssues(
   draft: MaintenanceReportDraft,
   role: Role,
-): ReportErrors {
-  const errors: ReportErrors = {};
+): ReportIssues {
+  const errors: ReportIssues = {};
   if (
     !maintenanceHomesForRole(role).some(
       (home) => home.id === Number(draft.propertyId),
     )
   )
-    errors.propertyId = "Choose a property available in this workspace.";
+    errors.propertyId = "propertyId";
   if (draft.title.trim().length < 5 || draft.title.trim().length > 120)
-    errors.title = "Use a title between 5 and 120 characters.";
+    errors.title = "title";
   if (
     draft.description.trim().length < 12 ||
     draft.description.trim().length > 2000
   )
-    errors.description = "Describe the issue in 12 to 2,000 characters.";
+    errors.description = "description";
   if (!maintenanceCategories.includes(draft.category as MaintenanceCategory))
-    errors.category = "Choose an issue category.";
+    errors.category = "category";
   if (!maintenancePriorities.includes(draft.priority as MaintenancePriority))
-    errors.priority = "Choose a priority.";
+    errors.priority = "priority";
   if (draft.accessNotes.trim().length > 1000)
-    errors.accessNotes = "Keep access notes under 1,000 characters.";
+    errors.accessNotes = "accessNotes";
   return errors;
+}
+
+export function validateMaintenanceReport(
+  draft: MaintenanceReportDraft,
+  role: Role,
+): ReportErrors {
+  return Object.fromEntries(
+    Object.entries(maintenanceReportIssues(draft, role)).map(
+      ([field, code]) => [field, maintenanceIssueMessages[code]],
+    ),
+  );
 }
 
 export function addMaintenanceReport(
@@ -277,28 +308,46 @@ function visitTimestamp(
   return parsed.getTime();
 }
 
-export function validateMaintenanceSchedule(
+export function maintenanceScheduleIssues(
   draft: MaintenanceScheduleDraft,
   now = new Date(),
-): ScheduleErrors {
-  const errors: ScheduleErrors = {};
+): ScheduleIssues {
+  const errors: ScheduleIssues = {};
   if (
     !/^\d{4}-\d{2}-\d{2}$/.test(draft.date) ||
     !Number.isFinite(visitTimestamp({ date: draft.date, time: "12:00" }))
   )
-    errors.date = "Choose a valid visit date.";
+    errors.date = "invalidDate";
   if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(draft.time))
-    errors.time = "Choose a valid visit time.";
+    errors.time = "invalidTime";
   const timestamp = visitTimestamp(draft);
   if (
     !errors.date &&
     !errors.time &&
     (!Number.isFinite(timestamp) || timestamp <= now.getTime())
   )
-    errors.date = "Choose a future visit date and time.";
+    errors.date = "futureVisit";
   if (draft.provider.trim().length < 2 || draft.provider.trim().length > 100)
-    errors.provider = "Enter a provider name between 2 and 100 characters.";
+    errors.provider = "provider";
   return errors;
+}
+
+export function validateMaintenanceSchedule(
+  draft: MaintenanceScheduleDraft,
+  now = new Date(),
+): ScheduleErrors {
+  return Object.fromEntries(
+    Object.entries(maintenanceScheduleIssues(draft, now)).map(
+      ([field, code]) => [field, maintenanceIssueMessages[code]],
+    ),
+  );
+}
+
+export function maintenanceNoteIssue(
+  note: string,
+): MaintenanceIssueCode | null {
+  const length = note.trim().length;
+  return length < 8 || length > 1000 ? "note" : null;
 }
 
 function ownerRecord(state: MaintenanceState, role: Role, id: number) {
@@ -357,7 +406,6 @@ export function scheduleMaintenanceVisit(
     provider: draft.provider.trim(),
   };
   if (
-    record.status === "Scheduled" &&
     record.visit?.date === visit.date &&
     record.visit.time === visit.time &&
     record.visit.provider === visit.provider
@@ -366,7 +414,10 @@ export function scheduleMaintenanceVisit(
   return replaceRecord(
     state,
     record,
-    { visit, status: "Scheduled" },
+    {
+      visit,
+      status: record.status === "In progress" ? "In progress" : "Scheduled",
+    },
     `Visit scheduled locally with ${visit.provider} for ${visit.date} at ${visit.time}.`,
     now,
   );
@@ -402,7 +453,7 @@ export function changeMaintenanceStatus(
     );
   }
   const note = action.note.trim();
-  if (note.length < 8 || note.length > 1000) return state;
+  if (maintenanceNoteIssue(note)) return state;
   if (action.type === "resolve") {
     if (record.status !== "In progress") return state;
     return replaceRecord(
@@ -437,6 +488,7 @@ export function createMaintenanceFilters(): MaintenanceFilters {
 export function filterMaintenanceRecords(
   records: MaintenanceRecord[],
   filters: MaintenanceFilters,
+  displaySearchText?: (record: MaintenanceRecord) => string,
 ): MaintenanceRecord[] {
   const query = filters.query.trim().toLocaleLowerCase();
   const urgency = { Urgent: 0, Medium: 1, Low: 2 };
@@ -453,7 +505,7 @@ export function filterMaintenanceRecords(
           String(record.propertyId) === filters.property) &&
         (filters.sort !== "Oldest unresolved" ||
           record.status !== "Resolved") &&
-        `${record.title} ${record.description} ${record.property} ${record.tenant} ${record.category} ${record.visit?.provider || ""}`
+        `${record.title} ${record.description} ${record.property} ${record.tenant} ${record.category} ${record.visit?.provider || ""} ${displaySearchText?.(record) || ""}`
           .toLocaleLowerCase()
           .includes(query),
     )

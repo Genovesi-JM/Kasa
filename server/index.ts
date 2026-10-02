@@ -12,6 +12,8 @@ import helmet from "helmet";
 import { properties, spaceVenues } from "../src/data.ts";
 import { apiConfig } from "./config.ts";
 import {
+  configQuerySchema,
+  positiveDecimalIdSchema,
   propertyQuerySchema,
   rentProofSchema,
   reservationSchema,
@@ -206,9 +208,14 @@ app.get("/api/v1/ready", (_request, response) => {
 });
 
 app.get("/api/v1/config", (request, response) => {
-  const country = String(
-    request.query.country || apiConfig.country,
-  ).toLowerCase();
+  const parsed = configQuerySchema.safeParse(request.query);
+  if (!parsed.success) {
+    sendApiError(response, 400, "Invalid country configuration query.", {
+      issues: parsed.error.issues,
+    });
+    return;
+  }
+  const country = parsed.data.country ?? apiConfig.country;
   response.json({
     country,
     currency: country === "ao" ? "AOA" : "EUR",
@@ -264,9 +271,14 @@ app.get("/api/v1/properties", (request, response) => {
 });
 
 app.get("/api/v1/properties/:id", (request, response) => {
-  const property = properties.find(
-    (item) => item.id === Number(request.params.id),
-  );
+  const parsed = positiveDecimalIdSchema.safeParse(request.params.id);
+  if (!parsed.success) {
+    sendApiError(response, 400, "Invalid property ID.", {
+      issues: parsed.error.issues,
+    });
+    return;
+  }
+  const property = properties.find((item) => item.id === parsed.data);
   if (!property) {
     sendApiError(response, 404, "Property not found.");
     return;
@@ -321,9 +333,14 @@ app.get("/api/v1/spaces", (request, response) => {
 });
 
 app.get("/api/v1/spaces/:id", (request, response) => {
-  const venue = spaceVenues.find(
-    (item) => item.id === Number(request.params.id),
-  );
+  const parsed = positiveDecimalIdSchema.safeParse(request.params.id);
+  if (!parsed.success) {
+    sendApiError(response, 400, "Invalid space venue ID.", {
+      issues: parsed.error.issues,
+    });
+    return;
+  }
+  const venue = spaceVenues.find((item) => item.id === parsed.data);
   if (!venue) {
     sendApiError(response, 404, "Space venue not found.");
     return;

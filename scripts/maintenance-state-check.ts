@@ -6,6 +6,9 @@ import {
   createMaintenanceFilters,
   filterMaintenanceRecords,
   maintenanceHomesForRole,
+  maintenanceReportIssues,
+  maintenanceScheduleIssues,
+  maintenanceNoteIssue,
   scheduleMaintenanceVisit,
   validateMaintenanceReport,
   validateMaintenanceSchedule,
@@ -192,6 +195,60 @@ const working = changeMaintenanceStatus(
   now,
 );
 assert.equal(working.records[0].status, "In progress");
+const workingSnapshot = JSON.stringify(working);
+assert.equal(
+  scheduleMaintenanceVisit(working, "landlord", created.id, futureVisit, now),
+  working,
+  "Saving an unchanged visit during work is a no-op, with no extra history",
+);
+const revisedVisit = {
+  ...futureVisit,
+  time: "16:00",
+  provider: "Fixly follow-up",
+};
+const rescheduledWork = scheduleMaintenanceVisit(
+  working,
+  "landlord",
+  created.id,
+  revisedVisit,
+  now,
+);
+assert.equal(
+  rescheduledWork.records[0].status,
+  "In progress",
+  "Updating visit arrangements must preserve work already in progress",
+);
+assert.deepEqual(rescheduledWork.records[0].visit, revisedVisit);
+assert.equal(
+  rescheduledWork.records[0].history.length,
+  working.records[0].history.length + 1,
+);
+assert.equal(
+  scheduleMaintenanceVisit(
+    rescheduledWork,
+    "landlord",
+    created.id,
+    revisedVisit,
+    now,
+  ),
+  rescheduledWork,
+);
+assert.equal(
+  JSON.stringify(working),
+  workingSnapshot,
+  "Revising a visit leaves the previous state untouched",
+);
+assert.equal(
+  changeMaintenanceStatus(
+    rescheduledWork,
+    "landlord",
+    created.id,
+    { type: "resolve", note: "The repair has been completed." },
+    now,
+  ).records[0].status,
+  "Resolved",
+  "Updated visits do not require starting the work again before resolution",
+);
 assert.equal(
   changeMaintenanceStatus(
     working,
@@ -293,6 +350,33 @@ assert.equal(
   2,
 );
 assert.equal(createInitialMaintenanceState().records.length, 4);
+assert.deepEqual(maintenanceReportIssues(report, "tenant"), {});
+assert.equal(
+  maintenanceReportIssues({ ...report, title: " " }, "tenant").title,
+  "title",
+);
+assert.equal(
+  maintenanceScheduleIssues({ ...futureVisit, date: "2026-02-30" }, now).date,
+  "invalidDate",
+);
+assert.equal(
+  maintenanceScheduleIssues({ ...futureVisit, time: "24:00" }, now).time,
+  "invalidTime",
+);
+assert.equal(
+  maintenanceScheduleIssues(
+    { ...futureVisit, date: "2026-10-02", time: "11:00" },
+    now,
+  ).date,
+  "futureVisit",
+);
+assert.equal(
+  maintenanceScheduleIssues({ ...futureVisit, provider: " " }, now).provider,
+  "provider",
+);
+assert.equal(maintenanceNoteIssue(" short "), "note");
+assert.equal(maintenanceNoteIssue("x".repeat(1001)), "note");
+assert.equal(maintenanceNoteIssue("Valid repair description."), null);
 console.log(
-  "Maintenance checks passed: report/schedule validation, property ownership, tenant isolation, explicit status transitions, history and chronological filters.",
+  "Maintenance checks passed: report/schedule validation, structured issues, property/tenant scope, work-preserving visit updates, duplicate no-ops, explicit transitions, history and chronological filters.",
 );

@@ -31,6 +31,8 @@ Available endpoints:
 - `POST /api/v1/rent-records/proofs` for proof metadata only
 - `GET /api/v1/openapi.yaml`
 
+Catalogue detail IDs must be positive decimal digits within the JavaScript safe-integer range; hexadecimal, exponent, signed, fractional and whitespace forms return 400. Leading zeroes are accepted; valid missing IDs return 404. The configuration country query is trimmed, lowercased and limited to 2–12 characters; duplicate or empty values return 400. Unknown country codes keep the conservative market-approval fallback. The server validates its default country at startup.
+
 The two write routes are in-memory development adapters, disabled by default, protected by a local demo key and an `Idempotency-Key` header. They are not production storage or authentication. Replace them with reviewed identity, PostgreSQL transactions, object storage and audit logging before accepting real personal data, documents or reservations.
 
 Each write validates and normalizes its payload before checking the idempotency cache. Repeating an identical valid request returns the original result with status 200; a different payload with the same operation/key returns 409. The cache lasts only for the current server process. Every response carries an `x-request-id`; JSON errors include that same identifier, including malformed JSON (400), rejected origins (403), oversized request bodies (413), and API rate limits (429). Unexpected errors return a sanitized 500.

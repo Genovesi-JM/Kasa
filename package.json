@@ -20,7 +20,9 @@
     "test:deployment": "tsx server/deployment-smoke.ts",
     "test:prototype": "tsx scripts/prototype-check.ts",
     "test:ui-state": "tsx scripts/ui-state-check.ts",
-    "check": "npm run format:check && npm run lint && npm run typecheck && npm run test:ui-state && npm run test:prototype && npm run build:pilot && npm run test:api && npm run test:api-client && npm run test:deployment",
+    "test:pages": "tsx scripts/pages-files-check.ts",
+    "prepare:pages": "tsx scripts/prepare-pages.ts",
+    "check": "npm run format:check && npm run lint && npm run typecheck && npm run test:ui-state && npm run test:prototype && npm run test:pages && npm run build:pilot && npm run test:api && npm run test:api-client && npm run test:deployment",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "preview": "vite preview"

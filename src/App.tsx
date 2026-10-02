@@ -80,6 +80,11 @@ import { propertyOperationStatus } from "./components/propertyOperationStatus";
 import type { PortfolioFilters } from "./components/PropertyPortfolio";
 import { createInitialPropertyListingState } from "./components/propertyListingState";
 import {
+  createInitialServiceRequestState,
+  visibleServiceRequests,
+  type ServiceRequestState,
+} from "./components/serviceRequestState";
+import {
   buildPropertyOperationsSummary,
   type PropertyOperationsSummary,
 } from "./components/propertyOperationsSummary";
@@ -164,6 +169,21 @@ const formatEuro = (value: number) =>
 
 type ServiceLaunchMode = AppRoute["service"];
 
+const ServiceRequestComposer = lazy(() =>
+  import("./components/ServiceRequests").then((module) => ({
+    default: module.ServiceRequestComposer,
+  })),
+);
+const ServiceRequests = lazy(() =>
+  import("./components/ServiceRequests").then((module) => ({
+    default: module.ServiceRequests,
+  })),
+);
+const ServiceProviderInbox = lazy(() =>
+  import("./components/ServiceRequests").then((module) => ({
+    default: module.ServiceProviderInbox,
+  })),
+);
 const PropertyPortfolio = lazy(() =>
   import("./components/PropertyPortfolio").then((module) => ({
     default: module.PropertyPortfolio,
@@ -2389,6 +2409,9 @@ function Saved({
 }
 
 function Services({
+  role,
+  serviceState,
+  setServiceState,
   notify,
   onOfferServices,
   launchMode = "discover",
@@ -2396,6 +2419,9 @@ function Services({
   initialQuery = "",
   onQueryChange,
 }: {
+  role: Role;
+  serviceState: ServiceRequestState;
+  setServiceState: React.Dispatch<React.SetStateAction<ServiceRequestState>>;
   notify: (message: string) => void;
   onOfferServices: () => void;
   launchMode?: ServiceLaunchMode;
@@ -2406,11 +2432,65 @@ function Services({
     workMode: "jobs" | "hire",
   ) => void;
 }) {
+  const { i18n } = useTranslation();
+  const portuguese = (i18n.resolvedLanguage || i18n.language || "pt")
+    .toLowerCase()
+    .startsWith("pt");
+  const copy = (en: string, pt: string) => (portuguese ? pt : en);
+  const canRequestService = role === "tenant" || role === "landlord";
+  const locale = portuguese ? "pt-PT" : "en-GB";
+  const number = new Intl.NumberFormat(locale);
+  const money = new Intl.NumberFormat(locale, {
+    style: "currency",
+    currency: "EUR",
+    maximumFractionDigits: 0,
+  });
+  const labels: Record<string, string> = {
+    Cleaning: copy("Cleaning", "Limpeza"),
+    Plumbing: copy("Plumbing", "Canalização"),
+    Electrical: copy("Electrical", "Eletricidade"),
+    "AC & climate": copy("AC & climate", "Ar condicionado e climatização"),
+    Handyman: copy("Handyman", "Pequenas reparações"),
+    "Regular clean": copy("Regular clean", "Limpeza regular"),
+    "Deep clean": copy("Deep clean", "Limpeza profunda"),
+    "Move-in clean": copy("Move-in clean", "Limpeza antes da mudança"),
+    Recurring: copy("Recurring", "Serviço recorrente"),
+    Leak: copy("Leak", "Fuga de água"),
+    Blockage: copy("Blockage", "Entupimento"),
+    Installation: copy("Installation", "Instalação"),
+    "Water heater": copy("Water heater", "Esquentador"),
+    Repair: copy("Repair", "Reparação"),
+    Inspection: copy("Inspection", "Inspeção"),
+    Outlets: copy("Outlets", "Tomadas"),
+    Maintenance: copy("Maintenance", "Manutenção"),
+    "Multiple units": copy("Multiple units", "Várias unidades"),
+    "General repair": copy("General repair", "Reparação geral"),
+    Assembly: copy("Assembly", "Montagem"),
+    Indoor: copy("Indoor", "Interior"),
+    Outdoor: copy("Outdoor", "Exterior"),
+    "Any pricing": copy("Any pricing", "Qualquer preço"),
+    "Fixed price": copy("Listed price", "Preço indicado"),
+    "Quote available": copy("Quote available", "Mediante orçamento"),
+    "Any provider": copy("Any provider type", "Qualquer tipo de prestador"),
+    Independent: copy("Independent", "Independente"),
+    Company: copy("Company", "Empresa"),
+    "Any availability": copy("Any availability", "Qualquer disponibilidade"),
+    Today: copy("Today", "Hoje"),
+    Tomorrow: copy("Tomorrow", "Amanhã"),
+    "This week": copy("This week", "Esta semana"),
+    "Any rating": copy("Any rating", "Qualquer avaliação"),
+    Recommended: copy("Recommended", "Recomendados"),
+    "Highest rated": copy("Highest rated", "Maior avaliação"),
+    "Most completed jobs": copy("Most jobs", "Mais trabalhos"),
+    "Price: low to high": copy("Price: low to high", "Preço: crescente"),
+    "Price: high to low": copy("Price: high to low", "Preço: decrescente"),
+  };
+  const label = (value: string) =>
+    Object.hasOwn(labels, value) ? labels[value] : value;
   const [selectedCategory, setSelectedCategory] = useState("All");
   const [serviceSection, setServiceSection] = useState<
     "discover" | "tasks" | "work"
   >(launchMode === "jobs" || launchMode === "hire" ? "work" : launchMode);
-  const [taskTab, setTaskTab] = useState<"Active" | "Completed">("Active");
   const [requestingService, setRequestingService] = useState(false);
   const [actionChooserOpen, setActionChooserOpen] = useState(false);
   const [workMode, setWorkMode] = useState<"jobs" | "hire">(
@@ -2460,6 +2540,9 @@ function Services({
           provider.name,
           provider.type,
           provider.mode,
+          label(provider.type),
+          label(provider.providerKind),
+          label(provider.pricing),
         ) &&
         (pricingFilter === "Any pricing" ||
           provider.pricing === pricingFilter) &&
@@ -2483,41 +2566,11 @@ function Services({
     );
   const activeServiceFilters =
     Number(selectedCategory !== "All") +
-    Number(Boolean(serviceNeed)) +
     Number(Boolean(serviceQuery)) +
     Number(pricingFilter !== "Any pricing") +
     Number(providerKind !== "Any provider") +
     Number(serviceAvailability !== "Any availability") +
     Number(minimumRating !== "Any rating");
-  const serviceTasks = [
-    {
-      title: "Kitchen tap leaking",
-      category: "Plumbing",
-      provider: "Aigua Pro",
-      status: "Provider replied",
-      date: "Today · 16:30",
-      completed: false,
-    },
-    {
-      title: "Deep home cleaning",
-      category: "Cleaning",
-      provider: "Casa Clara",
-      status: "Quote received",
-      date: "Tomorrow · 09:00",
-      completed: false,
-    },
-    {
-      title: "Air conditioning service",
-      category: "AC & climate",
-      provider: "Clima BCN",
-      status: "Completed",
-      date: "12 August",
-      completed: true,
-    },
-  ];
-  const visibleTasks = serviceTasks.filter(
-    (task) => task.completed === (taskTab === "Completed"),
-  );
   const visibleOpportunities = workOpportunities.filter(
     (job) =>
       (jobType === "All opportunities" || job.type === jobType) &&
@@ -2556,38 +2609,65 @@ function Services({
     <div className="page-stack services-page">
       <section className="services-hero">
         <div>
-          <span className="eyebrow light">VERIFIED HOME & PROPERTY HELP</span>
-          <h2>From issue to done, in one place.</h2>
+          <span className="eyebrow light">
+            {copy("HOME & PROPERTY SERVICES", "SERVIÇOS PARA O LAR E IMÓVEIS")}
+          </span>
+          <h2>
+            {copy(
+              "Keep service requests and quotes together.",
+              "Pedidos de serviço e orçamentos no mesmo lugar.",
+            )}
+          </h2>
           <p>
-            Compare independent providers, choose a fixed-price service or
-            request a quote, then keep chat, tracking and the completion record
-            together.
+            {copy(
+              "Explore sample profiles, choose a provider and record your request. Review the proposed work, date and price before explicitly accepting a quote.",
+              "Explore perfis de exemplo, escolha um prestador e registe o seu pedido. Reveja o trabalho proposto, a data e o preço antes de aceitar explicitamente um orçamento.",
+            )}
           </p>
         </div>
         <div className="service-proof">
-          <ShieldCheck size={22} />
-          <strong>Provider profiles checked</strong>
-          <span>Independent professionals & companies</span>
+          <Store size={22} aria-hidden="true" />
+          <strong>
+            {copy(
+              "Sample provider catalogue",
+              "Catálogo de prestadores de exemplo",
+            )}
+          </strong>
+          <span>
+            {copy(
+              "Illustrative profiles; verification has not been performed.",
+              "Perfis ilustrativos; não foi efetuada verificação.",
+            )}
+          </span>
         </div>
       </section>
-      <section className="service-section-switch" aria-label="Services view">
+      <section
+        className="service-section-switch"
+        aria-label={copy("Services view", "Área de serviços")}
+      >
         <button
           className={serviceSection === "discover" ? "active" : ""}
+          aria-pressed={serviceSection === "discover"}
           onClick={() => setServiceSection("discover")}
         >
-          <Search size={17} /> Find help
+          <Search size={17} aria-hidden="true" />{" "}
+          {copy("Find help", "Encontrar ajuda")}
         </button>
         <button
           className={serviceSection === "tasks" ? "active" : ""}
+          aria-pressed={serviceSection === "tasks"}
           onClick={() => setServiceSection("tasks")}
         >
-          <BriefcaseBusiness size={17} /> My requests <i>2</i>
+          <BriefcaseBusiness size={17} aria-hidden="true" />{" "}
+          {copy("My requests", "Os meus pedidos")}{" "}
+          <i>{visibleServiceRequests(serviceState, role).length}</i>
         </button>
         <button
           className={serviceSection === "work" ? "active" : ""}
+          aria-pressed={serviceSection === "work"}
           onClick={() => setServiceSection("work")}
         >
-          <Users size={17} /> Work
+          <Users size={17} aria-hidden="true" /> {copy("Work", "Trabalho")}
         </button>
       </section>
       <button
@@ -2597,85 +2677,23 @@ function Services({
         <span>
           <Sparkles size={18} />
           <span>
-            <small>WORK & SERVICES</small>
-            <strong>What would you like to do today?</strong>
+            <small>{copy("WORK & SERVICES", "TRABALHO E SERVIÇOS")}</small>
+            <strong>
+              {copy(
+                "What would you like to do today?",
+                "O que gostaria de fazer hoje?",
+              )}
+            </strong>
           </span>
         </span>
         <ChevronRight size={20} />
       </button>
       {serviceSection === "tasks" ? (
-        <section className="service-tasks-card card">
-          <header>
-            <div>
-              <span className="eyebrow">SERVICE REQUESTS</span>
-              <h2>My tasks</h2>
-            </div>
-            <button
-              className="text-button"
-              onClick={() => setRequestingService(true)}
-            >
-              <Plus size={16} /> Post a request
-            </button>
-          </header>
-          <div className="service-task-tabs">
-            {(["Active", "Completed"] as const).map((tab) => (
-              <button
-                key={tab}
-                className={taskTab === tab ? "active" : ""}
-                onClick={() => setTaskTab(tab)}
-              >
-                {tab}
-              </button>
-            ))}
-          </div>
-          <div className="service-task-list">
-            {visibleTasks.map((task) => (
-              <button
-                key={task.title}
-                onClick={() =>
-                  notify(`${task.title} tracking and service chat opened.`)
-                }
-              >
-                <span className="service-task-icon">
-                  {task.category === "Cleaning" ? (
-                    <Sparkles />
-                  ) : task.category === "Plumbing" ? (
-                    <Wrench />
-                  ) : (
-                    <Settings />
-                  )}
-                </span>
-                <span>
-                  <strong>{task.title}</strong>
-                  <small>
-                    {task.category} · {task.provider}
-                  </small>
-                  <b>{task.status}</b>
-                </span>
-                <time>{task.date}</time>
-                <ChevronRight size={18} />
-              </button>
-            ))}
-          </div>
-          {visibleTasks.length === 0 && (
-            <div className="service-task-empty">
-              <CheckCircle2 size={28} />
-              <strong>No completed requests yet</strong>
-              <span>Completed service records will stay here.</span>
-            </div>
-          )}
-          <div className="service-task-prompt">
-            <div>
-              <strong>What needs to be done?</strong>
-              <span>
-                Describe the task once and receive suitable responses.
-              </span>
-            </div>
-            <ActionButton onClick={() => setRequestingService(true)}>
-              Post a service request
-            </ActionButton>
-          </div>
-        </section>
+        <ServiceRequests
+          role={role}
+          state={serviceState}
+          setState={setServiceState}
+        />
       ) : serviceSection === "work" ? (
         <section className="kasa-work-page">
           <header className="kasa-work-hero">
@@ -2836,32 +2854,51 @@ function Services({
         </section>
       ) : (
         <>
+          {!canRequestService && (
+            <p className="scope-note" id="service-request-workspace-hint">
+              {copy(
+                "You can browse service profiles here. To record a request, use the workspace selector to switch to Tenant or Property owner.",
+                "Pode explorar os perfis de serviços nesta área. Para registar um pedido, utilize o seletor de espaço para mudar para Inquilino ou Proprietário.",
+              )}
+            </p>
+          )}
           <section className="service-search">
             <div>
               <Search size={20} />
               <input
-                placeholder="What do you need help with?"
-                aria-label="Search service providers"
+                placeholder={copy(
+                  "What do you need help with?",
+                  "De que ajuda precisa?",
+                )}
+                aria-label={copy(
+                  "Search service providers",
+                  "Pesquisar prestadores de serviços",
+                )}
                 value={serviceQuery}
                 onChange={(event) => setServiceQuery(event.target.value)}
               />
             </div>
-            <select aria-label="Service location">
+            <select aria-label={copy("Service location", "Local dos serviços")}>
               <option>Barcelona</option>
             </select>
             <ActionButton
               onClick={() =>
-                notify(`${visible.length} matching provider profiles shown.`)
+                notify(
+                  copy(
+                    `${visible.length} matching sample profiles shown.`,
+                    `${visible.length} perfis de exemplo encontrados.`,
+                  ),
+                )
               }
             >
-              Search
+              {copy("Search", "Pesquisar")}
             </ActionButton>
           </section>
           <section className="service-category-block">
             <div className="service-mobile-section-title">
               <div>
-                <span className="eyebrow">BROWSE</span>
-                <h2>Home services</h2>
+                <span className="eyebrow">{copy("BROWSE", "EXPLORAR")}</span>
+                <h2>{copy("Home services", "Serviços para o lar")}</h2>
               </div>
               <ChevronRight size={20} />
             </div>
@@ -2869,6 +2906,7 @@ function Services({
               {categories.map(([label, Icon]) => (
                 <button
                   className={selectedCategory === label ? "active" : ""}
+                  aria-pressed={selectedCategory === label}
                   key={label}
                   onClick={() => {
                     setSelectedCategory(
@@ -2877,23 +2915,24 @@ function Services({
                     setServiceNeed("");
                   }}
                 >
-                  <Icon size={19} /> {label}
+                  <Icon size={19} aria-hidden="true" /> {labels[label]}
                 </button>
               ))}
             </div>
           </section>
           {selectedCategory !== "All" && (
             <div className="service-subfilters">
-              <span>What kind?</span>
+              <span>{copy("Request ideas", "Ideias para o pedido")}</span>
               {serviceNeeds[selectedCategory].map((need) => (
                 <button
                   key={need}
                   className={serviceNeed === need ? "active" : ""}
+                  aria-pressed={serviceNeed === need}
                   onClick={() =>
                     setServiceNeed(serviceNeed === need ? "" : need)
                   }
                 >
-                  {need}
+                  {label(need)}
                 </button>
               ))}
             </div>
@@ -2912,52 +2951,66 @@ function Services({
             }}
           >
             <select
-              aria-label="Service pricing type"
+              aria-label={copy("Pricing", "Preço")}
               value={pricingFilter}
               onChange={(event) => setPricingFilter(event.target.value)}
             >
-              <option>Any pricing</option>
-              <option>Fixed price</option>
-              <option>Quote available</option>
+              <option value="Any pricing">{label("Any pricing")}</option>
+              <option value="Fixed price">{label("Fixed price")}</option>
+              <option value="Quote available">
+                {label("Quote available")}
+              </option>
             </select>
             <select
-              aria-label="Provider type"
+              aria-label={copy("Provider type", "Tipo de prestador")}
               value={providerKind}
               onChange={(event) => setProviderKind(event.target.value)}
             >
-              <option>Any provider</option>
-              <option>Independent</option>
-              <option>Company</option>
+              <option value="Any provider">{label("Any provider")}</option>
+              <option value="Independent">{label("Independent")}</option>
+              <option value="Company">{label("Company")}</option>
             </select>
             <select
-              aria-label="Provider availability"
+              aria-label={copy("Availability", "Disponibilidade")}
               value={serviceAvailability}
               onChange={(event) => setServiceAvailability(event.target.value)}
             >
-              <option>Any availability</option>
-              <option>Today</option>
-              <option>Tomorrow</option>
-              <option>This week</option>
+              <option value="Any availability">
+                {label("Any availability")}
+              </option>
+              <option value="Today">{label("Today")}</option>
+              <option value="Tomorrow">{label("Tomorrow")}</option>
+              <option value="This week">{label("This week")}</option>
             </select>
             <select
-              aria-label="Minimum provider rating"
+              aria-label={copy("Rating", "Avaliação")}
               value={minimumRating}
               onChange={(event) => setMinimumRating(event.target.value)}
             >
-              <option>Any rating</option>
-              <option value="4.8">4.8+ rating</option>
-              <option value="4.9">4.9+ rating</option>
+              <option value="Any rating">{label("Any rating")}</option>
+              <option value="4.8">
+                {copy("4.8+ rating", "Avaliação 4,8+")}
+              </option>
+              <option value="4.9">
+                {copy("4.9+ rating", "Avaliação 4,9+")}
+              </option>
             </select>
             <select
-              aria-label="Sort service providers"
+              aria-label={copy("Sort providers", "Ordenar prestadores")}
               value={serviceSort}
               onChange={(event) => setServiceSort(event.target.value)}
             >
-              <option>Recommended</option>
-              <option>Highest rated</option>
-              <option>Most completed jobs</option>
-              <option>Price: low to high</option>
-              <option>Price: high to low</option>
+              <option value="Recommended">{label("Recommended")}</option>
+              <option value="Highest rated">{label("Highest rated")}</option>
+              <option value="Most completed jobs">
+                {label("Most completed jobs")}
+              </option>
+              <option value="Price: low to high">
+                {label("Price: low to high")}
+              </option>
+              <option value="Price: high to low">
+                {label("Price: high to low")}
+              </option>
             </select>
           </FilterToolbar>
           <section className="service-request-cta">
@@ -2965,21 +3018,44 @@ function Services({
               <Wrench size={28} />
             </div>
             <div>
-              <span className="eyebrow">NOT SURE WHO TO CHOOSE?</span>
-              <h2>Tell us what needs doing.</h2>
+              <span className="eyebrow">
+                {copy("START A REQUEST", "INICIAR UM PEDIDO")}
+              </span>
+              <h2>
+                {copy(
+                  "Describe the work and choose a provider.",
+                  "Descreva o trabalho e escolha um prestador.",
+                )}
+              </h2>
               <p>
-                Send one request and let suitable verified providers respond.
+                {copy(
+                  "Select one provider and save the request in this tab. No request is sent and no response is generated automatically.",
+                  "Selecione um prestador e guarde o pedido neste separador. O pedido não é enviado e não é gerada qualquer resposta automática.",
+                )}
               </p>
             </div>
-            <ActionButton onClick={() => setRequestingService(true)}>
-              Post a request
-            </ActionButton>
+            <button
+              type="button"
+              className="button"
+              disabled={!canRequestService}
+              aria-describedby={
+                !canRequestService
+                  ? "service-request-workspace-hint"
+                  : undefined
+              }
+              onClick={() => setRequestingService(true)}
+            >
+              {copy("Record a request", "Registar um pedido")}
+            </button>
           </section>
           <SectionHeading
             title={
               selectedCategory === "All"
-                ? "Recommended near your properties"
-                : `${selectedCategory}${serviceNeed ? ` · ${serviceNeed}` : ""}`
+                ? copy(
+                    "Sample provider profiles",
+                    "Perfis de prestadores de exemplo",
+                  )
+                : `${label(selectedCategory)}${serviceNeed ? ` · ${label(serviceNeed)}` : ""}`
             }
           />
           <section className="provider-grid">
@@ -2989,174 +3065,106 @@ function Services({
                   <div className={`provider-logo ${provider.tone}`}>
                     {provider.initials}
                   </div>
-                  <StatusPill tone="mint">
-                    <BadgeCheck size={12} /> Verified
+                  <StatusPill tone="neutral">
+                    {copy("Sample profile", "Perfil de exemplo")}
                   </StatusPill>
                 </div>
                 <div>
                   <h3>{provider.name}</h3>
                   <p>
-                    {provider.type} · {provider.providerKind} · {provider.mode}
+                    {label(provider.type)} · {label(provider.providerKind)} ·{" "}
+                    {label(provider.pricing)}
                   </p>
                 </div>
                 <div className="provider-rating">
-                  <Star size={16} fill="currentColor" />{" "}
-                  <strong>{provider.rating}</strong>
-                  <span>({provider.jobs} completed)</span>
-                </div>
-                <div className="provider-price">
-                  <strong>{provider.price}</strong>
+                  <Star size={16} fill="currentColor" aria-hidden="true" />{" "}
+                  <strong>{number.format(provider.rating)}</strong>
                   <span>
-                    <Clock3 size={14} /> {provider.availability} · replies{" "}
-                    {provider.response}
+                    {copy(
+                      `${number.format(provider.jobs)} jobs`,
+                      `${number.format(provider.jobs)} trabalhos`,
+                    )}
                   </span>
                 </div>
-                <ActionButton secondary onClick={() => setBooking(provider)}>
-                  View & book
-                </ActionButton>
+                <div className="provider-price">
+                  <strong>
+                    {copy(
+                      `From ${money.format(provider.priceValue)}`,
+                      `Desde ${money.format(provider.priceValue)}`,
+                    )}
+                  </strong>
+                  <span>
+                    <Clock3 size={14} aria-hidden="true" />{" "}
+                    {label(provider.availability)}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  className="button button-secondary"
+                  disabled={!canRequestService}
+                  aria-describedby={
+                    !canRequestService
+                      ? "service-request-workspace-hint"
+                      : undefined
+                  }
+                  onClick={() => setBooking(provider)}
+                >
+                  {copy("Record a request", "Registar um pedido")}
+                </button>
               </article>
             ))}
           </section>
           {visible.length === 0 && (
             <div className="empty-state">
               <Store size={28} />
-              <h3>No provider profiles match</h3>
-              <p>Reset a filter or choose another service category.</p>
+              <h3>
+                {copy(
+                  "No sample profiles match",
+                  "Nenhum perfil de exemplo encontrado",
+                )}
+              </h3>
+              <p>
+                {copy(
+                  "Reset a filter or choose another service category.",
+                  "Limpe um filtro ou escolha outra categoria de serviço.",
+                )}
+              </p>
             </div>
           )}
           <div className="scope-note">
             <Store size={17} />
             <span>
-              Providers publish their own service details and quotes.
-              Service-payment processing is separate from rent and will depend
-              on the supported payment providers in each country.
+              {copy(
+                "Names, ratings, job counts, prices and availability are illustrative. Requests and quotes remain in this tab and reset on reload. Nothing is sent to a provider and no payment is processed.",
+                "Os nomes, avaliações, números de trabalhos, preços e disponibilidades são ilustrativos. Os pedidos e orçamentos ficam neste separador e são repostos ao recarregar. Nada é enviado a um prestador e nenhum pagamento é processado.",
+              )}
             </span>
           </div>
         </>
       )}
-      {booking && (
-        <Modal title={`Book ${booking.name}`} onClose={() => setBooking(null)}>
-          <div className="modal-body">
-            <div className="booking-provider">
-              <div className={`provider-logo ${booking.tone}`}>
-                {booking.initials}
-              </div>
-              <div>
-                <StatusPill tone="mint">Verified provider</StatusPill>
-                <h3>{booking.type} visit</h3>
-                <p>{booking.price} · final price confirmed before booking</p>
-              </div>
-            </div>
-            <div className="form-grid">
-              <label>
-                Property
-                <select>
-                  <option>Sunlit Eixample home</option>
-                  <option>Quiet Gràcia loft</option>
-                </select>
-              </label>
-              <label>
-                Preferred date
-                <input type="date" defaultValue="2026-08-24" />
-              </label>
-              <label className="full">
-                Describe what you need
-                <textarea placeholder="Add details or request a quote…" />
-              </label>
-            </div>
-            <div className="journey-row">
-              <span className="done">
-                <Check /> Request
-              </span>
-              <i />
-              <span>Quote</span>
-              <i />
-              <span>Booking</span>
-              <i />
-              <span>Track & review</span>
-            </div>
-            <div className="modal-actions">
-              <button
-                className="button button-secondary"
-                onClick={() => setBooking(null)}
-              >
-                Cancel
-              </button>
-              <button
-                className="button"
-                onClick={() => {
-                  notify(`Request sent directly to ${booking.name}.`);
-                  setBooking(null);
-                }}
-              >
-                Send request
-              </button>
-            </div>
-          </div>
-        </Modal>
-      )}
-      {requestingService && (
-        <Modal
-          title="Post a service request"
-          onClose={() => setRequestingService(false)}
-        >
-          <div className="modal-body">
-            <div className="form-grid">
-              <label>
-                Service category
-                <select defaultValue="Cleaning">
-                  {categories.map(([label]) => (
-                    <option key={label}>{label}</option>
-                  ))}
-                </select>
-              </label>
-              <label>
-                Preferred date
-                <input type="date" defaultValue="2026-08-31" />
-              </label>
-              <label className="full">
-                What needs to be done?
-                <textarea placeholder="Describe the task, property area and anything the provider should know…" />
-              </label>
-              <label className="full photo-drop compact-drop">
-                <Camera size={22} />
-                <strong>Add useful photos</strong>
-                <small>Optional · keep private information out of images</small>
-              </label>
-            </div>
-            <div className="scope-note">
-              <ShieldCheck size={16} />
-              <span>
-                Your contact details stay private. Providers respond through
-                Kasa Chat and you choose whether to accept any quote.
-              </span>
-            </div>
-            <div className="modal-actions">
-              <button
-                className="button button-secondary"
-                onClick={() => setRequestingService(false)}
-              >
-                Cancel
-              </button>
-              <button
-                className="button"
-                onClick={() => {
-                  setRequestingService(false);
-                  setServiceSection("tasks");
-                  notify(
-                    "Service request saved and shared with matching providers.",
-                  );
-                }}
-              >
-                Send request
-              </button>
-            </div>
-          </div>
-        </Modal>
+      {canRequestService && (booking || requestingService) && (
+        <ServiceRequestComposer
+          role={role}
+          state={serviceState}
+          setState={setServiceState}
+          providerName={booking?.name}
+          onClose={() => {
+            setBooking(null);
+            setRequestingService(false);
+          }}
+          onSaved={() => {
+            setBooking(null);
+            setRequestingService(false);
+            setServiceSection("tasks");
+          }}
+        />
       )}
       {actionChooserOpen && (
         <Modal
-          title="What would you like to do today?"
+          title={copy(
+            "What would you like to do today?",
+            "O que gostaria de fazer hoje?",
+          )}
           onClose={() => setActionChooserOpen(false)}
         >
           <div className="modal-body service-action-grid">
@@ -3171,8 +3179,10 @@ function Services({
                 <BriefcaseBusiness />
               </span>
               <span>
-                <small>Find opportunities</small>
-                <strong>Get a job</strong>
+                <small>
+                  {copy("Find opportunities", "Encontrar oportunidades")}
+                </small>
+                <strong>{copy("Get a job", "Procurar trabalho")}</strong>
               </span>
               <ChevronRight />
             </button>
@@ -3187,8 +3197,8 @@ function Services({
                 <Users />
               </span>
               <span>
-                <small>For your business</small>
-                <strong>Hire staff</strong>
+                <small>{copy("For your business", "Para a sua empresa")}</small>
+                <strong>{copy("Hire staff", "Contratar pessoal")}</strong>
               </span>
               <ChevronRight />
             </button>
@@ -3202,8 +3212,15 @@ function Services({
                 <Wrench />
               </span>
               <span>
-                <small>For your home or property</small>
-                <strong>Find a Pro</strong>
+                <small>
+                  {copy(
+                    "For your home or property",
+                    "Para a sua casa ou imóvel",
+                  )}
+                </small>
+                <strong>
+                  {copy("Find a Pro", "Encontrar um profissional")}
+                </strong>
               </span>
               <ChevronRight />
             </button>
@@ -3217,16 +3234,23 @@ function Services({
                 <CircleDollarSign />
               </span>
               <span>
-                <small>Build your service business</small>
-                <strong>Offer services</strong>
+                <small>
+                  {copy(
+                    "Build your service business",
+                    "Desenvolver a sua atividade",
+                  )}
+                </small>
+                <strong>{copy("Offer services", "Oferecer serviços")}</strong>
               </span>
               <ChevronRight />
             </button>
             <div className="scope-note">
               <ShieldCheck size={16} />
               <span>
-                One Kasa identity can use several areas, while provider and
-                business records remain separated by role and permission.
+                {copy(
+                  "One Kasa identity can use several areas, while provider and business records remain separated by role and permission.",
+                  "Uma identidade Kasa pode utilizar várias áreas, mantendo os registos de prestadores e empresas separados por função e permissão.",
+                )}
               </span>
             </div>
           </div>
@@ -5179,273 +5203,6 @@ function SpacesPlan({ notify }: { notify: (message: string) => void }) {
   );
 }
 
-function ProviderDashboard({ notify }: { notify: (message: string) => void }) {
-  const [jobTab, setJobTab] = useState("All");
-  const [available, setAvailable] = useState(true);
-  const [jobQuery, setJobQuery] = useState("");
-  const [jobArea, setJobArea] = useState("All areas");
-  const [jobSort, setJobSort] = useState("Newest request");
-  const jobs = [
-    {
-      id: "#K-2048",
-      title: "Kitchen tap leaking",
-      client: "Inês Duarte",
-      area: "Eixample",
-      when: "Today · 16:30",
-      value: "Quote needed",
-      status: "New",
-    },
-    {
-      id: "#K-2042",
-      title: "AC annual service",
-      client: "Leo Bernard",
-      area: "Gràcia",
-      when: "22 Aug · 14:30",
-      value: "€79 fixed",
-      status: "Booked",
-    },
-    {
-      id: "#K-2038",
-      title: "Replace two outlets",
-      client: "Maya Chen",
-      area: "Poblenou",
-      when: "In progress",
-      value: "€118 approved",
-      status: "Active",
-    },
-  ];
-  const visibleJobs = jobs
-    .filter(
-      (job) =>
-        (jobTab === "All" || job.status === jobTab) &&
-        (jobArea === "All areas" || job.area === jobArea) &&
-        `${job.title} ${job.client} ${job.area}`
-          .toLowerCase()
-          .includes(jobQuery.toLowerCase()),
-    )
-    .sort((a, b) =>
-      jobSort === "Appointment time"
-        ? Number(a.when === "In progress") - Number(b.when === "In progress")
-        : jobSort === "Job value"
-          ? Number.parseInt(b.value.replace(/\D/g, "")) -
-            Number.parseInt(a.value.replace(/\D/g, ""))
-          : jobs.indexOf(a) - jobs.indexOf(b),
-    );
-  const activeJobFilters =
-    Number(jobTab !== "All") +
-    Number(jobArea !== "All areas") +
-    Number(Boolean(jobQuery));
-  return (
-    <div className="page-stack">
-      <section className="provider-hero">
-        <div>
-          <span className="eyebrow light">VOLT & CO. · VERIFIED BUSINESS</span>
-          <h2>Good morning, Adrián.</h2>
-          <p>
-            You have one new job request and two visits scheduled this week.
-          </p>
-        </div>
-        <button
-          className={`availability-toggle ${available ? "on" : ""}`}
-          onClick={() => setAvailable((value) => !value)}
-        >
-          <i />
-          {available ? "Available for jobs" : "Not accepting jobs"}
-        </button>
-      </section>
-      <section className="metrics-grid">
-        <Metric
-          label="August earnings"
-          value="€3,840"
-          note="23 completed jobs"
-          icon={CircleDollarSign}
-        />
-        <Metric
-          label="New requests"
-          value="1"
-          note="Reply within 54 min"
-          icon={BriefcaseBusiness}
-          tone="blue"
-        />
-        <Metric
-          label="Completion rate"
-          value="98%"
-          note="Last 90 days"
-          icon={CheckCircle2}
-          tone="lilac"
-        />
-        <Metric
-          label="Rating"
-          value="4.9"
-          note="128 verified reviews"
-          icon={Star}
-          tone="sun"
-        />
-      </section>
-      <FilterToolbar
-        activeCount={activeJobFilters}
-        onReset={() => {
-          setJobTab("All");
-          setJobArea("All areas");
-          setJobQuery("");
-          setJobSort("Newest request");
-        }}
-      >
-        <label className="filter-search">
-          <Search size={15} />
-          <input
-            aria-label="Search provider jobs"
-            placeholder="Search jobs or customers"
-            value={jobQuery}
-            onChange={(event) => setJobQuery(event.target.value)}
-          />
-        </label>
-        <select
-          aria-label="Provider job area"
-          value={jobArea}
-          onChange={(event) => setJobArea(event.target.value)}
-        >
-          <option>All areas</option>
-          {[...new Set(jobs.map((job) => job.area))].map((area) => (
-            <option key={area}>{area}</option>
-          ))}
-        </select>
-        <select
-          aria-label="Sort provider jobs"
-          value={jobSort}
-          onChange={(event) => setJobSort(event.target.value)}
-        >
-          <option>Newest request</option>
-          <option>Appointment time</option>
-          <option>Job value</option>
-        </select>
-      </FilterToolbar>
-      <div className="provider-workgrid">
-        <section className="card job-inbox">
-          <div className="table-card-title">
-            <div>
-              <h2>Job inbox</h2>
-              <p>Requests, quotes and active work</p>
-            </div>
-            <div className="segment compact">
-              {["All", "New", "Booked", "Active"].map((tab) => (
-                <button
-                  key={tab}
-                  className={jobTab === tab ? "active" : ""}
-                  onClick={() => setJobTab(tab)}
-                >
-                  {tab}
-                </button>
-              ))}
-            </div>
-          </div>
-          {visibleJobs.map((job) => (
-            <article key={job.id}>
-              <div className="job-status">
-                <StatusPill
-                  tone={
-                    job.status === "New"
-                      ? "amber"
-                      : job.status === "Active"
-                        ? "blue"
-                        : "mint"
-                  }
-                >
-                  {job.status}
-                </StatusPill>
-                <small>{job.id}</small>
-              </div>
-              <h3>{job.title}</h3>
-              <p>
-                {job.client} · {job.area}
-              </p>
-              <div>
-                <span>
-                  <CalendarDays size={14} /> {job.when}
-                </span>
-                <strong>{job.value}</strong>
-              </div>
-              <button
-                className="soft-button"
-                onClick={() =>
-                  notify(
-                    job.status === "New"
-                      ? "Quote builder opened with labour, materials and terms."
-                      : "Job tracking and service chat opened.",
-                  )
-                }
-              >
-                {job.status === "New" ? "Build quote" : "Open job"}{" "}
-                <ChevronRight size={14} />
-              </button>
-            </article>
-          ))}
-          {visibleJobs.length === 0 && (
-            <div className="table-empty">
-              <Search size={22} />
-              <span>No jobs match these filters.</span>
-            </div>
-          )}
-        </section>
-        <aside className="page-stack provider-side">
-          <section className="card padded">
-            <SectionHeading
-              title="This week"
-              action="Edit availability"
-              onAction={() => notify("Availability calendar opened.")}
-            />
-            <div className="availability-week">
-              {["M", "T", "W", "T", "F", "S"].map((day, index) => (
-                <button
-                  key={`${day}-${index}`}
-                  className={index < 5 ? "open" : ""}
-                >
-                  <span>{day}</span>
-                  <strong>{22 + index}</strong>
-                  <small>{index < 5 ? "Open" : "Off"}</small>
-                </button>
-              ))}
-            </div>
-          </section>
-          <section className="card padded team-card">
-            <SectionHeading title="Team & business" />
-            <div>
-              <Avatar initials="AR" />
-              <span>
-                <strong>Adrián Ruiz</strong>
-                <small>Owner · Electrician</small>
-              </span>
-              <StatusPill tone="mint">Online</StatusPill>
-            </div>
-            <div>
-              <Avatar initials="LM" />
-              <span>
-                <strong>Lucía Mora</strong>
-                <small>Technician</small>
-              </span>
-              <StatusPill tone="neutral">On job</StatusPill>
-            </div>
-            <button
-              className="soft-button"
-              onClick={() => notify("Team member invitation opened.")}
-            >
-              <Plus size={15} /> Invite team member
-            </button>
-          </section>
-        </aside>
-      </div>
-      <div className="scope-note">
-        <ShieldCheck size={17} />
-        <span>
-          Providers control their profiles, availability and quotes. Kasa
-          supplies discovery, booking, records and communication tools; the
-          final service-payment setup remains country-configurable.
-        </span>
-      </div>
-    </div>
-  );
-}
-
 type DiagnosticState =
   "checking" | "operational" | "demo" | "pending" | "failed";
 
@@ -6297,6 +6054,9 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
   const [rentRecordState, setRentRecordState] = useState(
     createInitialRentRecordState,
   );
+  const [serviceRequestState, setServiceRequestState] = useState(
+    createInitialServiceRequestState,
+  );
   const [propertyListingState, setPropertyListingState] = useState(
     createInitialPropertyListingState,
   );
@@ -6903,7 +6663,11 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
             }}
           />
         ) : role === "provider" ? (
-          <ProviderDashboard notify={notify} />
+          <ServiceProviderInbox
+            role={role}
+            state={serviceRequestState}
+            setState={setServiceRequestState}
+          />
         ) : role === "spaceOperator" ? (
           <SpaceOperatorDashboard notify={notify} />
         ) : (
@@ -7158,6 +6922,9 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
         return (
           <Services
             key={serviceEntryRevision}
+            role={role}
+            serviceState={serviceRequestState}
+            setServiceState={setServiceRequestState}
             notify={notify}
             launchMode={serviceLaunch}
             initialQuery={searchQuery}
@@ -7209,7 +6976,13 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
       case "spacesPlan":
         return <SpacesPlan notify={notify} />;
       case "provider":
-        return <ProviderDashboard notify={notify} />;
+        return (
+          <ServiceProviderInbox
+            role={role}
+            state={serviceRequestState}
+            setState={setServiceRequestState}
+          />
+        );
       case "admin":
         return <AdminConsole notify={notify} />;
       case "diagnostics":

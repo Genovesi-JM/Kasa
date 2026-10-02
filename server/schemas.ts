@@ -4,6 +4,23 @@ const booleanQuery = z
   .enum(["true", "false"])
   .transform((value) => value === "true");
 
+export const positiveDecimalIdSchema = z
+  .string()
+  .regex(/^\d+$/, "Use a positive decimal integer ID.")
+  .transform(Number)
+  .pipe(z.number().int().positive());
+
+export const countrySchema = z
+  .string()
+  .trim()
+  .min(2)
+  .max(12)
+  .transform((country) => country.toLowerCase());
+
+export const configQuerySchema = z.object({
+  country: countrySchema.optional(),
+});
+
 export const propertyQuerySchema = z.object({
   q: z.string().trim().max(120).optional(),
   intent: z.enum(["rent", "buy"]).optional(),
