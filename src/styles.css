@@ -23,6 +23,13 @@
 * {
   box-sizing: border-box;
 }
+.workspace-loading {
+  min-height: 260px;
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+  font-size: 14px;
+}
 body {
   margin: 0;
   min-width: 320px;
@@ -10729,4 +10736,13 @@ select:focus-visible,
   .job-inbox > article > .soft-button {
     grid-column: auto;
   }
+}
+
+:root[data-reduce-motion="true"] *,
+:root[data-reduce-motion="true"] *::before,
+:root[data-reduce-motion="true"] *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+  scroll-behavior: auto !important;
 }

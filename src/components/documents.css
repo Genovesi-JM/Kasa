@@ -1,0 +1,317 @@
+.document-library-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+.document-library-counts,
+.document-add-controls {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.document-library-counts > div {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 12px;
+  border: 1px solid #dce5dd;
+  border-radius: 10px;
+  background: white;
+  color: #315b43;
+}
+.document-library-counts span {
+  display: grid;
+  gap: 4px;
+  font-size: 14px;
+}
+.document-library-counts small {
+  color: #617368;
+  font-size: 12px;
+}
+.document-add-controls label {
+  display: grid;
+  gap: 5px;
+  font-size: 12px;
+  color: #536c5d;
+}
+.document-add-controls .button {
+  align-self: end;
+  min-height: 44px;
+}
+.document-add-controls select,
+.document-library-filters select,
+.document-library-search {
+  min-height: 44px;
+  padding: 8px 12px;
+  border: 1px solid #d3dfd6;
+  border-radius: 9px;
+  background: #fff;
+  color: #294c3a;
+  font: inherit;
+  font-size: 14px;
+}
+.document-library-note,
+.document-preview-body .document-library-note {
+  margin: 0;
+  color: #5e7266;
+  font-size: 13px;
+  line-height: 1.6;
+}
+.document-library-feedback,
+.document-library-result-count {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: #416951;
+  overflow-wrap: anywhere;
+}
+.document-library-feedback:empty {
+  display: none;
+}
+.document-library-error {
+  padding: 12px;
+  border: 1px solid #e2c4b8;
+  border-radius: 9px;
+  background: #fff5ee;
+  color: #863e26;
+  font-size: 13px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+.document-library-error ul {
+  margin-bottom: 0;
+  padding-inline-start: 18px;
+}
+.document-undo {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 13px;
+  border-radius: 10px;
+  background: #edf4ec;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.document-undo > span {
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+.document-undo small {
+  display: block;
+  margin-top: 5px;
+  color: #74614a;
+}
+.document-undo button {
+  flex-shrink: 0;
+}
+.document-library button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.document-library-filters {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.document-library-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1 1 220px;
+}
+.document-library-search input {
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  font: inherit;
+}
+.document-library-filters .text-button {
+  min-height: 44px;
+}
+.document-library-list {
+  overflow: hidden;
+}
+.document-library-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding-inline-end: 16px;
+  border-bottom: 1px solid #e5ece6;
+}
+.document-library-row:last-child {
+  border-bottom: 0;
+}
+.document-library-open {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  width: 100%;
+  padding: 18px;
+  border: 0;
+  background: transparent;
+  color: #244932;
+  text-align: start;
+  cursor: pointer;
+}
+.document-library-open:hover {
+  background: #f6f9f4;
+}
+.document-library-open .document-icon {
+  flex-shrink: 0;
+}
+.document-library-open > span:last-child {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.document-library-open strong {
+  font-size: 14px;
+  line-height: 1.4;
+}
+.document-library-open small {
+  font-size: 12px;
+  line-height: 1.5;
+  color: #65786b;
+}
+.document-remove-button {
+  display: grid;
+  place-items: center;
+  min-width: 44px;
+  min-height: 44px;
+  border: 1px solid #d6e1d6;
+  border-radius: 9px;
+  background: white;
+  color: #6f5244;
+  cursor: pointer;
+}
+.document-remove-button:hover {
+  background: #fcf1eb;
+}
+.document-library-empty {
+  padding: 38px 20px;
+  text-align: center;
+  color: #567060;
+}
+.document-library-empty h2 {
+  margin-top: 12px;
+  font-size: 20px;
+}
+.document-library-empty p {
+  font-size: 14px;
+  line-height: 1.5;
+}
+.modal-card.document-preview-card {
+  width: min(900px, 100%);
+}
+.document-preview-card > header {
+  gap: 14px;
+}
+.document-preview-card h2 {
+  overflow-wrap: anywhere;
+}
+.document-preview-card > header .icon-button {
+  flex-shrink: 0;
+  min-width: 44px;
+  min-height: 44px;
+}
+.document-preview-body {
+  display: grid;
+  gap: 16px;
+}
+.document-preview-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  font-size: 13px;
+  color: #5e7266;
+}
+.document-preview-meta a {
+  min-height: 44px;
+  text-decoration: none;
+}
+.document-text-preview {
+  max-height: 55dvh;
+  overflow: auto;
+  margin: 0;
+  padding: 20px;
+  border: 1px solid #d8e3d8;
+  border-radius: 10px;
+  background: #f8faf6;
+  color: #244731;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-family: inherit;
+  font-size: 15px;
+  line-height: 1.7;
+}
+.document-image-preview {
+  display: block;
+  max-width: 100%;
+  max-height: 60dvh;
+  margin: 0 auto;
+  object-fit: contain;
+}
+.document-pdf-preview {
+  width: 100%;
+  height: 58dvh;
+  min-height: 280px;
+  border: 1px solid #d8e3d8;
+  border-radius: 8px;
+}
+@media (max-width: 560px) {
+  .document-library-counts,
+  .document-add-controls {
+    width: 100%;
+  }
+  .document-library-counts > div {
+    flex: 1 1 140px;
+  }
+  .document-add-controls > label,
+  .document-add-controls > button {
+    flex: 1 1 100%;
+  }
+  .document-library-filters > select {
+    flex: 1 1 100%;
+    min-width: 0;
+    width: 100%;
+  }
+  .document-library-filters input,
+  .document-library-filters select,
+  .document-add-controls select {
+    font-size: 16px;
+  }
+  .document-undo {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .document-library-row {
+    gap: 4px;
+    padding-inline-end: 10px;
+  }
+  .document-library-open {
+    padding: 15px 10px;
+    gap: 9px;
+  }
+  .document-preview-layer {
+    padding: 10px;
+  }
+  .modal-card.document-preview-card {
+    max-height: calc(100dvh - 20px);
+  }
+  .document-preview-body {
+    padding: 16px;
+  }
+  .document-text-preview {
+    padding: 14px;
+  }
+}

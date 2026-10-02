@@ -27,7 +27,6 @@ import {
   CircleDollarSign,
   CircleUserRound,
   Clock3,
-  Download,
   FileCheck2,
   FileText,
   Filter,
@@ -52,7 +51,6 @@ import {
   Store,
   SlidersHorizontal,
   Smartphone,
-  Upload,
   Users,
   WalletCards,
   Wrench,
@@ -62,7 +60,6 @@ import {
 } from "lucide-react";
 import {
   applications,
-  maintenance,
   properties,
   providers,
   spaceVenues,
@@ -77,6 +74,13 @@ import {
   type LanguageCode,
 } from "./i18n";
 import { DeviceSimulator } from "./components/DeviceSimulator";
+import { createInitialRentRecordState } from "./components/rentRecordState";
+import {
+  createInitialMaintenanceState,
+  visibleMaintenanceRecords,
+} from "./components/maintenanceState";
+import { createInitialDocumentState } from "./components/documentState";
+import { readPreference, writePreference } from "./platform/preferences";
 import { Messages } from "./components/Messages";
 import {
   NotificationsPopover,
@@ -139,14 +143,7 @@ import {
   MortgageEstimator,
 } from "./components/MortgageEstimator";
 import { isPointInsideZone, type ZonePoint } from "./components/mapGeometry";
-import type {
-  MaintenanceRequest,
-  Property,
-  Role,
-  SpaceUnit,
-  SpaceVenue,
-  View,
-} from "./types";
+import type { Property, Role, SpaceUnit, SpaceVenue, View } from "./types";
 import { appConfig } from "./platform/config";
 import type { DemoTarget } from "./presentation/journeys";
 import {
@@ -162,6 +159,27 @@ const formatEuro = (value: number) =>
     currency: "EUR",
     maximumFractionDigits: 0,
   }).format(value);
+
+const RentRecords = lazy(() =>
+  import("./components/RentRecords").then((module) => ({
+    default: module.RentRecords,
+  })),
+);
+const WorkspaceTools = lazy(() =>
+  import("./components/WorkspaceTools").then((module) => ({
+    default: module.WorkspaceTools,
+  })),
+);
+const Maintenance = lazy(() =>
+  import("./components/Maintenance").then((module) => ({
+    default: module.Maintenance,
+  })),
+);
+const Documents = lazy(() =>
+  import("./components/Documents").then((module) => ({
+    default: module.Documents,
+  })),
+);
 
 const KasaMap = lazy(() =>
   import("./components/KasaMap").then((module) => ({
@@ -1613,20 +1631,22 @@ function UniversalHome({
 function ProfileView({
   onSwitch,
   go,
-  notify,
+  onSettings,
+  workspace,
 }: {
   onSwitch: () => void;
   go: (view: View) => void;
-  notify: (message: string) => void;
+  onSettings: () => void;
+  workspace: { initials: string; name: string; label: string };
 }) {
   const { tr } = useKasaI18n();
   return (
     <div className="simple-mobile-page profile-page">
       <section className="profile-identity-card">
-        <Avatar initials="ID" />
+        <Avatar initials={workspace.initials} />
         <span>
-          <strong>Inês Duarte</strong>
-          <small>{tr("shell.tenant")}</small>
+          <strong>{workspace.name}</strong>
+          <small>{workspace.label}</small>
         </span>
         <ChevronRight />
       </section>
@@ -1646,7 +1666,7 @@ function ProfileView({
           <span>{tr("common.notifications")}</span>
           <ChevronRight />
         </button>
-        <button onClick={() => notify(tr("shell.settingsOpened"))}>
+        <button onClick={onSettings}>
           <Settings />
           <span>{tr("common.settings")}</span>
           <ChevronRight />
@@ -3173,770 +3193,6 @@ function Portfolio({
           </div>
         </Modal>
       )}
-    </div>
-  );
-}
-
-function Rent({
-  role,
-  notify,
-}: {
-  role: Role;
-  notify: (message: string) => void;
-}) {
-  const { tr } = useKasaI18n();
-  const [proofSubmitted, setProofSubmitted] = useState(false);
-  const [rentStatus, setRentStatus] = useState("All statuses");
-  const [rentProperty, setRentProperty] = useState("All properties");
-  const [rentSort, setRentSort] = useState("Most recently updated");
-  const records = [
-    {
-      month: "August 2026",
-      tenant: "Inês Duarte",
-      property: "Sunlit Eixample home",
-      amount: 1850,
-      date: "1 Aug",
-      status: "Confirmed",
-    },
-    {
-      month: "August 2026",
-      tenant: "Leo Bernard",
-      property: "Quiet Gràcia loft",
-      amount: 1420,
-      date: "2 Aug",
-      status: "Confirmed",
-    },
-    {
-      month: "August 2026",
-      tenant: "Maya Chen",
-      property: "Poblenou terrace studio",
-      amount: 1280,
-      date: "1 Aug",
-      status: "Confirmed",
-    },
-    {
-      month: "August 2026",
-      tenant: "Noah Vidal",
-      property: "Sant Antoni family flat",
-      amount: 2180,
-      date: "3 Aug",
-      status: "Confirmed",
-    },
-  ];
-  const baseRecords =
-    role === "tenant"
-      ? records.filter((record) => record.tenant === "Inês Duarte")
-      : records;
-  const visibleRecords = baseRecords
-    .filter(
-      (record) =>
-        (rentStatus === "All statuses" || record.status === rentStatus) &&
-        (rentProperty === "All properties" || record.property === rentProperty),
-    )
-    .sort((a, b) =>
-      rentSort === "Amount: high to low"
-        ? b.amount - a.amount
-        : rentSort === "Property name"
-          ? a.property.localeCompare(b.property)
-          : records.indexOf(b) - records.indexOf(a),
-    );
-  const activeRentFilters =
-    Number(rentStatus !== "All statuses") +
-    Number(rentProperty !== "All properties");
-  return (
-    <div className="page-stack">
-      <section className="rent-banner">
-        <div className="rent-banner-icon">
-          <ShieldCheck />
-        </div>
-        <div>
-          <strong>{tr("rentPage.title")}</strong>
-          <p>{tr("rentPage.directNote")}</p>
-        </div>
-        {role === "tenant" && (
-          <ActionButton
-            icon={Upload}
-            onClick={() => {
-              setProofSubmitted(true);
-              notify(
-                "Transfer details and proof recorded. Awaiting landlord confirmation.",
-              );
-            }}
-          >
-            {proofSubmitted
-              ? tr("rentPage.proofSubmitted")
-              : tr("rentPage.uploadProof")}
-          </ActionButton>
-        )}
-      </section>
-      {role === "tenant" && (
-        <section className="bank-instructions">
-          <div className="bank-copy">
-            <span className="eyebrow light">{tr("rentPage.payLandlord")}</span>
-            <h2>
-              {tr("rentPage.septemberRent")} · {formatEuro(1850)}
-            </h2>
-            <p>{tr("rentPage.useBank")}</p>
-          </div>
-          <div className="bank-details">
-            <span>
-              <small>{tr("rentPage.accountHolder")}</small>
-              <strong>Olivia Martín</strong>
-            </span>
-            <span>
-              <small>IBAN</small>
-              <strong>ES12 ···· ···· ···· 4821</strong>
-            </span>
-            <span>
-              <small>{tr("rentPage.paymentReference")}</small>
-              <strong>KASA-ES-1042-SEP</strong>
-            </span>
-            <button
-              className="soft-button"
-              onClick={() => notify("Payment instructions copied.")}
-            >
-              {tr("rentPage.copyDetails")}
-            </button>
-          </div>
-          <div className="transfer-flow">
-            <span className="done">
-              <Check /> {tr("rentPage.transferDirectly")}
-            </span>
-            <i />
-            <span className={proofSubmitted ? "done" : ""}>
-              {proofSubmitted && <Check />} {tr("rentPage.submitProof")}
-            </span>
-            <i />
-            <span>{tr("rentPage.landlordConfirms")}</span>
-          </div>
-        </section>
-      )}
-      <section className="metrics-grid tenant-metrics">
-        <Metric
-          label={
-            role === "landlord"
-              ? tr("rentPage.recordedAugust")
-              : tr("rentPage.augustRent")
-          }
-          value={role === "landlord" ? "€6,730" : "€1,850"}
-          note={tr("rentPage.allChecked")}
-          icon={CheckCircle2}
-        />
-        <Metric
-          label={tr("rentPage.nextReminder")}
-          value={tr("rentPage.augustDate")}
-          note={tr("rentPage.forSeptember")}
-          icon={Bell}
-          tone="blue"
-        />
-        <Metric
-          label={tr("rentPage.missingProof")}
-          value="0"
-          note={tr("rentPage.nothingAttention")}
-          icon={FileCheck2}
-          tone="lilac"
-        />
-      </section>
-      <FilterToolbar
-        activeCount={activeRentFilters}
-        onReset={() => {
-          setRentStatus("All statuses");
-          setRentProperty("All properties");
-          setRentSort("Most recently updated");
-        }}
-      >
-        <select aria-label={tr("rentPage.periodLabel")}>
-          <option>{tr("dashboard.august")} 2026</option>
-        </select>
-        <select
-          aria-label={tr("rentPage.statusLabel")}
-          value={rentStatus}
-          onChange={(event) => setRentStatus(event.target.value)}
-        >
-          <option value="All statuses">{tr("rentPage.allStatuses")}</option>
-          <option value="Confirmed">{tr("rentPage.confirmed")}</option>
-          <option value="Awaiting proof">{tr("rentPage.awaitingProof")}</option>
-          <option value="Awaiting landlord confirmation">
-            {tr("rentPage.awaitingLandlord")}
-          </option>
-          <option value="Overdue">{tr("rentPage.overdue")}</option>
-          <option value="Discrepancy">{tr("rentPage.discrepancy")}</option>
-        </select>
-        <select
-          aria-label={tr("rentPage.propertyLabel")}
-          value={rentProperty}
-          onChange={(event) => setRentProperty(event.target.value)}
-        >
-          <option value="All properties">{tr("rentPage.allProperties")}</option>
-          {[...new Set(baseRecords.map((record) => record.property))].map(
-            (property) => (
-              <option key={property}>{property}</option>
-            ),
-          )}
-        </select>
-        <select
-          aria-label={tr("rentPage.sortLabel")}
-          value={rentSort}
-          onChange={(event) => setRentSort(event.target.value)}
-        >
-          <option value="Most recently updated">{tr("rentPage.recent")}</option>
-          <option value="Amount: high to low">
-            {tr("rentPage.amountHigh")}
-          </option>
-          <option value="Property name">{tr("rentPage.propertyName")}</option>
-        </select>
-      </FilterToolbar>
-      <section className="card rent-table-card">
-        <div className="table-card-title">
-          <div>
-            <h2>{tr("rentPage.paymentRecords")}</h2>
-            <p>{tr("rentPage.proofMatched")}</p>
-          </div>
-          <button
-            className="soft-button"
-            onClick={() =>
-              notify("Rent records exported as a reconciliation report.")
-            }
-          >
-            <Download size={16} /> {tr("rentPage.export")}
-          </button>
-        </div>
-        <div className="rent-record-head">
-          <span>{tr("rentPage.period")}</span>
-          {role === "landlord" && <span>{tr("rentPage.tenant")}</span>}
-          <span>{tr("rentPage.property")}</span>
-          <span>{tr("rentPage.amount")}</span>
-          <span>{tr("rentPage.transferred")}</span>
-          <span>{tr("rentPage.status")}</span>
-        </div>
-        {visibleRecords.map((record, index) => (
-          <div className="rent-record" key={record.tenant}>
-            <span>
-              <strong>{tr("dashboard.august")} 2026</strong>
-              <small>
-                {tr("rentPage.receipt")} #AUG-{1024 + index}
-              </small>
-            </span>
-            {role === "landlord" && <span>{record.tenant}</span>}
-            <span>{record.property}</span>
-            <strong>{formatEuro(record.amount)}</strong>
-            <span>{record.date}</span>
-            <StatusPill tone="mint">
-              <Check size={13} /> {tr("rentPage.confirmed")}
-            </StatusPill>
-          </div>
-        ))}
-        {visibleRecords.length === 0 && (
-          <div className="table-empty">
-            <Search size={22} />
-            <span>{tr("rentPage.noMatches")}</span>
-          </div>
-        )}
-      </section>
-    </div>
-  );
-}
-
-function Maintenance({
-  role,
-  notify,
-}: {
-  role: Role;
-  notify: (message: string) => void;
-}) {
-  const columns: MaintenanceRequest["status"][] = [
-    "New",
-    "Scheduled",
-    "In progress",
-    "Resolved",
-  ];
-  const [maintenanceView, setMaintenanceView] = useState<"Board" | "List">(
-    "Board",
-  );
-  const [maintenanceStatus, setMaintenanceStatus] = useState("All statuses");
-  const [maintenancePriority, setMaintenancePriority] =
-    useState("All priorities");
-  const [maintenanceCategoryFilter, setMaintenanceCategoryFilter] =
-    useState("All categories");
-  const [maintenanceProperty, setMaintenanceProperty] =
-    useState("All properties");
-  const [maintenanceSort, setMaintenanceSort] = useState("Urgent first");
-  const categoryOf = (request: MaintenanceRequest) =>
-    request.title.toLowerCase().includes("tap")
-      ? "Plumbing"
-      : request.title.toLowerCase().includes("conditioning")
-        ? "AC"
-        : request.title.toLowerCase().includes("power")
-          ? "Electrical"
-          : "General repair";
-  const baseRequests =
-    role === "tenant"
-      ? maintenance.filter((request) => request.tenant === "Inês Duarte")
-      : maintenance;
-  const visibleRequests = baseRequests
-    .filter(
-      (request) =>
-        (maintenanceStatus === "All statuses" ||
-          request.status === maintenanceStatus) &&
-        (maintenancePriority === "All priorities" ||
-          request.priority === maintenancePriority) &&
-        (maintenanceCategoryFilter === "All categories" ||
-          categoryOf(request) === maintenanceCategoryFilter) &&
-        (maintenanceProperty === "All properties" ||
-          request.property === maintenanceProperty),
-    )
-    .sort((a, b) =>
-      maintenanceSort === "Newest reported"
-        ? a.id - b.id
-        : maintenanceSort === "Oldest unresolved"
-          ? b.id - a.id
-          : maintenanceSort === "Scheduled visit"
-            ? Number(!a.provider) - Number(!b.provider)
-            : { Urgent: 0, Medium: 1, Low: 2 }[a.priority] -
-              { Urgent: 0, Medium: 1, Low: 2 }[b.priority],
-    );
-  const activeMaintenanceFilters =
-    Number(maintenanceStatus !== "All statuses") +
-    Number(maintenancePriority !== "All priorities") +
-    Number(maintenanceCategoryFilter !== "All categories") +
-    Number(maintenanceProperty !== "All properties");
-  const renderTicket = (request: MaintenanceRequest) => (
-    <article
-      className="maintenance-ticket"
-      key={request.id}
-      onClick={() => notify(`${request.title} opened.`)}
-    >
-      <div className="ticket-top">
-        <StatusPill
-          tone={
-            request.priority === "Urgent"
-              ? "red"
-              : request.priority === "Medium"
-                ? "amber"
-                : "neutral"
-          }
-        >
-          {request.priority}
-        </StatusPill>
-        <span className="ticket-category">{categoryOf(request)}</span>
-        <button className="icon-button">
-          <MoreHorizontal size={17} />
-        </button>
-      </div>
-      <h3>{request.title}</h3>
-      <p>{request.property}</p>
-      <div className="ticket-meta">
-        <span>
-          <CalendarDays size={14} /> {request.date}
-        </span>
-        <span>
-          <Avatar
-            initials={request.tenant
-              .split(" ")
-              .map((part) => part[0])
-              .join("")}
-            small
-          />{" "}
-          {request.tenant}
-        </span>
-      </div>
-      {request.provider && (
-        <div className="provider-assigned">
-          <Wrench size={14} /> {request.provider}
-        </div>
-      )}
-    </article>
-  );
-  return (
-    <div className="page-stack">
-      <div className="page-actions">
-        <div className="segment compact">
-          {(["Board", "List"] as const).map((item) => (
-            <button
-              key={item}
-              className={maintenanceView === item ? "active" : ""}
-              onClick={() => setMaintenanceView(item)}
-            >
-              {item}
-            </button>
-          ))}
-        </div>
-        <ActionButton
-          icon={Plus}
-          onClick={() =>
-            notify(
-              role === "tenant"
-                ? "New maintenance request opened."
-                : "Maintenance record opened.",
-            )
-          }
-        >
-          {role === "tenant" ? "Report an issue" : "Add request"}
-        </ActionButton>
-      </div>
-      <FilterToolbar
-        activeCount={activeMaintenanceFilters}
-        onReset={() => {
-          setMaintenanceStatus("All statuses");
-          setMaintenancePriority("All priorities");
-          setMaintenanceCategoryFilter("All categories");
-          setMaintenanceProperty("All properties");
-          setMaintenanceSort("Urgent first");
-        }}
-      >
-        <select
-          aria-label="Maintenance status"
-          value={maintenanceStatus}
-          onChange={(event) => setMaintenanceStatus(event.target.value)}
-        >
-          <option>All statuses</option>
-          {columns.map((column) => (
-            <option key={column}>{column}</option>
-          ))}
-        </select>
-        <select
-          aria-label="Maintenance priority"
-          value={maintenancePriority}
-          onChange={(event) => setMaintenancePriority(event.target.value)}
-        >
-          <option>All priorities</option>
-          <option>Urgent</option>
-          <option>Medium</option>
-          <option>Low</option>
-        </select>
-        <select
-          aria-label="Maintenance category"
-          value={maintenanceCategoryFilter}
-          onChange={(event) => setMaintenanceCategoryFilter(event.target.value)}
-        >
-          <option>All categories</option>
-          <option>Plumbing</option>
-          <option>AC</option>
-          <option>Electrical</option>
-          <option>General repair</option>
-        </select>
-        {role === "landlord" && (
-          <select
-            aria-label="Maintenance property"
-            value={maintenanceProperty}
-            onChange={(event) => setMaintenanceProperty(event.target.value)}
-          >
-            <option>All properties</option>
-            {[...new Set(baseRequests.map((request) => request.property))].map(
-              (property) => (
-                <option key={property}>{property}</option>
-              ),
-            )}
-          </select>
-        )}
-        <select
-          aria-label="Sort maintenance"
-          value={maintenanceSort}
-          onChange={(event) => setMaintenanceSort(event.target.value)}
-        >
-          <option>Urgent first</option>
-          <option>Newest reported</option>
-          <option>Oldest unresolved</option>
-          <option>Scheduled visit</option>
-        </select>
-      </FilterToolbar>
-      {maintenanceView === "Board" ? (
-        <section className="maintenance-board">
-          {columns
-            .filter(
-              (column) =>
-                maintenanceStatus === "All statuses" ||
-                column === maintenanceStatus,
-            )
-            .map((column) => (
-              <div className="maintenance-column" key={column}>
-                <header>
-                  <span>{column}</span>
-                  <i>
-                    {
-                      visibleRequests.filter((item) => item.status === column)
-                        .length
-                    }
-                  </i>
-                </header>
-                {visibleRequests
-                  .filter((item) => item.status === column)
-                  .map(renderTicket)}
-              </div>
-            ))}
-        </section>
-      ) : (
-        <section className="maintenance-list card">
-          {visibleRequests.map((request) => (
-            <button
-              key={request.id}
-              onClick={() => notify(`${request.title} opened.`)}
-            >
-              <span className="maintenance-list-icon">
-                <Wrench size={18} />
-              </span>
-              <span>
-                <strong>{request.title}</strong>
-                <small>
-                  {request.property} · {categoryOf(request)}
-                </small>
-              </span>
-              <StatusPill
-                tone={
-                  request.priority === "Urgent"
-                    ? "red"
-                    : request.priority === "Medium"
-                      ? "amber"
-                      : "neutral"
-                }
-              >
-                {request.priority}
-              </StatusPill>
-              <StatusPill
-                tone={request.status === "Resolved" ? "mint" : "blue"}
-              >
-                {request.status}
-              </StatusPill>
-              <span className="maintenance-list-date">{request.date}</span>
-              <ChevronRight size={16} />
-            </button>
-          ))}
-          {visibleRequests.length === 0 && (
-            <div className="table-empty">
-              <Search size={22} />
-              <span>No maintenance requests match these filters.</span>
-            </div>
-          )}
-        </section>
-      )}
-      <div className="scope-note">
-        <LifeBuoy size={17} />
-        <span>
-          Kasa helps people log, communicate and coordinate repairs. Service
-          providers are selected and engaged directly by users.
-        </span>
-      </div>
-    </div>
-  );
-}
-
-function Documents({
-  role,
-  notify,
-}: {
-  role: Role;
-  notify: (message: string) => void;
-}) {
-  const [documentQuery, setDocumentQuery] = useState("");
-  const [documentCategory, setDocumentCategory] = useState("All categories");
-  const [documentStatus, setDocumentStatus] = useState("All statuses");
-  const [documentSort, setDocumentSort] = useState("Recently added");
-  const groups = [
-    {
-      title: "Lease & property",
-      files: [
-        {
-          name: "Residential lease agreement",
-          type: "PDF · 2.4 MB",
-          date: "Signed 24 Jun",
-          status: "Signed",
-        },
-        {
-          name: "Move-in condition report",
-          type: "PDF · 8.1 MB",
-          date: "Added 1 Jul",
-          status: "Complete",
-        },
-      ],
-    },
-    {
-      title: role === "landlord" ? "Tenant records" : "My records",
-      files: [
-        {
-          name: "Identity verification",
-          type: "Verified record",
-          date: "Checked 18 Jun",
-          status: "Verified",
-        },
-        {
-          name: "Income documentation",
-          type: "PDF · 920 KB",
-          date: "Added 18 Jun",
-          status: "Private",
-        },
-      ],
-    },
-    {
-      title: "Rent & maintenance",
-      files: [
-        {
-          name: "August transfer receipt",
-          type: "PDF · 184 KB",
-          date: "Added 1 Aug",
-          status: "Confirmed",
-        },
-        {
-          name: "AC service report",
-          type: "PDF · 612 KB",
-          date: "Due 22 Aug",
-          status: "Pending",
-        },
-      ],
-    },
-  ];
-  const visibleGroups = groups
-    .map((group) => ({
-      ...group,
-      files: group.files
-        .filter(
-          (file) =>
-            `${file.name} ${file.type}`
-              .toLowerCase()
-              .includes(documentQuery.toLowerCase()) &&
-            (documentCategory === "All categories" ||
-              group.title === documentCategory) &&
-            (documentStatus === "All statuses" ||
-              file.status === documentStatus),
-        )
-        .sort((a, b) =>
-          documentSort === "Document name"
-            ? a.name.localeCompare(b.name)
-            : documentSort === "Action required first"
-              ? Number(a.status !== "Pending") - Number(b.status !== "Pending")
-              : group.files.indexOf(b) - group.files.indexOf(a),
-        ),
-    }))
-    .filter((group) => group.files.length > 0);
-  const activeDocumentFilters =
-    Number(Boolean(documentQuery)) +
-    Number(documentCategory !== "All categories") +
-    Number(documentStatus !== "All statuses");
-  return (
-    <div className="page-stack">
-      <div className="page-actions">
-        <div className="document-summary">
-          <div>
-            <FileCheck2 size={18} />
-            <span>
-              <strong>8 verified</strong>
-              <small>Up to date</small>
-            </span>
-          </div>
-          <div>
-            <Clock3 size={18} />
-            <span>
-              <strong>1 pending</strong>
-              <small>Service report</small>
-            </span>
-          </div>
-        </div>
-        <ActionButton
-          icon={Upload}
-          onClick={() => notify("Secure document upload opened.")}
-        >
-          Upload document
-        </ActionButton>
-      </div>
-      <FilterToolbar
-        activeCount={activeDocumentFilters}
-        onReset={() => {
-          setDocumentQuery("");
-          setDocumentCategory("All categories");
-          setDocumentStatus("All statuses");
-          setDocumentSort("Recently added");
-        }}
-      >
-        <label className="filter-search">
-          <Search size={15} />
-          <input
-            aria-label="Search documents"
-            placeholder="Search documents"
-            value={documentQuery}
-            onChange={(event) => setDocumentQuery(event.target.value)}
-          />
-        </label>
-        <select
-          aria-label="Document category"
-          value={documentCategory}
-          onChange={(event) => setDocumentCategory(event.target.value)}
-        >
-          <option>All categories</option>
-          {groups.map((group) => (
-            <option key={group.title}>{group.title}</option>
-          ))}
-        </select>
-        <select
-          aria-label="Document status"
-          value={documentStatus}
-          onChange={(event) => setDocumentStatus(event.target.value)}
-        >
-          <option>All statuses</option>
-          {[
-            ...new Set(
-              groups.flatMap((group) => group.files.map((file) => file.status)),
-            ),
-          ].map((status) => (
-            <option key={status}>{status}</option>
-          ))}
-        </select>
-        <select
-          aria-label="Sort documents"
-          value={documentSort}
-          onChange={(event) => setDocumentSort(event.target.value)}
-        >
-          <option>Recently added</option>
-          <option>Action required first</option>
-          <option>Document name</option>
-        </select>
-      </FilterToolbar>
-      {visibleGroups.map((group) => (
-        <section className="card document-group" key={group.title}>
-          <SectionHeading title={group.title} />
-          {group.files.map((file) => (
-            <button
-              className="document-row"
-              key={file.name}
-              onClick={() => notify(`${file.name} opened.`)}
-            >
-              <span className="document-icon">
-                <FileText size={20} />
-              </span>
-              <span className="row-copy">
-                <strong>{file.name}</strong>
-                <small>{file.type}</small>
-              </span>
-              <span className="document-date">{file.date}</span>
-              <StatusPill
-                tone={
-                  file.status === "Pending"
-                    ? "amber"
-                    : file.status === "Private"
-                      ? "neutral"
-                      : "mint"
-                }
-              >
-                {file.status}
-              </StatusPill>
-              <Download size={17} />
-            </button>
-          ))}
-        </section>
-      ))}
-      {visibleGroups.length === 0 && (
-        <div className="empty-state">
-          <FileText size={28} />
-          <h3>No documents match</h3>
-          <p>Reset a filter or search for another document.</p>
-        </div>
-      )}
-      <div className="scope-note">
-        <ShieldCheck size={17} />
-        <span>
-          Demo assumption: files will use encrypted object storage and
-          role-based access. Identity and income documents remain private to
-          authorized participants.
-        </span>
-      </div>
     </div>
   );
 }
@@ -7847,6 +7103,19 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
   const [bookingsState, setBookingsState] = useState(
     createInitialSpaceBookingsState,
   );
+  const [rentRecordState, setRentRecordState] = useState(
+    createInitialRentRecordState,
+  );
+  const [maintenanceState, setMaintenanceState] = useState(
+    createInitialMaintenanceState,
+  );
+  const [documentState, setDocumentState] = useState(
+    createInitialDocumentState,
+  );
+  const maintenanceCount = visibleMaintenanceRecords(
+    maintenanceState,
+    role,
+  ).filter((record) => record.status !== "Resolved").length;
   const [applicationState, setApplicationState] = useState(
     createInitialApplicationState,
   );
@@ -7861,6 +7130,22 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
     createInitialNotificationState,
   );
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [workspaceTool, setWorkspaceTool] = useState<
+    "settings" | "help" | null
+  >(null);
+  const [reduceMotion, setReduceMotion] = useState(
+    () => readPreference("kasa-reduce-motion") === "true",
+  );
+  const systemReduceMotion = useMediaQuery("(prefers-reduced-motion: reduce)");
+  useEffect(() => {
+    const previous = document.documentElement.dataset.reduceMotion;
+    document.documentElement.dataset.reduceMotion = String(reduceMotion);
+    return () => {
+      if (previous === undefined)
+        delete document.documentElement.dataset.reduceMotion;
+      else document.documentElement.dataset.reduceMotion = previous;
+    };
+  }, [reduceMotion]);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [workspaceMenuOpen, setWorkspaceMenuOpen] = useState(false);
   const mobileNavigationQuery = "(max-width: 980px)";
@@ -8266,9 +7551,12 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
         setSearchQuery("");
       setMobileOpen(false);
       setWorkspaceMenuOpen(false);
-      window.scrollTo({ top: 0, behavior: "smooth" });
+      window.scrollTo({
+        top: 0,
+        behavior: reduceMotion || systemReduceMotion ? "instant" : "smooth",
+      });
     },
-    [view],
+    [view, reduceMotion, systemReduceMotion],
   );
   const openServices = (mode: ServiceLaunchMode, query = "") => {
     setServiceLaunch(mode);
@@ -8552,7 +7840,8 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
         return (
           <ProfileView
             go={go}
-            notify={notify}
+            workspace={workspace}
+            onSettings={() => setWorkspaceTool("settings")}
             onSwitch={() => {
               setWorkspaceMenuOpen(true);
               setMobileOpen(true);
@@ -8560,11 +7849,31 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
           />
         );
       case "rent":
-        return <Rent role={role} notify={notify} />;
+        return (
+          <RentRecords
+            key={role}
+            role={role}
+            state={rentRecordState}
+            setState={setRentRecordState}
+          />
+        );
       case "maintenance":
-        return <Maintenance role={role} notify={notify} />;
+        return (
+          <Maintenance
+            key={role}
+            role={role}
+            state={maintenanceState}
+            setState={setMaintenanceState}
+          />
+        );
       case "documents":
-        return <Documents role={role} notify={notify} />;
+        return (
+          <Documents
+            role={role}
+            state={documentState}
+            setState={setDocumentState}
+          />
+        );
       case "services":
         return (
           <Services
@@ -8810,7 +8119,11 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
                   ? applicationCount > 0
                     ? String(applicationCount)
                     : undefined
-                  : item.badge;
+                  : item.id === "maintenance"
+                    ? maintenanceCount > 0
+                      ? String(maintenanceCount)
+                      : undefined
+                    : item.badge;
             const active =
               view === item.id ||
               (view === "property" && item.id === propertyReturnTo);
@@ -8845,10 +8158,20 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
           >
             <Smartphone size={18} /> {tr("nav.appWelcome")}
           </button>
-          <button onClick={() => notify(tr("shell.helpOpened"))}>
+          <button
+            onClick={() => {
+              closeMobileNavigation();
+              setWorkspaceTool("help");
+            }}
+          >
             <LifeBuoy size={18} /> {tr("nav.help")}
           </button>
-          <button onClick={() => notify(tr("shell.settingsOpened"))}>
+          <button
+            onClick={() => {
+              closeMobileNavigation();
+              setWorkspaceTool("settings");
+            }}
+          >
             <Settings size={18} /> {tr("common.settings")}
           </button>
           <div className="scope-chip">
@@ -8935,7 +8258,15 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
           </div>
         </header>
         <div className="content" key={routeRevision}>
-          {renderView()}
+          <Suspense
+            fallback={
+              <div className="workspace-loading" role="status">
+                {tr("common.loadingWorkspace")}
+              </div>
+            }
+          >
+            {renderView()}
+          </Suspense>
         </div>
       </main>
       {mobileDockItems.length > 0 && (
@@ -8977,6 +8308,28 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
             close: tr("common.closeSimulator"),
           }}
         />
+      )}
+      {workspaceTool && (
+        <Suspense
+          fallback={
+            <div className="toast" role="status">
+              {tr("common.loadingWorkspace")}
+            </div>
+          }
+        >
+          <WorkspaceTools
+            mode={workspaceTool}
+            role={role}
+            workspace={workspace}
+            reduceMotion={reduceMotion}
+            onReduceMotion={(value) => {
+              setReduceMotion(value);
+              return writePreference("kasa-reduce-motion", String(value));
+            }}
+            onClose={() => setWorkspaceTool(null)}
+            onNavigate={go}
+          />
+        </Suspense>
       )}
       {toast && (
         <div className="toast" role="status">

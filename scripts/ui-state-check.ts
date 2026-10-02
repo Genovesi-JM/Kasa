@@ -9,5 +9,8 @@ import "./preferences-check";
 import "./saved-search-state-check";
 import "./workspace-saved-state-check";
 import "./property-request-check";
+import "./maintenance-state-check";
+import "./document-state-check";
+import "./rent-record-state-check";
 
 console.log("Kasa UI state checks passed.");

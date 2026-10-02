@@ -75,6 +75,7 @@ const en = {
     android: "Android",
     closeSimulator: "Close simulators",
     loadingMap: "Loading map…",
+    loadingWorkspace: "Loading workspace…",
   },
   nav: {
     workspace: "Workspace",
@@ -697,6 +698,7 @@ const pt = {
     android: "Android",
     closeSimulator: "Fechar simuladores",
     loadingMap: "A carregar mapa…",
+    loadingWorkspace: "A carregar área de trabalho…",
   },
   nav: {
     workspace: "Área de trabalho",
@@ -1323,6 +1325,7 @@ const es = merge(en, {
     compare: "Comparar",
     closeSimulator: "Cerrar simuladores",
     loadingMap: "Cargando mapa…",
+    loadingWorkspace: "Cargando espacio de trabajo…",
   },
   nav: {
     workspace: "Espacio de trabajo",
@@ -1568,6 +1571,7 @@ const fr = merge(en, {
     compare: "Comparer",
     closeSimulator: "Fermer les simulateurs",
     loadingMap: "Chargement de la carte…",
+    loadingWorkspace: "Chargement de l’espace de travail…",
   },
   nav: {
     workspace: "Espace de travail",
@@ -1814,6 +1818,7 @@ const ar = merge(en, {
     compare: "مقارنة",
     closeSimulator: "إغلاق المحاكيات",
     loadingMap: "جارٍ تحميل الخريطة…",
+    loadingWorkspace: "جارٍ تحميل مساحة العمل…",
   },
   nav: {
     workspace: "مساحة العمل",
@@ -2057,6 +2062,7 @@ const zh = merge(en, {
     compare: "对比",
     closeSimulator: "关闭模拟器",
     loadingMap: "正在加载地图…",
+    loadingWorkspace: "正在加载工作区…",
   },
   nav: {
     workspace: "工作区",

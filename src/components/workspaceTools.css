@@ -1,0 +1,121 @@
+.workspace-tools-card {
+  width: min(580px, calc(100vw - 32px));
+}
+.workspace-tools-card h2 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.workspace-tools-body {
+  display: grid;
+  gap: 20px;
+  max-height: 70dvh;
+  overflow-y: auto;
+}
+.workspace-tools-body p {
+  margin: 0;
+  line-height: 1.6;
+}
+.workspace-tools-identity {
+  display: grid;
+  gap: 6px;
+  padding: 18px;
+  border-radius: 14px;
+  background: #f3f6f2;
+}
+.workspace-tools-identity > strong {
+  font-size: 18px;
+}
+.workspace-tools-identity > span:last-child {
+  font-size: 13px;
+  color: #626b62;
+}
+.workspace-tools-language {
+  display: grid;
+  gap: 10px;
+}
+.workspace-tools-language > span {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+}
+.workspace-tools-language select {
+  width: 100%;
+  padding: 12px;
+  border: 1px solid #d8ded5;
+  border-radius: 10px;
+  background: white;
+  color: #26392c;
+  font: inherit;
+}
+.workspace-tools-toggle {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  cursor: pointer;
+}
+.workspace-tools-toggle span {
+  display: grid;
+  gap: 7px;
+  flex: 1;
+}
+.workspace-tools-toggle small,
+.workspace-help-links small {
+  color: #626b62;
+  line-height: 1.5;
+}
+.workspace-tools-toggle input {
+  width: 22px;
+  height: 22px;
+  accent-color: #2c5f44;
+  flex: 0 0 auto;
+}
+.workspace-tools-note {
+  padding-top: 14px;
+  border-top: 1px solid #e4e8e0;
+  font-size: 12px;
+  color: #687166;
+}
+.workspace-tools-feedback {
+  color: #28563d;
+  font-size: 13px;
+}
+.workspace-help-links {
+  display: grid;
+  gap: 8px;
+}
+.workspace-help-links button {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  padding: 14px;
+  border: 1px solid #dfe4da;
+  border-radius: 12px;
+  background: #fbfcf9;
+  text-align: start;
+  color: #26392c;
+  font: inherit;
+}
+.workspace-help-links button > span {
+  display: grid;
+  gap: 5px;
+  flex: 1;
+}
+.workspace-help-links button svg {
+  flex: 0 0 auto;
+}
+.workspace-tools-body details {
+  padding-top: 16px;
+  border-top: 1px solid #e4e8e0;
+}
+.workspace-tools-body summary {
+  cursor: pointer;
+  font-weight: 600;
+  line-height: 1.5;
+}
+.workspace-tools-body details p {
+  margin-top: 10px;
+  font-size: 13px;
+  color: #626b62;
+}

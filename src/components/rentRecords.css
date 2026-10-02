@@ -1,0 +1,417 @@
+.rent-managed-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 24px;
+  border: 1px solid #d6e3d9;
+  border-radius: 15px;
+  background: #edf5ee;
+}
+.rent-managed-banner h2 {
+  margin: 7px 0;
+  font-size: 21px;
+  line-height: 1.35;
+}
+.rent-managed-banner p {
+  max-width: 660px;
+  margin: 0;
+  color: #50695b;
+  font-size: 13px;
+  line-height: 1.6;
+}
+.rent-managed-banner > .button {
+  flex-shrink: 0;
+}
+.rent-managed-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+.rent-managed-metrics > div {
+  display: grid;
+  gap: 9px;
+  padding: 20px;
+}
+.rent-managed-metrics span {
+  color: #53685d;
+  font-size: 12px;
+}
+.rent-managed-metrics strong {
+  color: #193e2d;
+  font-size: 25px;
+}
+.rent-managed-metrics small {
+  color: #6a7b71;
+  font-size: 11px;
+}
+.rent-managed-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 12px;
+}
+.rent-managed-filters label {
+  flex: 1 1 155px;
+  display: grid;
+  gap: 7px;
+  min-width: 0;
+  color: #4d6557;
+  font-size: 12px;
+  font-weight: 600;
+}
+.rent-managed-filters select {
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  padding: 8px;
+  border: 1px solid #ccdad0;
+  border-radius: 8px;
+  background: #fff;
+  color: #284e39;
+  font: inherit;
+}
+.rent-managed-filters .text-button {
+  min-height: 44px;
+}
+.rent-managed-list {
+  overflow: hidden;
+}
+.rent-managed-list > header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  padding: 20px;
+}
+.rent-managed-list h2 {
+  margin: 0;
+  font-size: 17px;
+}
+.rent-managed-list header p {
+  margin: 7px 0 0;
+  color: #68796f;
+  font-size: 12px;
+}
+.rent-managed-row {
+  display: grid;
+  grid-template-columns: 1.15fr 1.25fr 0.8fr 1.4fr 18px;
+  align-items: center;
+  gap: 16px;
+  width: 100%;
+  padding: 20px;
+  border: 0;
+  border-top: 1px solid #e3eae4;
+  background: #fff;
+  color: #314d3d;
+  text-align: left;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.rent-managed-row:hover {
+  background: #f7faf5;
+}
+.rent-managed-period,
+.rent-managed-amount {
+  display: grid;
+  gap: 6px;
+}
+.rent-managed-row small {
+  color: #748277;
+  font-size: 11px;
+}
+.rent-managed-row .rent-managed-status {
+  justify-self: start;
+}
+.rent-managed-status {
+  white-space: normal;
+  line-height: 1.45;
+  gap: 5px;
+}
+.rent-record-dialog {
+  width: min(720px, calc(100vw - 32px));
+}
+.rent-record-body {
+  display: grid;
+  gap: 23px;
+}
+.rent-detail-heading {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 16px;
+}
+.rent-detail-heading h3 {
+  margin: 0;
+  font-size: 18px;
+  line-height: 1.4;
+}
+.rent-detail-heading p {
+  margin: 7px 0 0;
+  color: #6a7c70;
+}
+.rent-detail-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px 22px;
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.55;
+}
+.rent-detail-fields dt {
+  margin: 0 0 4px;
+  color: #748377;
+  font-size: 11px;
+}
+.rent-detail-fields dd {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.rent-detail-section,
+.rent-owner-review,
+.rent-transfer-form {
+  display: grid;
+  gap: 15px;
+  padding-top: 20px;
+  border-top: 1px solid #e0e8e1;
+}
+.rent-record-body h3 {
+  margin-top: 0;
+  margin-bottom: 0;
+  font-size: 16px;
+}
+.rent-muted {
+  margin: 0;
+  color: #607769;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.6;
+}
+.rent-detail-section > .button,
+.rent-record-body > .button {
+  justify-self: start;
+}
+.rent-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 17px;
+}
+.rent-form-grid label,
+.rent-correction-form label,
+.rent-copy-fallback {
+  display: grid;
+  gap: 7px;
+  min-width: 0;
+  color: #355342;
+  font-size: 13px;
+  font-weight: 600;
+}
+.rent-form-wide {
+  grid-column: 1 / -1;
+}
+.rent-record-body input,
+.rent-record-body textarea {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  padding: 10px;
+  border: 1px solid #c1d2c5;
+  border-radius: 8px;
+  background: #fff;
+  color: #203e2e;
+  font: inherit;
+  font-size: 16px;
+}
+.rent-record-body textarea {
+  resize: vertical;
+}
+.rent-dialog-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+}
+.rent-correction-form {
+  display: grid;
+  gap: 12px;
+  padding-top: 10px;
+}
+.rent-correction-form > button {
+  justify-self: start;
+}
+.rent-correction-note,
+.rent-form-errors,
+.rent-amount-mismatch {
+  margin: 0;
+  padding: 13px;
+  border: 1px solid #dec8aa;
+  border-radius: 8px;
+  background: #fffaef;
+  color: #795421;
+  font-size: 12px;
+  line-height: 1.6;
+}
+.rent-correction-note p {
+  margin: 6px 0 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.rent-form-errors {
+  border-color: #dfb7aa;
+  background: #fff4ed;
+  color: #922c24;
+}
+.rent-form-errors ul {
+  margin: 8px 0 0;
+  padding-left: 18px;
+}
+.rent-error-link {
+  padding: 4px 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  text-decoration: underline;
+  cursor: pointer;
+}
+.rent-field-error {
+  margin: 0;
+  color: #a13428;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.rent-action-feedback {
+  margin: 0;
+  color: #466551;
+  font-size: 12px;
+  line-height: 1.6;
+}
+.rent-action-feedback:empty {
+  display: none;
+}
+.rent-record-history {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+  padding-left: 20px;
+  font-size: 12px;
+  line-height: 1.6;
+}
+.rent-record-history strong {
+  font-weight: 500;
+}
+.rent-record-history time {
+  display: block;
+  color: #768479;
+  font-size: 11px;
+}
+.rent-records-page button:focus-visible,
+.rent-record-layer button:focus-visible,
+.rent-managed-filters select:focus-visible,
+.rent-record-body input:focus-visible,
+.rent-record-body textarea:focus-visible {
+  outline: 3px solid #36885a;
+  outline-offset: 3px;
+}
+@media (max-width: 800px) {
+  .rent-managed-banner {
+    align-items: start;
+    flex-direction: column;
+  }
+  .rent-managed-metrics {
+    gap: 10px;
+  }
+  .rent-managed-metrics > div {
+    padding: 15px;
+  }
+  .rent-managed-row {
+    grid-template-columns: 1fr auto 18px;
+    gap: 12px;
+  }
+  .rent-managed-period {
+    grid-column: 1;
+    grid-row: 1;
+  }
+  .rent-managed-property {
+    grid-column: 1;
+    grid-row: 2;
+  }
+  .rent-managed-amount {
+    grid-column: 2;
+    grid-row: 1;
+    text-align: right;
+  }
+  .rent-managed-row > .rent-managed-status {
+    grid-column: 1 / 3;
+    grid-row: 3;
+  }
+  .rent-managed-row > svg {
+    grid-column: 3;
+    grid-row: 1 / 4;
+  }
+}
+@media (max-width: 560px) {
+  .rent-managed-banner {
+    padding: 18px;
+  }
+  .rent-managed-banner > .button {
+    width: 100%;
+  }
+  .rent-managed-banner h2 {
+    font-size: 19px;
+  }
+  .rent-managed-metrics {
+    grid-template-columns: 1fr;
+  }
+  .rent-managed-metrics > div {
+    grid-template-columns: 1fr auto;
+    align-items: center;
+    gap: 6px 12px;
+  }
+  .rent-managed-metrics strong {
+    grid-column: 2;
+    grid-row: 1 / 3;
+    font-size: 22px;
+  }
+  .rent-managed-metrics small {
+    grid-column: 1;
+  }
+  .rent-managed-filters label {
+    flex-basis: calc(50% - 12px);
+  }
+  .rent-managed-filters select {
+    font-size: 16px;
+  }
+  .rent-managed-list > header {
+    align-items: start;
+    flex-direction: column;
+  }
+  .rent-managed-list > header .soft-button {
+    min-height: 44px;
+  }
+  .rent-record-layer {
+    padding: 10px;
+  }
+  .rent-record-dialog {
+    width: 100%;
+    max-height: calc(100dvh - 20px);
+  }
+  .rent-record-body {
+    padding: 18px;
+  }
+  .rent-detail-heading {
+    flex-direction: column;
+  }
+  .rent-detail-fields,
+  .rent-form-grid {
+    grid-template-columns: 1fr;
+  }
+  .rent-dialog-actions > button {
+    flex: 1 1 100%;
+  }
+}

@@ -31,13 +31,17 @@ The following frontend workflows update shared state in the current open tab:
 - Notifications: header and full-page feed share per-workspace unread counts. Individual/read-all actions update both surfaces; opening an update marks it read and opens the relevant screen.
 - Bookings: status filters, details, local acceptance of proposed times, keeping the original request and local cancellation reasons. No venue is contacted, reservation made or refund processed.
 - Property details: accessible galleries and shareable links; validated viewing requests retain the entered date, time and note, support editing/cancellation, and remain visible when revisiting the property.
+- Maintenance: validated issue reports, keyboard-accessible board/list/details, date/time/provider arrangements, explicit owner start/resolve/reopen actions and request history. Records and mutations are limited to the sample owner's properties and tenant's home. Sidebar counts reflect open records.
+- Rent records: exact decimal amount/date/reference validation, tenant editing and correction handling, explicit owner confirmation, record history, clipboard fallback and scoped CSV export. Ownership checks prevent reviewing unrelated properties. These actions record sample state and never execute or verify a bank transfer.
+- Documents: workspace-isolated sample previews and local PDF, raster image and plain-text files, with type/size limits, filtering, download, removal and undo. Preview object URLs are released on close. Selected files remain in memory; no upload, signing or verification occurs.
+- Settings and Help: real language/motion controls, device-local preference persistence with unavailable-storage fallback, workspace identity and links to software workflows. Settings/help content supports all six interface languages. Rent, maintenance and document modules load when opened.
 
 These changes survive navigation within that app instance. Reloading or closing the tab, or resetting a presentation scene, restores sample data; separate tabs do not share the changes. No production database or authenticated account owns these records.
 
 Other product areas remain illustrative UI flows, including:
 
-- Direct tenant-to-landlord rent instructions, proof upload and reconciliation records.
-- Maintenance, provider jobs and operator calendars.
+- External bank verification and persistent proof storage.
+- Provider jobs and operator calendars.
 - Kasa Work job and freelance discovery, private applications, hiring posts and candidate conversations.
 - Admin moderation, verification queues, feature switches and analytics.
 
@@ -77,6 +81,6 @@ Run the frontend state checks directly:
 npm run test:ui-state
 ```
 
-They cover URL routing and validation, scoped search, workspace-isolated messages and saved collections, application submissions/transitions, viewing dates and edits, notification counts, booking changes, independent Rent/Buy discovery filters, and unavailable browser preference storage. These checks validate local behaviour, not production delivery or payment integrations.
+They cover URL routing and validation, scoped search, workspace-isolated messages, saved collections and documents, application submissions/transitions, viewing dates and edits, maintenance ownership and status changes, rent validation/review and CSV escaping, notification counts, booking changes, independent Rent/Buy discovery filters, and unavailable browser preference storage. These checks validate local behaviour, not production delivery or payment integrations.
 
 The product boundaries remain locked: Kasa is non-brokerage, does not represent or negotiate for property parties, does not hold rent or deposits, does not enable overnight accommodation in Kasa Spaces, and does not provide mortgage advice or intermediation.
