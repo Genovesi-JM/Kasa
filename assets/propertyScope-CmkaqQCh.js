@@ -1,0 +1,1 @@
+import{r as e}from"./data-CUU0RiQ0.js";var t=`Olivia Martín`;function n(n){return n===`landlord`?e.filter(e=>e.landlord===t):[]}function r(e,t){return n(e).some(e=>e.id===t)}function i(e,t){return(e===`landlord`||e===`spaceOperator`)&&r(`landlord`,t)}export{t as i,n,r,i as t};
