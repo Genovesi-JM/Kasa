@@ -70,7 +70,9 @@ for (const role of roles) {
         view:
           view === "viewings" && role !== "tenant" && role !== "landlord"
             ? "overview"
-            : view,
+            : view === "spaceOnboarding" && role !== "spaceOperator"
+              ? "overview"
+              : view,
       },
       `${role}/${view} must round-trip`,
     );
@@ -84,6 +86,34 @@ for (const role of roles) {
     assert.equal(resolved.origin, "https://example.com");
     assert.equal(resolved.searchParams.get("app"), "1");
   }
+}
+
+for (const role of roles) {
+  const expected = role === "spaceOperator" ? "spaceOnboarding" : "overview";
+  assert.equal(canonicalRoleView(role, "spaceOnboarding"), expected);
+  assert.equal(
+    readAppRoute(`?role=${role}&view=spaceOnboarding`).view,
+    expected,
+  );
+  assert.equal(
+    readAppRoute(`?role=${role}`, { view: "spaceOnboarding" }).view,
+    expected,
+  );
+  const serialized = new URLSearchParams(
+    appRouteUrl(
+      { ...initial, role, view: "spaceOnboarding" },
+      "?app=1&campaign=phone&service=hire&property=1&from=viewings",
+    ),
+  );
+  assert.equal(serialized.get("view"), expected);
+  assert.equal(
+    serialized.get("role"),
+    role,
+    "Direct venue setup never changes identity",
+  );
+  assert.equal(serialized.get("campaign"), "phone");
+  for (const key of ["service", "property", "from"])
+    assert.equal(serialized.has(key), false);
 }
 
 for (const property of properties) {
@@ -346,5 +376,5 @@ assert.equal(
 );
 
 console.log(
-  `Application navigation passed: ${roles.length * views.length} role/view routes, scoped viewing inbox/return, every property, owner-scoped Insights return, all service modes, invalid URLs, query limits, defaults and entry-mode preservation.`,
+  `Application navigation passed: ${roles.length * views.length} role/view routes, scoped venue setup and viewing inbox/return, every property, owner-scoped Insights return, all service modes, invalid URLs, query limits, defaults and entry-mode preservation.`,
 );

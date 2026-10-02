@@ -15,6 +15,7 @@ import "./rent-record-state-check";
 import "./property-operations-summary-check";
 import "./property-insights-check";
 import "./property-listing-state-check";
+import "./space-listing-state-check";
 import "./service-request-state-check";
 import "./work-state-check";
 import "./operations-localization-check";

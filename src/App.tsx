@@ -19,7 +19,6 @@ import {
   BriefcaseBusiness,
   Building2,
   CalendarDays,
-  Camera,
   Check,
   CheckCircle2,
   ChevronDown,
@@ -40,7 +39,6 @@ import {
   Map,
   Menu,
   MessageCircle,
-  MoreHorizontal,
   Plus,
   Repeat2,
   Search,
@@ -88,6 +86,7 @@ import { isWorkspaceListingOwner, ownsProperty } from "./propertyScope";
 import { propertyOperationStatus } from "./components/propertyOperationStatus";
 import type { PortfolioFilters } from "./components/PropertyPortfolio";
 import { createInitialPropertyListingState } from "./components/propertyListingState";
+import { createInitialSpaceListingState } from "./components/spaceListingState";
 import {
   createInitialServiceRequestState,
   visibleServiceRequests,
@@ -225,6 +224,11 @@ const PropertyListingWorkspace = lazy(() =>
     default: module.PropertyListingWorkspace,
   })),
 );
+const SpaceListingWorkspace = lazy(() =>
+  import("./components/SpaceListingWorkspace").then((module) => ({
+    default: module.SpaceListingWorkspace,
+  })),
+);
 const PropertyInsights = lazy(() =>
   import("./components/PropertyInsightsView").then((module) => ({
     default: module.PropertyInsights,
@@ -311,7 +315,8 @@ function useKasaI18n() {
   const english = i18n.getFixedT("en");
   return {
     language,
-    tr: (key: string) => displayTranslation(t(key), english(key), language),
+    tr: (key: string, options?: { count: number }) =>
+      displayTranslation(t(key, options), english(key, options), language),
   };
 }
 
@@ -1372,7 +1377,9 @@ function UniversalHome({
                 <span>
                   <strong>{title}</strong>
                   <small>
-                    {results[id].length} {tr("universalHome.matches")}
+                    {tr("universalHome.matchCount", {
+                      count: results[id].length,
+                    })}
                   </small>
                 </span>
                 <ArrowRight size={18} />
@@ -4004,345 +4011,6 @@ function SpacesMarketplace({
   );
 }
 
-function SpaceOnboarding({ notify }: { notify: (message: string) => void }) {
-  const [step, setStep] = useState(1);
-  const [operatorType, setOperatorType] = useState("Sports facility");
-  const [venueRelationship, setVenueRelationship] = useState("Operator");
-  const steps = [
-    "Operator type",
-    "Business profile",
-    "Verification",
-    "Venue",
-    "Spaces",
-    "Media & amenities",
-    "Availability & pricing",
-    "Policies & publish",
-  ];
-  return (
-    <div className="page-stack">
-      <section className="onboarding-progress card">
-        <div>
-          {steps.map((item, index) => (
-            <button
-              className={
-                step === index + 1 ? "active" : step > index + 1 ? "done" : ""
-              }
-              key={item}
-              onClick={() => setStep(index + 1)}
-            >
-              <i>{step > index + 1 ? "✓" : index + 1}</i>
-              <span>{item}</span>
-            </button>
-          ))}
-        </div>
-      </section>
-      <section className="card padded venue-onboarding-card">
-        <div className="onboarding-copy">
-          <span className="eyebrow">
-            STEP {step} OF {steps.length}
-          </span>
-          <h2>{steps[step - 1]}</h2>
-          <p>
-            {step === 1
-              ? "Choose the operator profile that best describes the venue."
-              : step === 3
-                ? "Verification badges correspond to real identity and business checks."
-                : step === 5
-                  ? "Add every court, pitch or event hall as a separately schedulable space."
-                  : step === 7
-                    ? "Choose optional suggested hours or accept flexible time requests."
-                    : "Complete this section before moving to the next step."}
-          </p>
-          <div className="onboarding-illustration">
-            <Building2 size={52} />
-            <strong>Poblenou MultiSport Club</strong>
-            <small>Space Operator · {venueRelationship} · Draft venue</small>
-          </div>
-        </div>
-        <div className="onboarding-form">
-          {step === 1 && (
-            <div className="operator-identity-step">
-              <div className="operator-type-grid">
-                {[
-                  "Individual venue operator",
-                  "Sports facility",
-                  "Event venue",
-                ].map((type) => (
-                  <button
-                    className={operatorType === type ? "active" : ""}
-                    key={type}
-                    onClick={() => setOperatorType(type)}
-                  >
-                    <Building2 />
-                    <span>
-                      <strong>{type}</strong>
-                      <small>Choose this operator type</small>
-                    </span>
-                    <CheckCircle2 />
-                  </button>
-                ))}
-              </div>
-              <section className="venue-relationship-block">
-                <div>
-                  <span className="eyebrow">AUTHORITY TO LIST</span>
-                  <h3>What is your relationship to this venue?</h3>
-                  <p>
-                    This records your authority to publish. Your Kasa role
-                    remains Space Operator—not Landlord.
-                  </p>
-                </div>
-                <div className="venue-relationship-options">
-                  {[
-                    "Owner",
-                    "Operator",
-                    "Facility manager",
-                    "Authorised representative",
-                  ].map((relationship) => (
-                    <button
-                      key={relationship}
-                      className={
-                        venueRelationship === relationship ? "active" : ""
-                      }
-                      onClick={() => setVenueRelationship(relationship)}
-                    >
-                      {venueRelationship === relationship && (
-                        <Check size={14} />
-                      )}
-                      {relationship}
-                    </button>
-                  ))}
-                </div>
-                <div className="scope-note">
-                  <ShieldCheck size={16} />
-                  <span>
-                    An owner can also activate the separate Property Owner
-                    workspace under the same Kasa identity. The two roles,
-                    records and public profiles remain separate.
-                  </span>
-                </div>
-              </section>
-            </div>
-          )}
-          {step === 2 && (
-            <div className="form-grid">
-              <label>
-                Business name
-                <input defaultValue="Poblenou MultiSport Club" />
-              </label>
-              <label>
-                Operator type
-                <select
-                  value={operatorType}
-                  onChange={(event) => setOperatorType(event.target.value)}
-                >
-                  <option>Individual venue operator</option>
-                  <option>Sports facility</option>
-                  <option>Event venue</option>
-                </select>
-              </label>
-              <label>
-                Relationship to venue
-                <select
-                  value={venueRelationship}
-                  onChange={(event) => setVenueRelationship(event.target.value)}
-                >
-                  <option>Owner</option>
-                  <option>Operator</option>
-                  <option>Facility manager</option>
-                  <option>Authorised representative</option>
-                </select>
-              </label>
-              <label className="full">
-                Business address
-                <input defaultValue="Carrer de la Marina, 88, Barcelona" />
-              </label>
-              <label>
-                Contact email
-                <input defaultValue="operations@example.com" />
-              </label>
-              <label>
-                Contact phone
-                <input defaultValue="+34 612 555 310" />
-              </label>
-            </div>
-          )}
-          {step === 3 && (
-            <div className="verification-checks">
-              {[
-                "Identity verification",
-                "Business registration",
-                "Authority to publish this venue",
-                "Address evidence",
-                "Insurance record",
-              ].map((item, index) => (
-                <div key={item}>
-                  <span>
-                    <ShieldCheck />
-                    <strong>{item}</strong>
-                  </span>
-                  <StatusPill tone={index < 4 ? "mint" : "amber"}>
-                    {index < 4 ? "Checked" : "Required"}
-                  </StatusPill>
-                </div>
-              ))}
-            </div>
-          )}
-          {step === 4 && (
-            <div className="form-grid">
-              <label>
-                Venue name
-                <input defaultValue="Poblenou MultiSport Club" />
-              </label>
-              <label>
-                Primary category
-                <select>
-                  <option>Sports</option>
-                </select>
-              </label>
-              <label className="full">
-                Venue description
-                <textarea defaultValue="A multi-sport neighbourhood facility with padel courts and football pitches." />
-              </label>
-              <label>
-                Area / neighbourhood
-                <input defaultValue="Poblenou" />
-              </label>
-              <label>
-                Contact preference
-                <select>
-                  <option>Private Kasa Chat</option>
-                </select>
-              </label>
-            </div>
-          )}
-          {step === 5 && (
-            <div className="onboarding-space-list">
-              {spaceVenues[0].spaces.map((item) => (
-                <div key={item.id}>
-                  <img src={item.image} alt="" />
-                  <span>
-                    <strong>{item.name}</strong>
-                    <small>
-                      {item.activity} · capacity {item.capacity}
-                    </small>
-                  </span>
-                  <button className="icon-button">
-                    <MoreHorizontal />
-                  </button>
-                </div>
-              ))}
-              <button className="soft-button">
-                <Plus /> Add another space
-              </button>
-            </div>
-          )}
-          {step === 6 && (
-            <div>
-              <div className="photo-drop">
-                <Camera />
-                <strong>Add venue photos or video</strong>
-                <small>Warm, accurate media helps customers choose.</small>
-              </div>
-              <div className="amenity-grid">
-                {spaceVenues[0].amenities.map((item) => (
-                  <label key={item}>
-                    <input type="checkbox" defaultChecked /> {item}
-                  </label>
-                ))}
-              </div>
-            </div>
-          )}
-          {step === 7 && (
-            <div className="form-grid">
-              <label>
-                Availability style
-                <select>
-                  <option>Flexible time requests</option>
-                  <option>Operator suggestions + custom requests</option>
-                  <option>Accurate instant calendar</option>
-                </select>
-              </label>
-              <label>
-                Default duration (optional)
-                <select>
-                  <option>No fixed duration</option>
-                  <option>60 minutes</option>
-                  <option>90 minutes</option>
-                </select>
-              </label>
-              <label>
-                Base price (optional)
-                <input defaultValue="€28" />
-              </label>
-              <label>
-                Suggested opening range (optional)
-                <input defaultValue="06:00–23:00" />
-              </label>
-              <label className="full">
-                Availability note
-                <textarea defaultValue="Customers may request any start and end time. We can accept it or propose another time." />
-              </label>
-              <div className="scope-note full">
-                <Clock3 size={16} />
-                <span>
-                  Kasa does not preset the venue’s hours or session length. The
-                  operator controls every suggestion and change.
-                </span>
-              </div>
-            </div>
-          )}
-          {step === 8 && (
-            <div className="form-grid">
-              <label>
-                Cancellation policy
-                <select>
-                  <option>Free until 4 hours before</option>
-                </select>
-              </label>
-              <label>
-                Booking mode
-                <select>
-                  <option>Request to Reserve</option>
-                  <option>Instant Reserve (accurate calendar only)</option>
-                </select>
-              </label>
-              <label className="full check-label">
-                <input type="checkbox" defaultChecked /> I confirm the operator
-                is authorised to publish this venue and is responsible for
-                licences, safety, insurance, capacity and local compliance.
-              </label>
-              <div className="scope-note">
-                <ShieldCheck />
-                <span>
-                  Publishing sends the venue to moderation. It does not make
-                  Kasa the facility operator.
-                </span>
-              </div>
-            </div>
-          )}
-          <div className="modal-actions">
-            <ActionButton
-              secondary
-              onClick={() => setStep(Math.max(1, step - 1))}
-            >
-              Back
-            </ActionButton>
-            <ActionButton
-              onClick={() =>
-                step === steps.length
-                  ? notify("Venue submitted for verification and moderation.")
-                  : setStep(step + 1)
-              }
-            >
-              {step === steps.length ? "Publish venue" : "Save & continue"}
-            </ActionButton>
-          </div>
-        </div>
-      </section>
-    </div>
-  );
-}
-
 function SpacesPlan({ notify }: { notify: (message: string) => void }) {
   const plans = [
     [
@@ -5184,6 +4852,9 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
   const [propertyListingState, setPropertyListingState] = useState(
     createInitialPropertyListingState,
   );
+  const [spaceListingState, setSpaceListingState] = useState(
+    createInitialSpaceListingState,
+  );
   const [portfolioFilters, setPortfolioFilters] = useState<PortfolioFilters>({
     status: "All properties",
     query: "",
@@ -5788,10 +5459,21 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
     nextDiscoveryIntent?: "Rent" | "Buy",
   ) => {
     setRole(nextRole);
-    setView(nextView);
+    setView(canonicalRoleView(nextRole, nextView));
     setSearchQuery("");
     if (nextDiscoveryIntent) setDiscoveryIntent(nextDiscoveryIntent);
     setShowOnboarding(false);
+  };
+
+  const openSpaceListing = () => {
+    enterDemo("spaceOperator", "spaceOnboarding");
+    setMobileOpen(false);
+    setWorkspaceMenuOpen(false);
+    setNotificationsOpen(false);
+    window.scrollTo({
+      top: 0,
+      behavior: reduceMotion || systemReduceMotion ? "instant" : "smooth",
+    });
   };
 
   const viewingPanel = (
@@ -6028,10 +5710,7 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
               role={role}
               state={propertyListingState}
               setState={setPropertyListingState}
-              onStartSpaceListing={() => {
-                setRole("spaceOperator");
-                go("spaceOnboarding");
-              }}
+              onStartSpaceListing={openSpaceListing}
             />
           </PropertyPortfolio>
         );
@@ -6158,10 +5837,7 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
             initialQuery={searchQuery}
             onQueryChange={setSearchQuery}
             onGoBookings={() => go("spaceBookings")}
-            onListSpace={() => {
-              setRole("spaceOperator");
-              go("spaceOnboarding");
-            }}
+            onListSpace={openSpaceListing}
           />
         );
       case "spaceVenue":
@@ -6179,10 +5855,7 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
             initialQuery={searchQuery}
             onQueryChange={setSearchQuery}
             onGoBookings={() => go("spaceBookings")}
-            onListSpace={() => {
-              setRole("spaceOperator");
-              go("spaceOnboarding");
-            }}
+            onListSpace={openSpaceListing}
           />
         );
       case "spaceBookings":
@@ -6204,7 +5877,14 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
           />
         );
       case "spaceOnboarding":
-        return <SpaceOnboarding notify={notify} />;
+        return (
+          <SpaceListingWorkspace
+            role={role}
+            state={spaceListingState}
+            setState={setSpaceListingState}
+            onBrowseSpaces={() => go("spaces")}
+          />
+        );
       case "spacesPlan":
         return <SpacesPlan notify={notify} />;
       case "provider":

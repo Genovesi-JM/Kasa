@@ -84,11 +84,12 @@ function normalizeQuery(query: string) {
   return query.trim().slice(0, 200);
 }
 
-/** Keep the viewing inbox within the two property-party workspaces. */
+/** Keep scoped operational screens inside their authorised workspace. */
 export function canonicalRoleView(role: Role, view: View): View {
-  return view === "viewings" && role !== "tenant" && role !== "landlord"
-    ? "overview"
-    : view;
+  if (view === "viewings" && role !== "tenant" && role !== "landlord")
+    return "overview";
+  if (view === "spaceOnboarding" && role !== "spaceOperator") return "overview";
+  return view;
 }
 
 function returnTargetForRole(target: AppRoute["returnTo"], role: Role) {
