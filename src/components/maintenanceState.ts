@@ -1,4 +1,5 @@
 import { maintenance, properties } from "../data";
+import { ownsProperty } from "../propertyScope";
 import type { Role } from "../types";
 
 export const maintenanceStatuses = [
@@ -36,11 +37,6 @@ const homes: MaintenanceHome[] = properties
     title: property.title,
     tenant: tenants[property.id] || "Owner report",
   }));
-const ownerHomeIds = new Set(
-  properties
-    .filter((property) => property.landlord === "Olivia Martín")
-    .map((property) => property.id),
-);
 
 export interface MaintenanceVisit {
   date: string;
@@ -108,7 +104,7 @@ export type MaintenanceAction =
 
 export function maintenanceHomesForRole(role: Role): MaintenanceHome[] {
   if (role === "landlord")
-    return homes.filter((home) => ownerHomeIds.has(home.id));
+    return homes.filter((home) => ownsProperty(role, home.id));
   if (role === "tenant")
     return homes.filter(
       (home) => home.id === 1 && home.tenant === "Inês Duarte",

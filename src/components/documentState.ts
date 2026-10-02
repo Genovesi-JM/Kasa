@@ -36,6 +36,31 @@ export interface DocumentState {
   nextId: number;
 }
 
+export const documentIssueMessages = {
+  empty: "The file is empty.",
+  fileTooLarge: "The file exceeds the 10 MB limit.",
+  unsupportedFormat: "Choose a PDF, PNG, JPEG, GIF, WebP, TXT, MD or CSV file.",
+  unavailableCategory: "Choose a category available in this workspace.",
+  alreadyAdded: "This file is already in this workspace.",
+  workspaceFull: "This workspace has reached its 50 MB local-file limit.",
+  nothingToRestore: "There is no document to restore.",
+  restoreDuplicate: "That file is already in this workspace.",
+  restoreFull:
+    "Remove another local file to make space before restoring this one.",
+} as const;
+
+export interface DocumentIssue {
+  code: keyof typeof documentIssueMessages;
+  fileName?: string;
+}
+
+function englishDocumentIssue(issue: DocumentIssue): string {
+  const message = documentIssueMessages[issue.code];
+  return issue.fileName === undefined
+    ? message
+    : `${issue.fileName}: ${message}`;
+}
+
 const formats: Record<
   string,
   { kind: DocumentKind; mimeType: string; acceptedTypes: string[] }
@@ -181,21 +206,27 @@ export function workspaceLocalBytes(state: DocumentState, role: Role): number {
   );
 }
 
-export function validateDocumentFile(
+export function documentFileIssue(
   file: Pick<File, "name" | "type" | "size">,
-): string | null {
-  if (!Number.isFinite(file.size) || file.size <= 0)
-    return "The file is empty.";
-  if (file.size > MAX_DOCUMENT_BYTES)
-    return "The file exceeds the 10 MB limit.";
+): DocumentIssue | null {
+  if (!Number.isFinite(file.size) || file.size <= 0) return { code: "empty" };
+  if (file.size > MAX_DOCUMENT_BYTES) return { code: "fileTooLarge" };
   const extension = file.name.split(".").at(-1)?.toLowerCase() ?? "";
   const format = Object.hasOwn(formats, extension)
     ? formats[extension]
     : undefined;
   const mimeType = file.type.toLowerCase().split(";")[0].trim();
   if (!format || (mimeType && !format.acceptedTypes.includes(mimeType)))
-    return "Choose a PDF, PNG, JPEG, GIF, WebP, TXT, MD or CSV file.";
+    return { code: "unsupportedFormat" };
   return null;
+}
+
+/** Preserve the existing English API for non-UI callers. */
+export function validateDocumentFile(
+  file: Pick<File, "name" | "type" | "size">,
+): string | null {
+  const issue = documentFileIssue(file);
+  return issue ? englishDocumentIssue(issue) : null;
 }
 
 function sameLocalFile(record: WorkspaceDocument, file: File) {
@@ -209,30 +240,36 @@ export function addLocalDocuments(
   files: readonly File[],
   category: DocumentCategory,
   now = new Date(),
-): { state: DocumentState; added: number; errors: string[] } {
+): {
+  state: DocumentState;
+  added: number;
+  errors: string[];
+  issues: DocumentIssue[];
+} {
   if (!categoriesForRole(role).includes(category))
     return {
       state,
       added: 0,
-      errors: ["Choose a category available in this workspace."],
+      errors: [documentIssueMessages.unavailableCategory],
+      issues: [{ code: "unavailableCategory" }],
     };
   const records = [...state.records];
-  const errors: string[] = [];
+  const issues: DocumentIssue[] = [];
   let nextId = state.nextId;
   let bytes = workspaceLocalBytes(state, role);
   for (const file of files) {
-    let error = validateDocumentFile(file);
+    let issue = documentFileIssue(file);
     if (
-      !error &&
+      !issue &&
       records.some(
         (record) => record.role === role && sameLocalFile(record, file),
       )
     )
-      error = "This file is already in this workspace.";
-    if (!error && bytes + file.size > MAX_WORKSPACE_DOCUMENT_BYTES)
-      error = "This workspace has reached its 50 MB local-file limit.";
-    if (error) {
-      errors.push(`${file.name}: ${error}`);
+      issue = { code: "alreadyAdded" };
+    if (!issue && bytes + file.size > MAX_WORKSPACE_DOCUMENT_BYTES)
+      issue = { code: "workspaceFull" };
+    if (issue) {
+      issues.push({ ...issue, fileName: file.name });
       continue;
     }
     const format = formats[file.name.split(".").at(-1)!.toLowerCase()];
@@ -254,7 +291,8 @@ export function addLocalDocuments(
   return {
     state: added ? { ...state, records, nextId } : state,
     added,
-    errors,
+    errors: issues.map(englishDocumentIssue),
+    issues,
   };
 }
 
@@ -274,27 +312,34 @@ export function removeDocument(
   };
 }
 
-export function restoreDocumentError(
+export function restoreDocumentIssue(
   state: DocumentState,
   role: Role,
-): string | null {
+): DocumentIssue | null {
   const removed = state.removed[role];
-  if (!removed || removed.role !== role)
-    return "There is no document to restore.";
+  if (!removed || removed.role !== role) return { code: "nothingToRestore" };
   if (removed.source === "local") {
     if (
       workspaceDocuments(state, role).some((record) =>
         sameLocalFile(record, removed.file),
       )
     )
-      return "That file is already in this workspace.";
+      return { code: "restoreDuplicate" };
     if (
       workspaceLocalBytes(state, role) + removed.file.size >
       MAX_WORKSPACE_DOCUMENT_BYTES
     )
-      return "Remove another local file to make space before restoring this one.";
+      return { code: "restoreFull" };
   }
   return null;
+}
+
+export function restoreDocumentError(
+  state: DocumentState,
+  role: Role,
+): string | null {
+  const issue = restoreDocumentIssue(state, role);
+  return issue ? englishDocumentIssue(issue) : null;
 }
 
 export function restoreDocument(

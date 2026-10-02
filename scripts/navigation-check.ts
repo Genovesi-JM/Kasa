@@ -87,6 +87,18 @@ for (const property of properties) {
   assert.equal(route.returnTo, "saved");
   assert.deepEqual(readAppRoute(appRouteUrl(route, "")), route);
 }
+for (const returnTo of ["portfolio", "overview"] as const) {
+  const route = readAppRoute(
+    `?role=landlord&view=property&property=1&from=${returnTo}`,
+  );
+  assert.equal(route.returnTo, returnTo);
+  const restored = readAppRoute(appRouteUrl(route, ""));
+  assert.equal(restored.returnTo, returnTo);
+  assert.equal(
+    new URL(appRouteUrl(route, ""), "https://example.com/Kasa/").pathname,
+    "/Kasa/",
+  );
+}
 assert.equal(
   readAppRoute(`?view=discover&property=${firstSale.id}&intent=Rent`).intent,
   "Rent",

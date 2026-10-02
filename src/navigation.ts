@@ -8,7 +8,7 @@ export interface AppRoute {
   propertyId: number;
   service: "discover" | "tasks" | "jobs" | "hire";
   query: string;
-  returnTo: "discover" | "saved";
+  returnTo: "discover" | "saved" | "portfolio" | "overview";
 }
 
 const roles: Record<Role, true> = {
@@ -56,6 +56,8 @@ const services: Record<AppRoute["service"], true> = {
 const returnTargets: Record<AppRoute["returnTo"], true> = {
   discover: true,
   saved: true,
+  portfolio: true,
+  overview: true,
 };
 
 function readChoice<T extends string>(

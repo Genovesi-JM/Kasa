@@ -1,5 +1,6 @@
 import { applications, properties } from "../data";
 import type { Application, Property, Role } from "../types";
+import { ownsProperty } from "../propertyScope";
 import {
   validateRentalApplication,
   type RentalApplicationDraft,
@@ -135,14 +136,32 @@ export function visibleApplicationRecords(
   state: ApplicationState,
   role: Role,
 ): ApplicationRecord[] {
-  if (role === "landlord") return state.records;
-  if (role === "tenant")
+  if (role === "landlord")
     return state.records.filter(
       (record) =>
-        record.tenantId === tenantIdentity.id ||
-        record.applicant === tenantIdentity.name,
+        record.propertyId !== undefined &&
+        ownsProperty(role, record.propertyId),
     );
+  if (role === "tenant") return state.records.filter(isTenantApplication);
   return [];
+}
+
+function isTenantApplication(record: ApplicationRecord): boolean {
+  return record.tenantId !== undefined
+    ? record.tenantId === tenantIdentity.id
+    : record.applicant === tenantIdentity.name;
+}
+
+export function canReviewApplication(
+  record: ApplicationRecord,
+  role: Role,
+): boolean {
+  return (
+    record.propertyId !== undefined &&
+    ownsProperty(role, record.propertyId) &&
+    record.status !== "Draft" &&
+    record.status !== "Approved"
+  );
 }
 
 export function tenantApplicationForProperty(
@@ -151,10 +170,10 @@ export function tenantApplicationForProperty(
 ) {
   return state.records.find(
     (record) =>
-      (record.tenantId === tenantIdentity.id ||
-        record.applicant === tenantIdentity.name) &&
-      (record.propertyId === property.id ||
-        (!record.propertyId && record.property === property.title)),
+      isTenantApplication(record) &&
+      (record.propertyId !== undefined
+        ? record.propertyId === property.id
+        : record.property === property.title),
   );
 }
 
@@ -241,10 +260,8 @@ export function updateApplication(
   action: ApplicationAction,
   now = new Date(),
 ): ApplicationState {
-  if (role !== "landlord") return state;
   const record = state.records.find((item) => item.id === id);
-  if (!record || record.status === "Draft" || record.status === "Approved")
-    return state;
+  if (!record || !canReviewApplication(record, role)) return state;
 
   let updated: ApplicationRecord;
   let label: string;

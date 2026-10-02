@@ -1,4 +1,5 @@
 import { properties } from "../data";
+import { ownsProperty, workspaceLandlordName } from "../propertyScope";
 import type { Role } from "../types";
 
 export const rentStatuses = [
@@ -53,7 +54,7 @@ export interface RentRecordFilters {
 }
 
 export const tenantRentIdentity = "tenant-ines";
-export const landlordRentIdentity = "Olivia Martín";
+export const landlordRentIdentity = workspaceLandlordName;
 
 export function createInitialRentRecordState(): RentRecordState {
   const homes = [
@@ -147,7 +148,9 @@ export function visibleRentRecords(
 ): RentRecord[] {
   if (role === "landlord")
     return state.records.filter(
-      (record) => record.owner === landlordRentIdentity,
+      (record) =>
+        record.owner === landlordRentIdentity &&
+        ownsProperty(role, record.propertyId),
     );
   if (role === "tenant")
     return state.records.filter(
@@ -299,6 +302,7 @@ export function canReviewRentRecord(record: RentRecord, role: Role): boolean {
   return (
     role === "landlord" &&
     record.owner === landlordRentIdentity &&
+    ownsProperty(role, record.propertyId) &&
     record.status === "Awaiting owner confirmation" &&
     Boolean(record.transfer)
   );

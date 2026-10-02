@@ -1,4 +1,5 @@
 import type { Property, Role } from "../types";
+import { isWorkspaceListingOwner } from "../propertyScope";
 
 export type ConversationCategory =
   "Property" | "Maintenance" | "Services" | "Spaces" | "Platform";
@@ -409,6 +410,7 @@ export function openPropertyConversation(
   property: Pick<Property, "id" | "title" | "landlord">,
   now = new Date(),
 ): MessageState {
+  if (isWorkspaceListingOwner(state.role, property.id)) return state;
   const existing = state.conversations.find(
     (conversation) =>
       conversation.propertyContext?.propertyId === property.id &&

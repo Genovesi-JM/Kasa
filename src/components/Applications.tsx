@@ -14,6 +14,7 @@ import {
 import type { Role } from "../types";
 import {
   applicationCompleteness,
+  canReviewApplication,
   updateApplication,
   visibleApplicationRecords,
   type ApplicationAction,
@@ -68,8 +69,7 @@ function ApplicationDetail({
   const [note, setNote] = useState("");
   const [confirmApproval, setConfirmApproval] = useState(false);
   const [feedback, setFeedback] = useState("");
-  const ownerCanAct =
-    role === "landlord" && !["Draft", "Approved"].includes(record.status);
+  const ownerCanAct = canReviewApplication(record, role);
   const completeness = applicationCompleteness(record);
   const applyAction = (action: ApplicationAction, message: string) => {
     onAction(action);

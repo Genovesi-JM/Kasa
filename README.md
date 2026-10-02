@@ -56,6 +56,7 @@ The market-entry gates, trustworthy-interface requirements and EU/Spain and Ango
 The interface includes the product areas below. Connected production authentication, data storage, delivery and payment services remain separate launch work. Current frontend workflows include:
 
 - Shareable screen/property URLs and browser Back/Forward navigation; scoped search across homes, work, services and spaces.
+- Property dashboards derived from current rent, application and repair records, with upcoming visits and activity history. Owner portfolios follow property ownership, retain filters and return to the originating screen after opening a property.
 - Independent Rent/Buy filters, sort order and map areas retained while navigating; keyboard-accessible property galleries and listing-link sharing.
 - Saved search snapshots with reopening, rename, delete and undo; favourite homes and searches isolated by workspace.
 - Separate workspace inboxes, conversation search, unread state, drafts, local message composition and local block/unblock controls.
@@ -65,7 +66,7 @@ The interface includes the product areas below. Connected production authenticat
 - Booking filters and details, local acceptance of proposed times, keeping an original request and local cancellation with a reason.
 - Maintenance reports with validated details, accessible board/list views, request history, owner scheduling and explicit start/resolve/reopen actions. Tenant and owner access follows the sample tenancy and property ownership.
 - Rent transfer records with amount/date/reference validation, tenant corrections, explicit owner review, history, copyable summaries and CSV export. No bank account or payment execution is provided.
-- Workspace document libraries with labelled examples, local PDF/image/text selection and preview, download, filtering, removal and undo. Files stay in memory and are never uploaded or marked verified.
+- Workspace document libraries with labelled examples, local PDF/image/text selection and preview, download, filtering, removal and undo, with controls and feedback in all six interface languages. Files stay in memory and are never uploaded or marked verified.
 - Functional Settings and Help panels, persistent language/reduced-motion preferences, and deferred loading of operational screens.
 
 The broader UI and product scope includes:

@@ -58,13 +58,7 @@ import {
   Zap,
   type LucideIcon,
 } from "lucide-react";
-import {
-  applications,
-  properties,
-  providers,
-  spaceVenues,
-  workOpportunities,
-} from "./data";
+import { properties, providers, spaceVenues, workOpportunities } from "./data";
 import { marketplaceMatches, matchesSearch, type SearchScope } from "./search";
 import { appRouteUrl, readAppRoute, type AppRoute } from "./navigation";
 import {
@@ -81,6 +75,12 @@ import {
 } from "./components/maintenanceState";
 import { createInitialDocumentState } from "./components/documentState";
 import { readPreference, writePreference } from "./platform/preferences";
+import { isWorkspaceListingOwner, ownsProperty } from "./propertyScope";
+import { propertyOperationStatus } from "./components/propertyOperationStatus";
+import {
+  buildPropertyOperationsSummary,
+  type PropertyOperationsSummary,
+} from "./components/propertyOperationsSummary";
 import { Messages } from "./components/Messages";
 import {
   NotificationsPopover,
@@ -160,6 +160,13 @@ const formatEuro = (value: number) =>
     maximumFractionDigits: 0,
   }).format(value);
 
+type ServiceLaunchMode = AppRoute["service"];
+
+const PropertyOverview = lazy(() =>
+  import("./components/PropertyOverview").then((module) => ({
+    default: module.PropertyOverview,
+  })),
+);
 const RentRecords = lazy(() =>
   import("./components/RentRecords").then((module) => ({
     default: module.RentRecords,
@@ -1133,177 +1140,6 @@ function ProgressRing({ value, label }: { value: number; label: string }) {
   );
 }
 
-function LandlordOverview({
-  go,
-  notify,
-}: {
-  go: (view: View) => void;
-  notify: (message: string) => void;
-}) {
-  const { tr } = useKasaI18n();
-  return (
-    <div className="page-stack">
-      <section className="hero-panel landlord-hero">
-        <div>
-          <span className="eyebrow light">
-            {tr("dashboard.portfolioGlance")}
-          </span>
-          <h2>{tr("dashboard.smoothTitle")}</h2>
-          <p>{tr("dashboard.smoothNote")}</p>
-          <button
-            className="button button-cream"
-            onClick={() => go("portfolio")}
-          >
-            {tr("dashboard.viewProperties")} <ArrowRight size={17} />
-          </button>
-        </div>
-        <div className="hero-orbit">
-          <ProgressRing value={96} label={tr("dashboard.occupancy")} />
-          <span className="orbit-tag orbit-one">
-            <Check size={14} /> {tr("dashboard.rentChecked")}
-          </span>
-          <span className="orbit-tag orbit-two">
-            <Users size={14} /> {tr("dashboard.fourHomes")}
-          </span>
-        </div>
-      </section>
-
-      <section className="metrics-grid">
-        <Metric
-          label={tr("dashboard.monthlyRent")}
-          value="€6,730"
-          note={tr("dashboard.recordedMonth")}
-          icon={CircleDollarSign}
-        />
-        <Metric
-          label={tr("dashboard.occupancy")}
-          value="96%"
-          note={tr("dashboard.upFromJuly")}
-          icon={Home}
-          tone="blue"
-        />
-        <Metric
-          label={tr("dashboard.openApplications")}
-          value="3"
-          note={tr("dashboard.readyReview")}
-          icon={Users}
-          tone="lilac"
-        />
-        <Metric
-          label={tr("common.maintenance")}
-          value="1"
-          note={tr("dashboard.newRequestToday")}
-          icon={Wrench}
-          tone="sun"
-        />
-      </section>
-
-      <div className="two-column wide-left">
-        <section className="card padded">
-          <SectionHeading
-            title={tr("dashboard.applicationsReview")}
-            action={tr("common.viewAll")}
-            onAction={() => go("applications")}
-          />
-          <div className="list-stack">
-            {applications.slice(0, 3).map((application) => (
-              <button
-                className="application-row"
-                key={application.id}
-                onClick={() => go("applications")}
-              >
-                <Avatar initials={application.avatar} />
-                <span className="row-copy">
-                  <strong>{application.applicant}</strong>
-                  <small>{application.property}</small>
-                </span>
-                <span className="match-score">{application.score}%</span>
-                <StatusPill
-                  tone={
-                    application.status === "Approved"
-                      ? "mint"
-                      : application.status === "Documents"
-                        ? "amber"
-                        : "blue"
-                  }
-                >
-                  {application.status === "Approved"
-                    ? tr("dashboard.approved")
-                    : application.status === "Documents"
-                      ? tr("common.documents")
-                      : tr("dashboard.review")}
-                </StatusPill>
-                <ChevronRight size={17} />
-              </button>
-            ))}
-          </div>
-        </section>
-
-        <section className="card padded schedule-card">
-          <SectionHeading title={tr("dashboard.comingUp")} />
-          <div className="timeline">
-            <div className="timeline-item active">
-              <span>22</span>
-              <div>
-                <strong>{tr("dashboard.acVisit")}</strong>
-                <small>Quiet Gràcia loft · 14:30</small>
-              </div>
-            </div>
-            <div className="timeline-item">
-              <span>25</span>
-              <div>
-                <strong>{tr("dashboard.leaseDocumentsDue")}</strong>
-                <small>Sunlit Eixample home</small>
-              </div>
-            </div>
-            <div className="timeline-item">
-              <span>01</span>
-              <div>
-                <strong>{tr("dashboard.septemberReminders")}</strong>
-                <small>{tr("dashboard.scheduledAutomatically")}</small>
-              </div>
-            </div>
-          </div>
-          <button
-            className="soft-button"
-            onClick={() =>
-              notify("Calendar view is ready for the connected-calendar phase.")
-            }
-          >
-            <CalendarDays size={16} /> {tr("dashboard.openCalendar")}
-          </button>
-        </section>
-      </div>
-
-      <section className="card padded">
-        <SectionHeading
-          title={tr("dashboard.rentReconciliation")}
-          action={tr("dashboard.openRecords")}
-          onAction={() => go("rent")}
-        />
-        <div className="rent-summary">
-          <div className="rent-progress-copy">
-            <strong>{tr("dashboard.august")}</strong>
-            <span>{tr("dashboard.fourTransfers")}</span>
-          </div>
-          <div className="long-progress">
-            <i style={{ width: "100%" }} />
-          </div>
-          <strong className="rent-total">
-            €6,730 <CheckCircle2 size={18} />
-          </strong>
-        </div>
-        <div className="scope-note">
-          <ShieldCheck size={17} />
-          <span>{tr("dashboard.rentScope")}</span>
-        </div>
-      </section>
-    </div>
-  );
-}
-
-type ServiceLaunchMode = "discover" | "tasks" | "jobs" | "hire";
-
 function UniversalHome({
   go,
   openServices,
@@ -1311,6 +1147,7 @@ function UniversalHome({
   onSearch,
   initialQuery = "",
   onAllSearch,
+  summary,
 }: {
   go: (view: View) => void;
   openServices: (mode: ServiceLaunchMode) => void;
@@ -1322,8 +1159,9 @@ function UniversalHome({
   ) => void;
   initialQuery?: string;
   onAllSearch: (query: string) => void;
+  summary: PropertyOperationsSummary;
 }) {
-  const { tr } = useKasaI18n();
+  const { tr, language } = useKasaI18n();
   const [chooserOpen, setChooserOpen] = useState(false);
   const [scope, setScope] = useState<
     "all" | "homes" | "work" | "services" | "spaces"
@@ -1523,18 +1361,37 @@ function UniversalHome({
               <WalletCards />
             </span>
             <span>
-              <strong>{tr("universalHome.rentReady")}</strong>
-              <small>{tr("universalHome.rentNote")}</small>
+              <strong>
+                {tr("nav.rentRecords")} ·{" "}
+                {new Date(
+                  `${summary.currentPeriod}-01T12:00:00`,
+                ).toLocaleDateString(language, {
+                  month: "long",
+                  year: "numeric",
+                })}
+              </strong>
+              <small>
+                {propertyOperationStatus(
+                  summary.currentRent[0]?.status ?? "",
+                  language,
+                ) || `${summary.currentRent.length} ${tr("nav.rentRecords")}`}
+              </small>
             </span>
             <ChevronRight />
           </button>
-          <button onClick={() => openServices("tasks")}>
+          <button onClick={() => go("maintenance")}>
             <span className="continue-icon gold">
               <Wrench />
             </span>
             <span>
-              <strong>{tr("universalHome.repairUpdate")}</strong>
-              <small>{tr("universalHome.repairNote")}</small>
+              <strong>
+                {summary.recentMaintenance?.title ?? tr("common.maintenance")}
+              </strong>
+              <small>
+                {summary.recentMaintenance
+                  ? `${propertyOperationStatus(summary.recentMaintenance.status, language)} · ${new Date(summary.recentMaintenance.updatedAt).toLocaleDateString(language)}`
+                  : tr("common.maintenance")}
+              </small>
             </span>
             <ChevronRight />
           </button>
@@ -1687,175 +1544,6 @@ function ProfileView({
         <LockKeyhole size={17} />
         <span>{tr("universalHome.privacyNote")}</span>
       </div>
-    </div>
-  );
-}
-
-function TenantOverview({
-  go,
-  notify,
-}: {
-  go: (view: View) => void;
-  notify: (message: string) => void;
-}) {
-  const { tr } = useKasaI18n();
-  return (
-    <div className="page-stack">
-      <section className="hero-panel tenant-hero">
-        <div>
-          <span className="eyebrow light">{tr("dashboard.tenantEyebrow")}</span>
-          <h2>{tr("dashboard.tenantMorning")}</h2>
-          <p>{tr("dashboard.tenantNote")}</p>
-          <button className="button button-cream" onClick={() => go("rent")}>
-            {tr("dashboard.viewRentRecord")} <ArrowRight size={17} />
-          </button>
-        </div>
-        <img
-          src={properties[0].image}
-          alt="Sunlit Eixample home"
-          className="tenant-home-image"
-        />
-      </section>
-      <section className="metrics-grid tenant-metrics">
-        <Metric
-          label={tr("dashboard.nextRent")}
-          value="€1,850"
-          note={tr("dashboard.dueSeptember")}
-          icon={CalendarDays}
-        />
-        <Metric
-          label={tr("dashboard.application")}
-          value={tr("dashboard.approved")}
-          note={tr("dashboard.leaseDocumentsReady")}
-          icon={FileCheck2}
-          tone="blue"
-        />
-        <Metric
-          label={tr("common.maintenance")}
-          value={tr("dashboard.received")}
-          note={tr("dashboard.kitchenTapToday")}
-          icon={Wrench}
-          tone="sun"
-        />
-      </section>
-      <section className="kasa-entry-grid">
-        <button onClick={() => go("discover")}>
-          <span className="hub-icon mint">
-            <Home />
-          </span>
-          <span>
-            <strong>{tr("common.properties")}</strong>
-            <small>{tr("dashboard.findNextHome")}</small>
-          </span>
-          <ChevronRight />
-        </button>
-        <button onClick={() => go("services")}>
-          <span className="hub-icon lilac">
-            <Wrench />
-          </span>
-          <span>
-            <strong>{tr("common.services")}</strong>
-            <small>{tr("dashboard.trustedHomeHelp")}</small>
-          </span>
-          <ChevronRight />
-        </button>
-        <button onClick={() => go("spaces")}>
-          <span className="hub-icon gold">
-            <CalendarDays />
-          </span>
-          <span>
-            <strong>Kasa Spaces</strong>
-            <small>{tr("dashboard.sportsEventsNote")}</small>
-          </span>
-          <StatusPill tone="amber">Phase 2</StatusPill>
-        </button>
-      </section>
-      <div className="two-column">
-        <section className="card padded home-card">
-          <SectionHeading
-            title={tr("dashboard.tenantEyebrow")}
-            action={tr("dashboard.propertyDetails")}
-            onAction={() => notify("Property record opened.")}
-          />
-          <img src={properties[0].image} alt="Sunlit Eixample home" />
-          <div className="home-card-copy">
-            <div>
-              <h3>{properties[0].title}</h3>
-              <p>{properties[0].address}</p>
-            </div>
-            <StatusPill tone="mint">{tr("dashboard.activeLease")}</StatusPill>
-          </div>
-          <div className="lease-facts">
-            <span>
-              <small>{tr("dashboard.leaseStarted")}</small>
-              <strong>1 July 2026</strong>
-            </span>
-            <span>
-              <small>{tr("dashboard.renews")}</small>
-              <strong>30 June 2027</strong>
-            </span>
-            <span>
-              <small>{tr("dashboard.landlord")}</small>
-              <strong>Olivia Martín</strong>
-            </span>
-          </div>
-        </section>
-        <section className="card padded next-steps">
-          <SectionHeading title={tr("dashboard.nextSteps")} />
-          <button onClick={() => go("documents")}>
-            <span className="check-circle done">
-              <Check size={16} />
-            </span>
-            <span>
-              <strong>{tr("dashboard.identityDocuments")}</strong>
-              <small>{tr("dashboard.verifiedJune")}</small>
-            </span>
-            <ChevronRight size={17} />
-          </button>
-          <button onClick={() => go("documents")}>
-            <span className="check-circle done">
-              <Check size={16} />
-            </span>
-            <span>
-              <strong>{tr("dashboard.leaseSigned")}</strong>
-              <small>{tr("dashboard.completedJune")}</small>
-            </span>
-            <ChevronRight size={17} />
-          </button>
-          <button onClick={() => go("maintenance")}>
-            <span className="check-circle">
-              <Wrench size={16} />
-            </span>
-            <span>
-              <strong>{tr("dashboard.followRepair")}</strong>
-              <small>{tr("dashboard.awaitingProvider")}</small>
-            </span>
-            <ChevronRight size={17} />
-          </button>
-          <button onClick={() => go("rent")}>
-            <span className="check-circle">
-              <CalendarDays size={16} />
-            </span>
-            <span>
-              <strong>{tr("dashboard.septemberRent")}</strong>
-              <small>{tr("dashboard.dueElevenDays")}</small>
-            </span>
-            <ChevronRight size={17} />
-          </button>
-        </section>
-      </div>
-      <section className="card padded recommendation-strip">
-        <div className="recommendation-icon">
-          <Sparkles size={23} />
-        </div>
-        <div>
-          <strong>{tr("dashboard.nextHomeQuestion")}</strong>
-          <p>{tr("dashboard.foundMatches")}</p>
-        </div>
-        <ActionButton secondary onClick={() => go("discover")}>
-          {tr("dashboard.browseMatches")}
-        </ActionButton>
-      </section>
     </div>
   );
 }
@@ -2437,6 +2125,8 @@ function PropertyDetail({
   favourite,
   onFavourite,
   onBack,
+  backLabel,
+  ownListing = false,
   onMessage,
   requestControls,
 }: {
@@ -2444,6 +2134,8 @@ function PropertyDetail({
   favourite: boolean;
   onFavourite: () => void;
   onBack: () => void;
+  backLabel?: string;
+  ownListing?: boolean;
   onMessage: () => void;
   requestControls: React.ReactNode;
 }) {
@@ -2452,7 +2144,7 @@ function PropertyDetail({
     <div className="page-stack property-detail-page">
       <div className="detail-toolbar">
         <button className="text-button" onClick={onBack}>
-          ← {tr("discover.backResults")}
+          ← {backLabel ?? tr("discover.backResults")}
         </button>
         <div>
           <button className="soft-button" onClick={onFavourite}>
@@ -2582,7 +2274,8 @@ function PropertyDetail({
             </span>
           </div>
           <button className="button contact-message" onClick={onMessage}>
-            <MessageCircle size={16} /> {tr("discover.startPrivateChat")}
+            <MessageCircle size={16} />{" "}
+            {tr(ownListing ? "common.messages" : "discover.startPrivateChat")}
           </button>
           {requestControls}
           <div className="direct-note">
@@ -2683,26 +2376,49 @@ function Saved({
   );
 }
 
+interface PortfolioFilters {
+  status: string;
+  query: string;
+  sort: string;
+}
+
 function Portfolio({
   role,
   notify,
   go,
   onStartSpaceListing,
+  summary,
+  onOpenProperty,
+  filters,
+  setFilters,
 }: {
   role: Role;
   notify: (message: string) => void;
   go: (view: View) => void;
   onStartSpaceListing: () => void;
+  summary: PropertyOperationsSummary | null;
+  onOpenProperty: (property: Property) => void;
+  filters: PortfolioFilters;
+  setFilters: React.Dispatch<React.SetStateAction<PortfolioFilters>>;
 }) {
+  const { language } = useKasaI18n();
   const [adding, setAdding] = useState(false);
   const [choosingListing, setChoosingListing] = useState(false);
   const [addStep, setAddStep] = useState(1);
   const [listingUse, setListingUse] = useState<"Long-term rent" | "Sale">(
     "Long-term rent",
   );
-  const [portfolioStatus, setPortfolioStatus] = useState("All homes");
-  const [portfolioQuery, setPortfolioQuery] = useState("");
-  const [portfolioSort, setPortfolioSort] = useState("Recently updated");
+  const {
+    status: portfolioStatus,
+    query: portfolioQuery,
+    sort: portfolioSort,
+  } = filters;
+  const setPortfolioStatus = (status: string) =>
+    setFilters((current) => ({ ...current, status }));
+  const setPortfolioQuery = (query: string) =>
+    setFilters((current) => ({ ...current, query }));
+  const setPortfolioSort = (sort: string) =>
+    setFilters((current) => ({ ...current, sort }));
   const closeAdd = () => {
     setAdding(false);
     setAddStep(1);
@@ -2713,136 +2429,31 @@ function Portfolio({
     setAdding(true);
   };
 
-  if (role === "tenant")
+  if (role !== "landlord" || !summary)
     return (
-      <div className="page-stack tenant-home-page">
-        <section className="my-home-hero card">
-          <img src={properties[0].image} alt={properties[0].title} />
-          <div>
-            <span className="eyebrow light">YOUR CURRENT HOME</span>
-            <StatusPill tone="mint">
-              <BadgeCheck size={13} /> Active tenancy
-            </StatusPill>
-            <h2>{properties[0].title}</h2>
-            <p>
-              <MapPin size={15} /> {properties[0].address}
-            </p>
-            <div className="my-home-actions">
-              <ActionButton icon={WalletCards} onClick={() => go("rent")}>
-                Bank transfer details
-              </ActionButton>
-              <ActionButton
-                secondary
-                icon={Wrench}
-                onClick={() => go("maintenance")}
-              >
-                Report maintenance
-              </ActionButton>
-            </div>
-          </div>
-        </section>
-        <section className="my-home-grid">
-          <article className="card padded home-record">
-            <SectionHeading title="Tenancy details" />
-            <div className="home-record-list">
-              <span>
-                <small>Monthly rent</small>
-                <strong>{formatEuro(properties[0].price)}</strong>
-              </span>
-              <span>
-                <small>Lease started</small>
-                <strong>1 July 2026</strong>
-              </span>
-              <span>
-                <small>Renews</small>
-                <strong>30 June 2027</strong>
-              </span>
-              <span>
-                <small>Listing party</small>
-                <strong>Olivia Martín</strong>
-              </span>
-            </div>
-            <div className="scope-note">
-              <ShieldCheck size={17} />
-              <span>
-                Your rent goes directly to your landlord. Kasa only records
-                proof and confirmation.
-              </span>
-            </div>
-          </article>
-          <article className="card padded home-hub">
-            <SectionHeading title="Everything for this home" />
-            <button onClick={() => go("rent")}>
-              <span className="hub-icon mint">
-                <WalletCards />
-              </span>
-              <div>
-                <strong>Rent & payments</strong>
-                <small>Instructions, proof and history</small>
-              </div>
-              <ChevronRight />
-            </button>
-            <button onClick={() => go("documents")}>
-              <span className="hub-icon blue">
-                <FileText />
-              </span>
-              <div>
-                <strong>Documents</strong>
-                <small>Lease, receipts and notices</small>
-              </div>
-              <ChevronRight />
-            </button>
-            <button onClick={() => go("maintenance")}>
-              <span className="hub-icon gold">
-                <Wrench />
-              </span>
-              <div>
-                <strong>Maintenance</strong>
-                <small>Track the kitchen tap request</small>
-              </div>
-              <ChevronRight />
-            </button>
-            <button onClick={() => go("messages")}>
-              <span className="hub-icon lilac">
-                <MessageCircle />
-              </span>
-              <div>
-                <strong>Messages</strong>
-                <small>Talk directly with your landlord</small>
-              </div>
-              <ChevronRight />
-            </button>
-          </article>
-        </section>
-        <section className="card padded recommendation-strip">
-          <div className="recommendation-icon">
-            <Store size={23} />
-          </div>
-          <div>
-            <strong>Services linked to your home</strong>
-            <p>
-              Book verified local cleaning, plumbing, electrical, AC and
-              handyman help.
-            </p>
-          </div>
-          <ActionButton secondary onClick={() => go("services")}>
-            Browse services
-          </ActionButton>
-        </section>
-      </div>
+      <section className="card padded">
+        <h2>Property Owner workspace</h2>
+        <p>Switch to the property owner workspace to open its portfolio.</p>
+        <ActionButton secondary onClick={() => go("overview")}>
+          Back to overview
+        </ActionButton>
+      </section>
     );
-
-  const operationalProperties = properties.filter(
-    (property) => property.listingType === "Rent",
-  );
+  const operationalProperties = summary.properties;
+  const hasRentRecords = (property: Property) =>
+    summary.rentRecords.some((record) => record.propertyId === property.id);
+  const openIssues = (property: Property) =>
+    summary.openMaintenance.filter(
+      (record) => record.propertyId === property.id,
+    ).length;
   const visiblePortfolio = operationalProperties
     .filter((property) => {
-      const status = property.id === 4 ? "Available" : "Occupied";
+      const status = hasRentRecords(property)
+        ? "With rent records"
+        : "Without rent records";
       return (
-        (portfolioStatus === "All homes" || status === portfolioStatus) &&
-        `${property.title} ${property.address}`
-          .toLowerCase()
-          .includes(portfolioQuery.toLowerCase())
+        (portfolioStatus === "All properties" || status === portfolioStatus) &&
+        matchesSearch(portfolioQuery, property.title, property.address)
       );
     })
     .sort((a, b) =>
@@ -2851,33 +2462,33 @@ function Portfolio({
         : portfolioSort === "Rent: high to low"
           ? b.price - a.price
           : portfolioSort === "Open issues first"
-            ? Number(a.id !== 1) - Number(b.id !== 1)
+            ? openIssues(b) - openIssues(a)
             : b.id - a.id,
     );
   return (
     <div className="page-stack">
       <div className="page-actions">
         <div className="segment">
-          {["All homes", "Occupied", "Available"].map((status) => (
-            <button
-              key={status}
-              className={portfolioStatus === status ? "active" : ""}
-              onClick={() => setPortfolioStatus(status)}
-            >
-              {status}{" "}
-              <span>
-                {status === "All homes"
-                  ? operationalProperties.length
-                  : status === "Occupied"
-                    ? operationalProperties.filter(
-                        (property) => property.id !== 4,
-                      ).length
-                    : operationalProperties.filter(
-                        (property) => property.id === 4,
-                      ).length}
-              </span>
-            </button>
-          ))}
+          {["All properties", "With rent records", "Without rent records"].map(
+            (status) => (
+              <button
+                key={status}
+                className={portfolioStatus === status ? "active" : ""}
+                onClick={() => setPortfolioStatus(status)}
+              >
+                {status}{" "}
+                <span>
+                  {status === "All properties"
+                    ? operationalProperties.length
+                    : status === "With rent records"
+                      ? operationalProperties.filter(hasRentRecords).length
+                      : operationalProperties.filter(
+                          (property) => !hasRentRecords(property),
+                        ).length}
+                </span>
+              </button>
+            ),
+          )}
         </div>
         <ActionButton icon={Plus} onClick={() => setChoosingListing(true)}>
           Advertise property or space
@@ -2885,13 +2496,13 @@ function Portfolio({
       </div>
       <FilterToolbar
         activeCount={
-          Number(portfolioStatus !== "All homes") +
+          Number(portfolioStatus !== "All properties") +
           Number(Boolean(portfolioQuery))
         }
         onReset={() => {
-          setPortfolioStatus("All homes");
+          setPortfolioStatus("All properties");
           setPortfolioQuery("");
-          setPortfolioSort("Recently updated");
+          setPortfolioSort("Property name");
         }}
       >
         <label className="filter-search">
@@ -2908,7 +2519,6 @@ function Portfolio({
           value={portfolioSort}
           onChange={(event) => setPortfolioSort(event.target.value)}
         >
-          <option>Recently updated</option>
           <option>Open issues first</option>
           <option>Rent: high to low</option>
           <option>Property name</option>
@@ -2924,40 +2534,84 @@ function Portfolio({
                 <p>{property.address}</p>
               </div>
               <div className="occupancy-line">
-                <span>{property.id === 4 ? "Available" : "Occupied"}</span>
+                <span>
+                  {property.listingType === "Rent"
+                    ? "Rental listing"
+                    : "Sale listing"}
+                </span>
                 <small>
-                  {property.id === 4
-                    ? "Accepting applications"
-                    : `Tenant · ${{ 1: "Inês Duarte", 2: "Leo Bernard", 3: "Maya Chen" }[property.id as 1 | 2 | 3]}`}
+                  {
+                    summary.rentRecords.filter(
+                      (record) => record.propertyId === property.id,
+                    ).length
+                  }{" "}
+                  rent records · {openIssues(property)} open repairs
                 </small>
               </div>
             </div>
             <div className="portfolio-stat">
-              <small>Monthly rent</small>
+              <small>
+                {property.listingType === "Rent"
+                  ? "Listed monthly rent"
+                  : "Asking price"}
+              </small>
               <strong>{formatEuro(property.price)}</strong>
             </div>
             <div className="portfolio-stat">
               <small>Next action</small>
-              <strong>
-                {property.id === 4
-                  ? "Review listing"
-                  : property.id === 1
-                    ? "Repair request"
-                    : "All clear"}
-              </strong>
+              <button
+                className="text-button"
+                onClick={() => {
+                  if (openIssues(property)) go("maintenance");
+                  else if (
+                    summary.rentAwaitingOwner.some(
+                      (record) => record.propertyId === property.id,
+                    )
+                  )
+                    go("rent");
+                  else onOpenProperty(property);
+                }}
+              >
+                {openIssues(property)
+                  ? "Review repairs"
+                  : summary.rentAwaitingOwner.some(
+                        (record) => record.propertyId === property.id,
+                      )
+                    ? "Review rent record"
+                    : "Open property"}
+              </button>
             </div>
-            <StatusPill tone={property.id === 4 ? "amber" : "mint"}>
-              {property.id === 4 ? "Published" : "Rent checked"}
+            <StatusPill
+              tone={
+                summary.currentRent.find(
+                  (record) => record.propertyId === property.id,
+                )?.status === "Confirmed"
+                  ? "mint"
+                  : "neutral"
+              }
+            >
+              {propertyOperationStatus(
+                summary.currentRent.find(
+                  (record) => record.propertyId === property.id,
+                )?.status ?? "No rent record this month",
+                language,
+              )}
             </StatusPill>
             <button
               className="icon-button"
-              onClick={() => go(property.id === 4 ? "applications" : "rent")}
+              onClick={() => onOpenProperty(property)}
               aria-label={`Open ${property.title}`}
             >
               <ChevronRight size={19} />
             </button>
           </article>
         ))}
+        {visiblePortfolio.length === 0 && (
+          <div className="table-empty">
+            <Search size={22} />
+            <span>No properties match these filters.</span>
+          </div>
+        )}
       </section>
       {choosingListing && (
         <Modal
@@ -7106,6 +6760,11 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
   const [rentRecordState, setRentRecordState] = useState(
     createInitialRentRecordState,
   );
+  const [portfolioFilters, setPortfolioFilters] = useState<PortfolioFilters>({
+    status: "All properties",
+    query: "",
+    sort: "Property name",
+  });
   const [maintenanceState, setMaintenanceState] = useState(
     createInitialMaintenanceState,
   );
@@ -7119,6 +6778,28 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
   const [applicationState, setApplicationState] = useState(
     createInitialApplicationState,
   );
+  const [operationsNow, setOperationsNow] = useState(() => new Date());
+  useEffect(() => {
+    const refresh = () => setOperationsNow(new Date());
+    const timer = window.setInterval(refresh, 60_000);
+    window.addEventListener("focus", refresh);
+    document.addEventListener("visibilitychange", refresh);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener("focus", refresh);
+      document.removeEventListener("visibilitychange", refresh);
+    };
+  }, []);
+  const operationsSummary =
+    role === "landlord" || role === "tenant"
+      ? buildPropertyOperationsSummary({
+          role,
+          rentState: rentRecordState,
+          applicationState,
+          maintenanceState,
+          now: operationsNow,
+        })
+      : null;
   const applicationCount = visibleApplicationRecords(
     applicationState,
     role,
@@ -7195,7 +6876,7 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
   const [searchQuery, setSearchQuery] = useState(initialRoute.query);
   const [serviceEntryRevision, setServiceEntryRevision] = useState(0);
   const [propertyReturnTo, setPropertyReturnTo] = useState<
-    "discover" | "saved"
+    AppRoute["returnTo"]
   >(initialRoute.returnTo);
   const [routeRevision, setRouteRevision] = useState(0);
   const previousRoute = useRef<AppRoute | null>(null);
@@ -7558,6 +7239,15 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
     },
     [view, reduceMotion, systemReduceMotion],
   );
+  const openProperty = (
+    property: Property,
+    returnTo: AppRoute["returnTo"] = "discover",
+  ) => {
+    setSelectedProperty(property);
+    setPropertyReturnTo(returnTo);
+    setDiscoveryIntent(property.listingType);
+    go("property");
+  };
   const openServices = (mode: ServiceLaunchMode, query = "") => {
     setServiceLaunch(mode);
     setServiceEntryRevision((value) => value + 1);
@@ -7640,9 +7330,17 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
     switch (view) {
       case "overview":
         return role === "landlord" ? (
-          <LandlordOverview go={go} notify={notify} />
+          <PropertyOverview
+            role="landlord"
+            rentState={rentRecordState}
+            applicationState={applicationState}
+            maintenanceState={maintenanceState}
+            go={go}
+            onOpenProperty={(property) => openProperty(property, "overview")}
+          />
         ) : role === "tenant" ? (
           <UniversalHome
+            summary={operationsSummary!}
             go={go}
             openServices={openServices}
             setDiscoveryIntent={setDiscoveryIntent}
@@ -7689,12 +7387,7 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
                 updateDiscoverState(current, discoveryIntent, update),
               )
             }
-            onOpen={(property) => {
-              setSelectedProperty(property);
-              setPropertyReturnTo("discover");
-              setDiscoveryIntent(property.listingType);
-              go("property");
-            }}
+            onOpen={(property) => openProperty(property, "discover")}
           />
         );
       case "saved":
@@ -7722,81 +7415,121 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
                 }}
               />
             }
-            onOpen={(property) => {
-              setSelectedProperty(property);
-              setPropertyReturnTo("saved");
-              setDiscoveryIntent(property.listingType);
-              go("property");
-            }}
+            onOpen={(property) => openProperty(property, "saved")}
           />
         );
       case "property":
         return (
           <PropertyDetail
             property={selectedProperty}
+            ownListing={isWorkspaceListingOwner(role, selectedProperty.id)}
             favourite={favourites.includes(selectedProperty.id)}
             onFavourite={() => toggleFavourite(selectedProperty.id)}
             onBack={() => go(propertyReturnTo)}
+            backLabel={
+              propertyReturnTo === "portfolio"
+                ? `${tr("common.back")} · ${tr(role === "tenant" ? "nav.myHome" : "nav.myProperties")}`
+                : propertyReturnTo === "overview"
+                  ? `${tr("common.back")} · ${tr("common.overview")}`
+                  : undefined
+            }
             onMessage={() => {
-              setMessageState((current) =>
-                openPropertyConversation(current, selectedProperty),
-              );
+              if (!isWorkspaceListingOwner(role, selectedProperty.id)) {
+                setMessageState((current) =>
+                  openPropertyConversation(current, selectedProperty),
+                );
+              }
               go("messages");
             }}
             requestControls={
-              <PropertyRequestActions
-                property={selectedProperty}
-                role={role}
-                viewing={viewingForProperty(
-                  propertyRequestState,
-                  role,
-                  selectedProperty.id,
-                )}
-                application={tenantApplicationForProperty(
-                  applicationState,
-                  selectedProperty,
-                )}
-                viewingLabel={tr("discover.requestViewing")}
-                applicationLabel={tr("discover.applyHome")}
-                onSaveViewing={(draft) => {
-                  setPropertyRequestState((current) =>
-                    saveViewingRequest(current, role, selectedProperty, draft),
-                  );
-                  notify(
-                    "Viewing request saved in this tab. Nothing was sent or confirmed.",
-                  );
-                }}
-                onCancelViewing={() => {
-                  setPropertyRequestState((current) =>
-                    cancelViewingRequest(current, role, selectedProperty.id),
-                  );
-                  notify(
-                    "Local viewing request cancelled. No one has been contacted.",
-                  );
-                }}
-                onSaveApplication={(draft) => {
-                  setApplicationState((current) =>
-                    submitRentalApplication(
-                      current,
-                      role,
-                      selectedProperty,
-                      draft,
-                    ),
-                  );
-                  notify(
-                    "Application saved in this tab. Open Applications to inspect it; nothing was sent.",
-                  );
-                }}
-                onViewApplications={() => go("applications")}
-              />
+              ownsProperty(role, selectedProperty.id) ? (
+                <div className="property-request-actions">
+                  <button
+                    className="button button-secondary"
+                    onClick={() => go("applications")}
+                  >
+                    <FileCheck2 size={16} />
+                    {tr("common.applications")}
+                  </button>
+                  <button
+                    className="button button-secondary"
+                    onClick={() => go("maintenance")}
+                  >
+                    <Wrench size={16} />
+                    {tr("common.maintenance")}
+                  </button>
+                </div>
+              ) : (
+                <PropertyRequestActions
+                  property={selectedProperty}
+                  role={role}
+                  viewing={viewingForProperty(
+                    propertyRequestState,
+                    role,
+                    selectedProperty.id,
+                  )}
+                  application={tenantApplicationForProperty(
+                    applicationState,
+                    selectedProperty,
+                  )}
+                  viewingLabel={tr("discover.requestViewing")}
+                  applicationLabel={tr("discover.applyHome")}
+                  onSaveViewing={(draft) => {
+                    setPropertyRequestState((current) =>
+                      saveViewingRequest(
+                        current,
+                        role,
+                        selectedProperty,
+                        draft,
+                      ),
+                    );
+                    notify(
+                      "Viewing request saved in this tab. Nothing was sent or confirmed.",
+                    );
+                  }}
+                  onCancelViewing={() => {
+                    setPropertyRequestState((current) =>
+                      cancelViewingRequest(current, role, selectedProperty.id),
+                    );
+                    notify(
+                      "Local viewing request cancelled. No one has been contacted.",
+                    );
+                  }}
+                  onSaveApplication={(draft) => {
+                    setApplicationState((current) =>
+                      submitRentalApplication(
+                        current,
+                        role,
+                        selectedProperty,
+                        draft,
+                      ),
+                    );
+                    notify(
+                      "Application saved in this tab. Open Applications to inspect it; nothing was sent.",
+                    );
+                  }}
+                  onViewApplications={() => go("applications")}
+                />
+              )
             }
           />
         );
       case "portfolio":
         return role === "tenant" ? (
-          <TenantOverview go={go} notify={notify} />
+          <PropertyOverview
+            role="tenant"
+            rentState={rentRecordState}
+            applicationState={applicationState}
+            maintenanceState={maintenanceState}
+            go={go}
+            onOpenProperty={(property) => openProperty(property, "portfolio")}
+          />
         ) : (
           <Portfolio
+            filters={portfolioFilters}
+            setFilters={setPortfolioFilters}
+            summary={operationsSummary}
+            onOpenProperty={(property) => openProperty(property, "portfolio")}
             role={role}
             notify={notify}
             go={go}

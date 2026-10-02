@@ -12,5 +12,7 @@ import "./property-request-check";
 import "./maintenance-state-check";
 import "./document-state-check";
 import "./rent-record-state-check";
+import "./property-operations-summary-check";
+import "./operations-localization-check";
 
 console.log("Kasa UI state checks passed.");

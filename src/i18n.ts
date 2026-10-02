@@ -2,6 +2,7 @@ import i18n from "i18next";
 import { initReactI18next } from "react-i18next";
 import { isPresentationEntry } from "./entry";
 import { readPreference, writePreference } from "./platform/preferences";
+import { operationsResources } from "./locales/operations";
 
 export type LanguageCode = "pt" | "en" | "es" | "fr" | "ar" | "zh";
 
@@ -3616,12 +3617,12 @@ const initialLanguage = languages.some(({ code }) => code === savedLanguage)
 
 void i18n.use(initReactI18next).init({
   resources: {
-    en: { translation: en },
-    pt: { translation: pt },
-    es: { translation: esComplete },
-    fr: { translation: frComplete },
-    ar: { translation: arComplete },
-    zh: { translation: zhComplete },
+    en: { translation: en, operations: operationsResources.en },
+    pt: { translation: pt, operations: operationsResources.pt },
+    es: { translation: esComplete, operations: operationsResources.es },
+    fr: { translation: frComplete, operations: operationsResources.fr },
+    ar: { translation: arComplete, operations: operationsResources.ar },
+    zh: { translation: zhComplete, operations: operationsResources.zh },
   },
   lng: initialLanguage,
   fallbackLng: "en",

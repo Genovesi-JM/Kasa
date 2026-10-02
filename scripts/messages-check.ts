@@ -1,6 +1,11 @@
 import assert from "node:assert/strict";
 import { properties } from "../src/data";
 import {
+  isWorkspaceListingOwner,
+  ownedProperties,
+  ownsProperty,
+} from "../src/propertyScope";
+import {
   appendLocalMessage,
   createInitialMessageState,
   createInitialWorkspaceMessageState,
@@ -12,7 +17,7 @@ import {
 import type { Role } from "../src/types";
 import { matchesSearch } from "../src/search";
 
-const initial = createInitialMessageState();
+const initial = createInitialMessageState("tenant");
 assert.equal(
   new Set(
     initial.conversations.map((conversation) =>
@@ -321,6 +326,74 @@ assert.equal(
   "Owner-only draft",
 );
 assert.equal(
+  openPropertyConversation(landlordEdited.landlord, listing),
+  landlordEdited.landlord,
+  "An owned listing must not create a self-conversation or change the current inbox state",
+);
+assert.equal(
+  openPropertyConversation(landlordEdited.landlord, differentOwner),
+  landlordEdited.landlord,
+  "Stable listing ownership cannot be bypassed by a changed display name",
+);
+const foreignListing = properties[1];
+for (const role of ["landlord", "spaceOperator"] as const) {
+  assert.equal(isWorkspaceListingOwner(role, listing.id), true);
+  assert.equal(isWorkspaceListingOwner(role, foreignListing.id), false);
+  assert.equal(isWorkspaceListingOwner(role, 987), false);
+  assert.equal(
+    openPropertyConversation(workspaces[role], listing),
+    workspaces[role],
+    "Olivia must not contact herself through either of her workspaces",
+  );
+  const foreignInbox = openPropertyConversation(
+    workspaces[role],
+    foreignListing,
+  );
+  assert.equal(
+    foreignInbox.conversations.at(-1)?.name,
+    foreignListing.landlord,
+  );
+  assert.equal(foreignInbox.conversationOpen, true);
+}
+assert.deepEqual(
+  ownedProperties("spaceOperator"),
+  [],
+  "Shared identity does not grant property operations to the venue workspace",
+);
+assert.equal(ownsProperty("spaceOperator", listing.id), false);
+for (const role of ["tenant", "provider", "admin"] as const) {
+  assert.equal(isWorkspaceListingOwner(role, listing.id), false);
+}
+const ownerForeignConversation = openPropertyConversation(
+  landlordEdited.landlord,
+  foreignListing,
+);
+const ownerForeignThread = ownerForeignConversation.conversations.find(
+  (conversation) => conversation.id === ownerForeignConversation.selectedId,
+)!;
+assert.equal(ownerForeignConversation.conversationOpen, true);
+assert.equal(ownerForeignThread.name, foreignListing.landlord);
+assert.deepEqual(ownerForeignThread.propertyContext, {
+  propertyId: foreignListing.id,
+  landlord: foreignListing.landlord,
+});
+assert.deepEqual(ownerForeignThread.messages, []);
+assert.equal(
+  ownerForeignConversation.conversations.length,
+  landlordEdited.landlord.conversations.length + 1,
+  "An owner can still start a conversation about another owner's listing",
+);
+assert.equal(
+  ownerForeignConversation.conversations[0].draft,
+  "Owner-only draft",
+);
+assert.equal(
+  openPropertyConversation(ownerForeignConversation, foreignListing)
+    .conversations.length,
+  ownerForeignConversation.conversations.length,
+  "Reopening a foreign listing reuses its existing conversation",
+);
+assert.equal(
   updateWorkspaceMessageState(
     landlordEdited,
     "provider",
@@ -384,5 +457,5 @@ assert.notEqual(
 );
 
 console.log(
-  "Messages checks passed: all five workspace counterparts, isolated drafts/unread/block state, contextual recipient/listing identity, empty new threads, mobile entry, reuse, retained messages and blocked/blank send guards.",
+  "Messages checks passed: all five workspace counterparts, isolated drafts/unread/block state, contextual recipient/listing identity, self-conversation guard, foreign owner conversations, empty new threads, mobile entry, reuse, retained messages and blocked/blank send guards.",
 );

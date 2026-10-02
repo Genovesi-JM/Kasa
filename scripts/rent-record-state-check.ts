@@ -116,6 +116,12 @@ const foreignPending = {
   status: "Awaiting owner confirmation" as const,
 };
 const foreignState = { records: [foreignPending] };
+const misleadingOwnerLabel = { ...foreignPending, owner: "Olivia Martín" };
+assert.deepEqual(
+  visibleRentRecords({ records: [misleadingOwnerLabel] }, "landlord"),
+  [],
+);
+assert.equal(canConfirmRentRecord(misleadingOwnerLabel, "landlord"), false);
 assert.equal(canConfirmRentRecord(foreignPending, "landlord"), false);
 assert.equal(
   confirmRentRecord(foreignState, "landlord", otherTenant.id, now),

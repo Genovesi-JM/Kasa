@@ -22,31 +22,52 @@ import {
 import type { Role } from "../types";
 import { matchesSearch } from "../search";
 import {
+  documentCategoryKeys,
+  documentSortKeys,
+  documentSourceKeys,
+} from "../locales/operations";
+import type {
+  OperationsKey,
+  OperationsMessage,
+} from "../locales/operations/types";
+import {
   addLocalDocuments,
   categoriesForRole,
   DOCUMENT_ACCEPT,
   documentBytes,
   removeDocument,
   restoreDocument,
-  restoreDocumentError,
+  restoreDocumentIssue,
   workspaceDocuments,
   workspaceLocalBytes,
   type DocumentCategory,
+  type DocumentIssue,
   type DocumentState,
   type WorkspaceDocument,
 } from "./documentState";
 import { useDialogFocus } from "./useDialogFocus";
+import { useOperationsI18n } from "./useOperationsI18n";
 import "./documents.css";
 
 const TEXT_PREVIEW_BYTES = 100_000;
-const formatBytes = (bytes: number) =>
-  bytes < 1024
-    ? `${bytes} B`
-    : bytes < 1024 * 1024
-      ? `${Math.ceil(bytes / 1024)} KB`
-      : `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-const dateLabel = (value: string) =>
-  new Date(value).toLocaleDateString("en-GB", {
+const formatBytes = (bytes: number, locale: string) => {
+  const unit =
+    bytes < 1024 ? "byte" : bytes < 1024 * 1024 ? "kilobyte" : "megabyte";
+  const value =
+    unit === "byte"
+      ? bytes
+      : unit === "kilobyte"
+        ? Math.ceil(bytes / 1024)
+        : bytes / (1024 * 1024);
+  return new Intl.NumberFormat(locale, {
+    style: "unit",
+    unit,
+    unitDisplay: "short",
+    maximumFractionDigits: unit === "megabyte" ? 1 : 0,
+  }).format(value);
+};
+const dateLabel = (value: string, locale: string) =>
+  new Date(value).toLocaleDateString(locale, {
     day: "numeric",
     month: "short",
     year: "numeric",
@@ -59,6 +80,7 @@ function DocumentPreview({
   record: WorkspaceDocument;
   onClose: () => void;
 }) {
+  const { tr, locale } = useOperationsI18n();
   const dialogRef = useDialogFocus<HTMLDivElement>(onClose);
   const id = useId();
   const download = useRef<HTMLAnchorElement>(null);
@@ -67,7 +89,7 @@ function DocumentPreview({
   const [text, setText] = useState<string | null>(
     record.source === "sample" ? record.content : null,
   );
-  const [error, setError] = useState("");
+  const [error, setError] = useState<OperationsKey | null>(null);
 
   useLayoutEffect(() => {
     const blob =
@@ -91,10 +113,7 @@ function DocumentPreview({
         if (active) setText(value);
       })
       .catch(() => {
-        if (active)
-          setError(
-            "This text file could not be previewed. You can still download your original file.",
-          );
+        if (active) setError("documents_textReadError");
       });
     return () => {
       active = false;
@@ -122,14 +141,18 @@ function DocumentPreview({
         <header>
           <div>
             <span className="eyebrow">
-              {record.source === "sample" ? "SAMPLE PREVIEW" : "LOCAL FILE"}
+              {tr(
+                record.source === "sample"
+                  ? "documents_samplePreview"
+                  : "documents_localFile",
+              )}
             </span>
             <h2 id={`${id}-title`}>{record.name}</h2>
           </div>
           <button
             type="button"
             className="icon-button"
-            aria-label="Close document preview"
+            aria-label={tr("documents_closePreview")}
             data-dialog-initial-focus
             onClick={onClose}
           >
@@ -138,13 +161,16 @@ function DocumentPreview({
         </header>
         <div className="modal-body document-preview-body">
           <p id={`${id}-scope`} className="document-library-note">
-            {record.source === "sample"
-              ? "An explanatory example, not a signed or verified document."
-              : "Previewing your selected file in this tab. Nothing has been uploaded or verified."}
+            {tr(
+              record.source === "sample"
+                ? "documents_sampleScope"
+                : "documents_localScope",
+            )}
           </p>
           <div className="document-preview-meta">
             <span>
-              {record.category} · {formatBytes(documentBytes(record))}
+              {tr(documentCategoryKeys[record.category])} ·{" "}
+              {formatBytes(documentBytes(record), locale)}
             </span>
             <a
               ref={download}
@@ -156,24 +182,26 @@ function DocumentPreview({
               }
             >
               <Download size={16} />
-              {record.source === "sample"
-                ? "Download sample text"
-                : "Download file"}
+              {tr(
+                record.source === "sample"
+                  ? "documents_downloadSample"
+                  : "documents_downloadFile",
+              )}
             </a>
           </div>
           {error && (
             <p className="document-library-error" role="alert">
-              {error}
+              {tr(error)}
             </p>
           )}
           {record.kind === "text" && (
             <>
               {text === null && !error ? (
-                <p role="status">Reading local text…</p>
+                <p role="status">{tr("documents_readingText")}</p>
               ) : (
                 <pre
                   className="document-text-preview"
-                  aria-label="Document text"
+                  aria-label={tr("documents_documentText")}
                 >
                   {text}
                 </pre>
@@ -181,8 +209,7 @@ function DocumentPreview({
               {record.source === "local" &&
                 record.file.size > TEXT_PREVIEW_BYTES && (
                   <p className="document-library-note">
-                    Preview shows the first 100 KB. Download the file to read
-                    the full document.
+                    {tr("documents_truncatedText")}
                   </p>
                 )}
             </>
@@ -191,12 +218,8 @@ function DocumentPreview({
             <img
               ref={image}
               className="document-image-preview"
-              alt={`Preview of ${record.name}`}
-              onError={() =>
-                setError(
-                  "This image could not be previewed. You can still download your original file.",
-                )
-              }
+              alt={tr("documents_previewName", { name: record.name })}
+              onError={() => setError("documents_imageReadError")}
             />
           )}
           {record.kind === "pdf" && (
@@ -204,11 +227,10 @@ function DocumentPreview({
               <iframe
                 ref={pdf}
                 className="document-pdf-preview"
-                title={`PDF preview: ${record.name}`}
+                title={tr("documents_pdfPreview", { name: record.name })}
               />
               <p className="document-library-note">
-                If your browser cannot display this PDF, use Download file to
-                open it in your PDF reader.
+                {tr("documents_pdfFallback")}
               </p>
             </>
           )}
@@ -226,6 +248,7 @@ interface DocumentsProps {
 }
 
 function WorkspaceDocuments({ role, state, setState }: DocumentsProps) {
+  const { tr, locale, issueText } = useOperationsI18n();
   const records = workspaceDocuments(state, role);
   const categories = categoriesForRole(role);
   const [query, setQuery] = useState("");
@@ -234,29 +257,34 @@ function WorkspaceDocuments({ role, state, setState }: DocumentsProps) {
   const [sort, setSort] = useState("Recently added");
   const [addCategory, setAddCategory] = useState<DocumentCategory>("Other");
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [feedback, setFeedback] = useState("");
-  const [errors, setErrors] = useState<string[]>([]);
+  const [feedback, setFeedback] = useState<OperationsMessage | null>(null);
+  const [errors, setErrors] = useState<DocumentIssue[]>([]);
   const input = useRef<HTMLInputElement>(null);
   const addButton = useRef<HTMLButtonElement>(null);
   const undoButton = useRef<HTMLButtonElement>(null);
   const previewButtons = useRef(new Map<string, HTMLButtonElement>());
   const selected = records.find((record) => record.id === selectedId);
   const removed = state.removed[role];
-  const restoreError = removed ? restoreDocumentError(state, role) : null;
+  const restoreError = removed ? restoreDocumentIssue(state, role) : null;
   const localCount = records.filter(
     (record) => record.source === "local",
   ).length;
   const visible = records
     .filter(
       (record) =>
-        matchesSearch(query, record.name, record.category) &&
+        matchesSearch(
+          query,
+          record.name,
+          record.category,
+          tr(documentCategoryKeys[record.category]),
+        ) &&
         (category === "All categories" || record.category === category) &&
         (source === "All documents" ||
           record.source === (source === "Local files" ? "local" : "sample")),
     )
     .sort((left, right) =>
       sort === "Document name"
-        ? left.name.localeCompare(right.name)
+        ? left.name.localeCompare(right.name, locale)
         : sort === "Largest first"
           ? documentBytes(right) - documentBytes(left)
           : right.addedAt.localeCompare(left.addedAt) ||
@@ -275,29 +303,40 @@ function WorkspaceDocuments({ role, state, setState }: DocumentsProps) {
   return (
     <div className="page-stack document-library">
       <div className="document-library-header">
-        <div className="document-library-counts" aria-label="Document totals">
+        <div
+          className="document-library-counts"
+          aria-label={tr("documents_totalsLabel")}
+        >
           <div>
             <FolderOpen size={20} />
             <span>
-              <strong>{records.length} documents</strong>
-              <small>{records.length - localCount} sample previews</small>
+              <strong>
+                {tr("documents_documentCount", { count: records.length })}
+              </strong>
+              <small>
+                {tr("documents_sampleCount", {
+                  count: records.length - localCount,
+                })}
+              </small>
             </span>
           </div>
           <div>
             <HardDrive size={20} />
             <span>
               <strong>
-                {localCount} local {localCount === 1 ? "file" : "files"}
+                {tr("documents_localCount", { count: localCount })}
               </strong>
               <small>
-                {formatBytes(workspaceLocalBytes(state, role))} of 50 MB
+                {tr("documents_storageUse", {
+                  used: formatBytes(workspaceLocalBytes(state, role), locale),
+                })}
               </small>
             </span>
           </div>
         </div>
         <div className="document-add-controls">
           <label>
-            Category for new files
+            {tr("documents_newCategory")}
             <select
               value={addCategory}
               onChange={(event) =>
@@ -305,7 +344,9 @@ function WorkspaceDocuments({ role, state, setState }: DocumentsProps) {
               }
             >
               {categories.map((item) => (
-                <option key={item}>{item}</option>
+                <option key={item} value={item}>
+                  {tr(documentCategoryKeys[item])}
+                </option>
               ))}
             </select>
           </label>
@@ -316,7 +357,7 @@ function WorkspaceDocuments({ role, state, setState }: DocumentsProps) {
             onClick={() => input.current?.click()}
           >
             <Plus size={17} />
-            Add local files
+            {tr("documents_addFiles")}
           </button>
         </div>
         <input
@@ -325,17 +366,20 @@ function WorkspaceDocuments({ role, state, setState }: DocumentsProps) {
           hidden
           multiple
           accept={DOCUMENT_ACCEPT}
-          aria-label="Choose local documents"
+          aria-label={tr("documents_chooseFiles")}
           onChange={(event) => {
             const files = Array.from(event.currentTarget.files ?? []);
             if (files.length) {
               const result = addLocalDocuments(state, role, files, addCategory);
               setState(result.state);
-              setErrors(result.errors);
+              setErrors(result.issues);
               setFeedback(
                 result.added
-                  ? `${result.added} ${result.added === 1 ? "file added" : "files added"} in this tab. Nothing was uploaded.`
-                  : "No files were added.",
+                  ? {
+                      key: "documents_filesAdded",
+                      values: { count: result.added },
+                    }
+                  : { key: "documents_noFilesAdded" },
               );
               if (result.added) resetFilters();
             }
@@ -344,20 +388,16 @@ function WorkspaceDocuments({ role, state, setState }: DocumentsProps) {
           }}
         />
       </div>
-      <p className="document-library-note">
-        Choose PDF, PNG, JPEG, GIF, WebP or text files (TXT, MD, CSV), up to 10
-        MB each. Local files stay in memory in this tab; reloading clears them.
-        No upload, signing or verification takes place.
-      </p>
+      <p className="document-library-note">{tr("documents_libraryScope")}</p>
       <p className="document-library-feedback" role="status" aria-live="polite">
-        {feedback}
+        {feedback && tr(feedback.key, feedback.values)}
       </p>
       {errors.length > 0 && (
         <div className="document-library-error" role="alert">
-          <strong>Some files could not be added</strong>
+          <strong>{tr("documents_addErrors")}</strong>
           <ul>
             {errors.map((error, index) => (
-              <li key={`${index}-${error}`}>{error}</li>
+              <li key={`${index}-${error.code}`}>{issueText(error)}</li>
             ))}
           </ul>
         </div>
@@ -365,8 +405,8 @@ function WorkspaceDocuments({ role, state, setState }: DocumentsProps) {
       {removed && (
         <div className="document-undo">
           <span>
-            Removed from this tab: <strong>{removed.name}</strong>
-            {restoreError && <small>{restoreError}</small>}
+            {tr("documents_removedFromTab")} <strong>{removed.name}</strong>
+            {restoreError && <small>{issueText(restoreError)}</small>}
           </span>
           <button
             type="button"
@@ -375,7 +415,10 @@ function WorkspaceDocuments({ role, state, setState }: DocumentsProps) {
             disabled={Boolean(restoreError)}
             onClick={() => {
               setState((current) => restoreDocument(current, role));
-              setFeedback(`${removed.name} restored in this tab.`);
+              setFeedback({
+                key: "documents_restored",
+                values: { name: removed.name },
+              });
               requestAnimationFrame(() =>
                 (
                   previewButtons.current.get(removed.id) ?? addButton.current
@@ -384,7 +427,7 @@ function WorkspaceDocuments({ role, state, setState }: DocumentsProps) {
             }}
           >
             <Undo2 size={16} />
-            Undo remove
+            {tr("documents_undoRemove")}
           </button>
         </div>
       )}
@@ -393,39 +436,47 @@ function WorkspaceDocuments({ role, state, setState }: DocumentsProps) {
           <Search size={17} />
           <input
             type="search"
-            aria-label="Search documents"
-            placeholder="Search name or category"
+            aria-label={tr("documents_search")}
+            placeholder={tr("documents_searchPlaceholder")}
             value={query}
             onChange={(event) => setQuery(event.target.value)}
           />
         </label>
         <select
-          aria-label="Filter document category"
+          aria-label={tr("documents_filterCategory")}
           value={category}
           onChange={(event) => setCategory(event.target.value)}
         >
-          <option>All categories</option>
+          <option value="All categories">
+            {tr("documents_allCategories")}
+          </option>
           {categories.map((item) => (
-            <option key={item}>{item}</option>
+            <option key={item} value={item}>
+              {tr(documentCategoryKeys[item])}
+            </option>
           ))}
         </select>
         <select
-          aria-label="Filter document source"
+          aria-label={tr("documents_filterSource")}
           value={source}
           onChange={(event) => setSource(event.target.value)}
         >
-          <option>All documents</option>
-          <option>Local files</option>
-          <option>Sample previews</option>
+          {Object.entries(documentSourceKeys).map(([value, key]) => (
+            <option key={value} value={value}>
+              {tr(key)}
+            </option>
+          ))}
         </select>
         <select
-          aria-label="Sort documents"
+          aria-label={tr("documents_sort")}
           value={sort}
           onChange={(event) => setSort(event.target.value)}
         >
-          <option>Recently added</option>
-          <option>Document name</option>
-          <option>Largest first</option>
+          {Object.entries(documentSortKeys).map(([value, key]) => (
+            <option key={value} value={value}>
+              {tr(key)}
+            </option>
+          ))}
         </select>
         <button
           type="button"
@@ -433,7 +484,7 @@ function WorkspaceDocuments({ role, state, setState }: DocumentsProps) {
           onClick={resetFilters}
           disabled={!filtered && sort === "Recently added"}
         >
-          Reset filters
+          {tr("documents_resetFilters")}
         </button>
       </div>
       <p
@@ -441,11 +492,14 @@ function WorkspaceDocuments({ role, state, setState }: DocumentsProps) {
         role="status"
         aria-live="polite"
       >
-        {visible.length} of {records.length} documents
+        {tr("documents_resultCount", {
+          visible: visible.length,
+          total: records.length,
+        })}
       </p>
       <section
         className="card document-library-list"
-        aria-label="Workspace documents"
+        aria-label={tr("documents_workspaceDocuments")}
       >
         {visible.map((record) => (
           <article className="document-library-row" key={record.id}>
@@ -457,7 +511,7 @@ function WorkspaceDocuments({ role, state, setState }: DocumentsProps) {
                 else previewButtons.current.delete(record.id);
               }}
               onClick={() => setSelectedId(record.id)}
-              aria-label={`Preview ${record.name}`}
+              aria-label={tr("documents_previewName", { name: record.name })}
             >
               <span className="document-icon">
                 <FileText size={20} />
@@ -465,11 +519,16 @@ function WorkspaceDocuments({ role, state, setState }: DocumentsProps) {
               <span>
                 <strong>{record.name}</strong>
                 <small>
-                  {record.category} · {formatBytes(documentBytes(record))}
+                  {tr(documentCategoryKeys[record.category])} ·{" "}
+                  {formatBytes(documentBytes(record), locale)}
                 </small>
                 <small>
-                  {record.source === "sample" ? "Sample preview" : "Local file"}{" "}
-                  · {dateLabel(record.addedAt)}
+                  {tr(
+                    record.source === "sample"
+                      ? "documents_samplePreview"
+                      : "documents_localFile",
+                  )}{" "}
+                  · {dateLabel(record.addedAt, locale)}
                 </small>
               </span>
             </button>
@@ -479,13 +538,14 @@ function WorkspaceDocuments({ role, state, setState }: DocumentsProps) {
               onClick={() => {
                 setState((current) => removeDocument(current, role, record.id));
                 setErrors([]);
-                setFeedback(
-                  `${record.name} removed from this tab. The original file on your device is unchanged.`,
-                );
+                setFeedback({
+                  key: "documents_removedFeedback",
+                  values: { name: record.name },
+                });
                 requestAnimationFrame(() => undoButton.current?.focus());
               }}
-              aria-label={`Remove ${record.name} from this tab`}
-              title="Remove from this tab"
+              aria-label={tr("documents_removeName", { name: record.name })}
+              title={tr("documents_removeTitle")}
             >
               <Trash2 size={17} />
             </button>
@@ -495,14 +555,18 @@ function WorkspaceDocuments({ role, state, setState }: DocumentsProps) {
           <div className="document-library-empty">
             <FileText size={30} />
             <h2>
-              {records.length
-                ? "No documents match"
-                : "No documents in this workspace"}
+              {tr(
+                records.length
+                  ? "documents_noMatches"
+                  : "documents_emptyLibrary",
+              )}
             </h2>
             <p>
-              {records.length
-                ? "Change the filters or try another name."
-                : "Add a local file to start your library."}
+              {tr(
+                records.length
+                  ? "documents_noMatchesHint"
+                  : "documents_emptyLibraryHint",
+              )}
             </p>
             {filtered && (
               <button
@@ -510,7 +574,7 @@ function WorkspaceDocuments({ role, state, setState }: DocumentsProps) {
                 className="button button-secondary"
                 onClick={resetFilters}
               >
-                Show all documents
+                {tr("documents_showAll")}
               </button>
             )}
           </div>
