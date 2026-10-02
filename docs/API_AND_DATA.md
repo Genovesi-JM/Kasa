@@ -33,6 +33,10 @@ Available endpoints:
 
 The two write routes are in-memory development adapters, disabled by default, protected by a local demo key and an `Idempotency-Key` header. They are not production storage or authentication. Replace them with reviewed identity, PostgreSQL transactions, object storage and audit logging before accepting real personal data, documents or reservations.
 
+Each write validates and normalizes its payload before checking the idempotency cache. Repeating an identical valid request returns the original result with status 200; a different payload with the same operation/key returns 409. The cache lasts only for the current server process. Every response carries an `x-request-id`; JSON errors include that same identifier, including malformed JSON (400), rejected origins (403), oversized request bodies (413), and API rate limits (429). Unexpected errors return a sanitized 500.
+
+The rent metadata adapter accepts positive amounts up to 1,000,000 with at most two decimal places, EUR or AOA, and transfer timestamps no later than server time. These are input checks, not bank verification. `rentRecordId` and `documentReference` are unlinked metadata, never fetched or treated as authorization. Responses use `status: recorded_metadata` and explicitly mark both references `unverified`; the adapter does not enter a real landlord-confirmation workflow. Production must bind each reference to a record the authenticated workspace may access.
+
 ## Maps and drawn-area search
 
 The demo uses Leaflet with OpenStreetMap tiles, visible attribution, price pins and a customer-drawn polygon. The polygon is applied to both property and Spaces results. In production, send the polygon to the search API and perform the authoritative point-in-polygon query server-side; browser filtering is only a demo and usability layer.

@@ -5,7 +5,10 @@ info:
   description: >-
     Versioned API for the Kasa non-brokerage property, property-operations,
     services and sports/event-spaces platform. Demo write endpoints never hold
-    rent, deposits or venue funds.
+    rent, deposits or venue funds. Responses include an x-request-id header;
+    JSON errors include the same requestId. Malformed JSON returns 400,
+    disallowed origins return 403, bodies above 250 KB return 413, and the API
+    rate limit returns 429. Unexpected internal errors return a sanitized 500.
 servers:
   - url: http://127.0.0.1:8787/api/v1
     description: Local development
@@ -155,17 +158,26 @@ paths:
                 bookingMode: { type: string, enum: [request, instant] }
                 notes: { type: string, maxLength: 1000 }
       responses:
+        "200": { description: Replay of the same validated reservation request }
         "201": { description: Reservation request recorded }
         "400": { $ref: "#/components/responses/BadRequest" }
         "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "409": { $ref: "#/components/responses/IdempotencyConflict" }
+        "413": { $ref: "#/components/responses/PayloadTooLarge" }
+        "429": { $ref: "#/components/responses/RateLimited" }
         "503": { description: Demo writes are disabled }
   /rent-records/proofs:
     post:
       operationId: recordRentProof
-      summary: Record proof metadata for a direct tenant-to-landlord transfer
+      summary: Record unlinked demo metadata for a direct rent transfer
       description: >-
-        Does not transfer money or upload raw files. Production file upload must
-        use a private signed-upload flow with malware and access checks.
+        Does not transfer money, upload raw files or confirm a transfer.
+        rentRecordId and documentReference are unverified metadata: this adapter
+        does not look up, fetch or authorize either reference. The response
+        status is recorded_metadata and both linkage values are unverified.
+        Production file upload must use a private signed-upload flow with malware
+        and access checks, and references must be bound to authenticated records.
       security: [{ DemoKey: [] }]
       parameters:
         - $ref: "#/components/parameters/IdempotencyKey"
@@ -184,18 +196,50 @@ paths:
                 - transferredAt
               properties:
                 rentRecordId: { type: string, format: uuid }
-                amount: { type: number, exclusiveMinimum: 0 }
-                currency: { type: string, minLength: 3, maxLength: 3 }
+                amount:
+                  type: number
+                  exclusiveMinimum: 0
+                  maximum: 1000000
+                  multipleOf: 0.01
+                  description: Positive amount with at most two decimal places
+                currency:
+                  type: string
+                  pattern: "^(?:[Ee][Uu][Rr]|[Aa][Oo][Aa])$"
+                  description: EUR or AOA, normalized to uppercase
                 transferReference:
                   { type: string, minLength: 3, maxLength: 120 }
                 documentReference:
                   { type: string, minLength: 3, maxLength: 240 }
-                transferredAt: { type: string, format: date-time }
+                transferredAt:
+                  type: string
+                  format: date-time
+                  description: UTC or explicit-offset timestamp no later than server time
       responses:
+        "200": { description: Replay of the same validated proof metadata }
         "201":
-          { description: Proof metadata recorded for landlord confirmation }
+          description: Unlinked metadata recorded in the local server process
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [id, status, linkage, moneyFlow, kasaCustody]
+                properties:
+                  id: { type: string, format: uuid }
+                  status: { const: recorded_metadata }
+                  linkage:
+                    type: object
+                    required: [rentRecord, document]
+                    properties:
+                      rentRecord: { const: unverified }
+                      document: { const: unverified }
+                  moneyFlow: { const: tenant_to_landlord }
+                  kasaCustody: { const: false }
         "400": { $ref: "#/components/responses/BadRequest" }
         "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "409": { $ref: "#/components/responses/IdempotencyConflict" }
+        "413": { $ref: "#/components/responses/PayloadTooLarge" }
+        "429": { $ref: "#/components/responses/RateLimited" }
         "503": { description: Demo writes are disabled }
 components:
   securitySchemes:
@@ -222,11 +266,56 @@ components:
       in: header
       name: Idempotency-Key
       required: true
+      description: >-
+        Scoped to the write operation for this in-memory development server.
+        Replaying the same normalized valid payload returns 200 and the original
+        result. A different valid payload with the same key returns 409; invalid
+        payloads return 400 before replay lookup. Restarting the server clears
+        this cache.
       schema: { type: string, minLength: 16, maxLength: 200 }
+  schemas:
+    ApiError:
+      type: object
+      required: [message, requestId]
+      properties:
+        message: { type: string }
+        requestId: { type: string }
+        issues:
+          type: array
+          items: { type: object }
   responses:
     BadRequest:
       description: Invalid request
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ApiError" }
     Unauthorized:
       description: Missing or invalid demo API key
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ApiError" }
     NotFound:
       description: Resource not found
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ApiError" }
+    Forbidden:
+      description: The supplied Origin is not allowed
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ApiError" }
+    IdempotencyConflict:
+      description: This key was used with a different validated payload
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ApiError" }
+    PayloadTooLarge:
+      description: JSON request body exceeds 250 KB
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ApiError" }
+    RateLimited:
+      description: API request quota exceeded; retry after the reported limit resets
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ApiError" }

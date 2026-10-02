@@ -57,6 +57,7 @@ The interface includes the product areas below. Connected production authenticat
 
 - Shareable screen/property URLs and browser Back/Forward navigation; scoped search across homes, work, services and spaces.
 - Property dashboards derived from current rent, application and repair records, with upcoming visits and activity history. Owner portfolios follow property ownership, retain filters and return to the originating screen after opening a property.
+- Editable owner listing drafts for rent or sale, with validated details, local photos, cover selection, accurate previews, resume and removal/undo. Ready drafts remain private to the current tab; they are not submitted to moderation or added to the public catalogue. The unified entry also opens the Spaces workflow.
 - Independent Rent/Buy filters, sort order and map areas retained while navigating; keyboard-accessible property galleries and listing-link sharing.
 - Saved search snapshots with reopening, rename, delete and undo; favourite homes and searches isolated by workspace.
 - Separate workspace inboxes, conversation search, unread state, drafts, local message composition and local block/unblock controls.
@@ -65,7 +66,7 @@ The interface includes the product areas below. Connected production authenticat
 - One notification feed shared by the header and full page, with workspace-specific unread counts, individual/read-all actions and links to relevant screens.
 - Booking filters and details, local acceptance of proposed times, keeping an original request and local cancellation with a reason.
 - Maintenance reports with validated details, accessible board/list views, request history, owner scheduling and explicit start/resolve/reopen actions. Tenant and owner access follows the sample tenancy and property ownership.
-- Rent transfer records with amount/date/reference validation, tenant corrections, explicit owner review, history, copyable summaries and CSV export. No bank account or payment execution is provided.
+- Rent transfer records with amount/date/reference validation, tenant corrections, explicit owner review, history, copyable summaries and CSV export, with controls and feedback in all six languages. No bank account or payment execution is provided.
 - Workspace document libraries with labelled examples, local PDF/image/text selection and preview, download, filtering, removal and undo, with controls and feedback in all six interface languages. Files stay in memory and are never uploaded or marked verified.
 - Functional Settings and Help panels, persistent language/reduced-motion preferences, and deferred loading of operational screens.
 
@@ -78,7 +79,7 @@ The broader UI and product scope includes:
 - Universal customer Home with one welcoming intent chooser, global scoped search across Properties, Work, Services and Spaces, and a simple mobile dock whose fifth destination follows the active area
 - Tenant operations with a home dashboard, documents, maintenance, direct landlord bank instructions, proof submission, and confirmed rent history
 - Landlord operations with portfolio analytics, applications, property records, rent reconciliation, and a maintenance board
-- Three-step owner-controlled property creation flow with photos, listing details, review, and moderation submission
+- Owner-controlled property draft flow with photos, listing details and review; production moderation and catalogue publication remain unconnected
 - Kasa Services with five launch categories, verified provider profiles, fixed-price/quote positioning, booking requests, tracking, and service records
 - Kasa Work with direct job and freelance-opportunity discovery, private applications, business hiring posts and the four entry actions Get a job, Hire staff, Find a Pro and Offer services; Kasa is a neutral job-board technology provider, not the employer or recruitment representative
 - Kasa Spaces Phase 2, deliberately limited to sports courts/pitches and event venues, with location-first discovery, operator-suggested or customer-requested times, instant/request reservation modes, external-payment handoff, confirmations, QR booking records, reviews and related-service suggestions

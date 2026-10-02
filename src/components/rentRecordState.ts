@@ -200,33 +200,52 @@ export type RentTransferErrors = Partial<
   Record<keyof RentTransferDraft, string>
 >;
 
-export function validateRentTransfer(
+export const rentTransferIssueMessages = {
+  amount:
+    "Enter an amount between €0.01 and €1,000,000, with up to two decimal places.",
+  transferredOn: "Choose a valid transfer date that is today or earlier.",
+  reference: "Enter a transfer reference of 1–100 characters on one line.",
+  note: "Use 1,000 characters or fewer.",
+} as const;
+export type RentTransferIssues = Partial<
+  Record<keyof RentTransferDraft, keyof typeof rentTransferIssueMessages>
+>;
+
+export function rentTransferIssues(
   draft: RentTransferDraft,
   now = new Date(),
-): RentTransferErrors {
-  const errors: RentTransferErrors = {};
-  if (parseRentAmount(draft.amount) === null)
-    errors.amount =
-      "Enter an amount between €0.01 and €1,000,000, with up to two decimal places.";
+): RentTransferIssues {
+  const errors: RentTransferIssues = {};
+  if (parseRentAmount(draft.amount) === null) errors.amount = "amount";
   const [year, month, day] = draft.transferredOn.split("-").map(Number);
   if (
     !/^\d{4}-\d{2}-\d{2}$/.test(draft.transferredOn) ||
     rentToday(new Date(year, month - 1, day)) !== draft.transferredOn ||
     draft.transferredOn > rentToday(now)
   ) {
-    errors.transferredOn =
-      "Choose a valid transfer date that is today or earlier.";
+    errors.transferredOn = "transferredOn";
   }
   if (
     !draft.reference.trim() ||
     draft.reference.trim().length > 100 ||
     /[\r\n]/.test(draft.reference)
   )
-    errors.reference =
-      "Enter a transfer reference of 1–100 characters on one line.";
-  if (draft.note.trim().length > 1000)
-    errors.note = "Use 1,000 characters or fewer.";
+    errors.reference = "reference";
+  if (draft.note.trim().length > 1000) errors.note = "note";
   return errors;
+}
+
+/** Keep English validation output available for existing domain/API callers. */
+export function validateRentTransfer(
+  draft: RentTransferDraft,
+  now = new Date(),
+): RentTransferErrors {
+  return Object.fromEntries(
+    Object.entries(rentTransferIssues(draft, now)).map(([field, code]) => [
+      field,
+      rentTransferIssueMessages[code],
+    ]),
+  );
 }
 
 export function canRecordRentTransfer(record: RentRecord, role: Role): boolean {
@@ -360,21 +379,65 @@ export function requestRentCorrection(
   );
 }
 
-export function rentRecordSummary(record: RentRecord): string {
-  return [
+export interface RentSummaryLabels {
+  scope: string;
+  bankNotice: string;
+  record: string;
+  period: string;
+  property: string;
+  tenant: string;
+  owner: string;
+  amountDue: string;
+  status: string;
+  reference: string;
+  transfer: (amount: string, date: string) => string;
+  formatMoney: (cents: number) => string;
+  formatDate: (value: string) => string;
+  formatPeriod: (value: string) => string;
+  formatStatus: (value: RentStatus) => string;
+}
+
+const summaryLabels: RentSummaryLabels = {
+  scope:
     "Kasa sample rent record — not payment instructions or a bank receipt.",
+  bankNotice:
     "No bank account is provided. Do not use this sample to make a payment.",
-    `Record: ${record.id}`,
-    `Period: ${record.period}`,
-    `Property: ${record.property}`,
-    `Tenant: ${record.tenant}`,
-    `Listing owner: ${record.owner}`,
-    `Amount due: EUR ${(record.amountDueCents / 100).toFixed(2)}`,
-    `Status: ${record.status}`,
+  record: "Record",
+  period: "Period",
+  property: "Property",
+  tenant: "Tenant",
+  owner: "Listing owner",
+  amountDue: "Amount due",
+  status: "Status",
+  reference: "Reference",
+  transfer: (amount, date) => `Recorded transfer: ${amount} on ${date}`,
+  formatMoney: (cents) => `EUR ${(cents / 100).toFixed(2)}`,
+  formatDate: (value) => value,
+  formatPeriod: (value) => value,
+  formatStatus: (value) => value,
+};
+
+export function rentRecordSummary(
+  record: RentRecord,
+  labels: RentSummaryLabels = summaryLabels,
+): string {
+  return [
+    labels.scope,
+    labels.bankNotice,
+    `${labels.record}: ${record.id}`,
+    `${labels.period}: ${labels.formatPeriod(record.period)}`,
+    `${labels.property}: ${record.property}`,
+    `${labels.tenant}: ${record.tenant}`,
+    `${labels.owner}: ${record.owner}`,
+    `${labels.amountDue}: ${labels.formatMoney(record.amountDueCents)}`,
+    `${labels.status}: ${labels.formatStatus(record.status)}`,
     ...(record.transfer
       ? [
-          `Recorded transfer: EUR ${(record.transfer.amountCents / 100).toFixed(2)} on ${record.transfer.transferredOn}`,
-          `Reference: ${record.transfer.reference}`,
+          labels.transfer(
+            labels.formatMoney(record.transfer.amountCents),
+            labels.formatDate(record.transfer.transferredOn),
+          ),
+          `${labels.reference}: ${record.transfer.reference}`,
         ]
       : []),
   ].join("\n");
@@ -387,24 +450,50 @@ function csvCell(value: string): string {
 }
 
 /** Export sample reconciliation data; neutralize spreadsheet formulas in user-entered cells. */
-export function rentRecordsCsv(records: RentRecord[]): string {
+export interface RentCsvLabels {
+  headers: readonly [
+    string,
+    string,
+    string,
+    string,
+    string,
+    string,
+    string,
+    string,
+    string,
+    string,
+    string,
+    string,
+  ];
+  scope: string;
+}
+
+const csvLabels: RentCsvLabels = {
+  headers: [
+    "Scope",
+    "Record",
+    "Period",
+    "Tenant",
+    "Property",
+    "Amount due EUR",
+    "Recorded amount EUR",
+    "Transfer date",
+    "Reference",
+    "Status",
+    "Correction note",
+    "Note",
+  ],
+  scope: "Sample session record; not bank confirmation",
+};
+
+export function rentRecordsCsv(
+  records: RentRecord[],
+  labels: RentCsvLabels = csvLabels,
+): string {
   const rows = [
-    [
-      "Scope",
-      "Record",
-      "Period",
-      "Tenant",
-      "Property",
-      "Amount due EUR",
-      "Recorded amount EUR",
-      "Transfer date",
-      "Reference",
-      "Status",
-      "Correction note",
-      "Note",
-    ],
+    labels.headers,
     ...records.map((record) => [
-      "Sample session record; not bank confirmation",
+      labels.scope,
       record.id,
       record.period,
       record.tenant,

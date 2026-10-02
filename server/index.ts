@@ -1,4 +1,4 @@
-import { randomUUID, timingSafeEqual } from "node:crypto";
+import { createHash, randomUUID, timingSafeEqual } from "node:crypto";
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import cors from "cors";
@@ -19,12 +19,42 @@ import {
 } from "./schemas.ts";
 
 const app = express();
-const idempotentResponses = new Map<string, unknown>();
+const idempotentResponses = new Map<
+  string,
+  { fingerprint: string; body: unknown }
+>();
 const webRoot = resolve("dist");
 const webEntry = resolve(webRoot, "index.html");
 
 app.disable("x-powered-by");
 app.set("query parser", "simple");
+app.use((request, response, next) => {
+  const requestId =
+    request.header("x-request-id")?.slice(0, 100) || randomUUID();
+  response.setHeader("x-request-id", requestId);
+  response.setHeader("x-kasa-data-mode", "synthetic-demo");
+  response.locals.requestId = requestId;
+  next();
+});
+
+function sendApiError(
+  response: Response,
+  status: number,
+  message: string,
+  details: Record<string, unknown> = {},
+) {
+  response
+    .status(status)
+    .type("application/json")
+    .json({
+      ...details,
+      message,
+      requestId: response.locals.requestId,
+    });
+}
+
+class OriginNotAllowedError extends Error {}
+
 app.use(
   helmet({
     crossOriginResourcePolicy: { policy: "cross-origin" },
@@ -45,7 +75,9 @@ app.use(
         callback(null, true);
         return;
       }
-      callback(new Error("Origin is not allowed by the Kasa API."));
+      callback(
+        new OriginNotAllowedError("Origin is not allowed by the Kasa API."),
+      );
     },
   }),
 );
@@ -57,6 +89,12 @@ app.use(
     limit: 300,
     standardHeaders: "draft-8",
     legacyHeaders: false,
+    handler: (_request, response) =>
+      sendApiError(
+        response,
+        429,
+        "Too many API requests. Please try again later.",
+      ),
     // Platform probes and static assets must not exhaust the API's user quota.
     skip: (request) =>
       ["/api/v1/health", "/api/v1/ready"].includes(
@@ -64,15 +102,6 @@ app.use(
       ),
   }),
 );
-app.use((request, response, next) => {
-  const requestId =
-    request.header("x-request-id")?.slice(0, 100) || randomUUID();
-  response.setHeader("x-request-id", requestId);
-  response.setHeader("x-kasa-data-mode", "synthetic-demo");
-  response.locals.requestId = requestId;
-  next();
-});
-
 function safeKeyEquals(
   received: string | undefined,
   expected: string,
@@ -92,18 +121,15 @@ function requireDemoWrite(
   next: NextFunction,
 ) {
   if (!apiConfig.demoWrites || !apiConfig.demoKey) {
-    response.status(503).json({
-      message:
-        "Writes are disabled. Configure an authenticated persistence service before production use.",
-      requestId: response.locals.requestId,
-    });
+    sendApiError(
+      response,
+      503,
+      "Writes are disabled. Configure an authenticated persistence service before production use.",
+    );
     return;
   }
   if (!safeKeyEquals(request.header("x-kasa-demo-key"), apiConfig.demoKey)) {
-    response.status(401).json({
-      message: "A valid demo API key is required.",
-      requestId: response.locals.requestId,
-    });
+    sendApiError(response, 401, "A valid demo API key is required.");
     return;
   }
   next();
@@ -115,13 +141,38 @@ function requireIdempotency(
 ): string | null {
   const key = request.header("idempotency-key")?.trim();
   if (!key || key.length < 16 || key.length > 200) {
-    response.status(400).json({
-      message: "A 16–200 character Idempotency-Key header is required.",
-      requestId: response.locals.requestId,
-    });
+    sendApiError(
+      response,
+      400,
+      "A 16–200 character Idempotency-Key header is required.",
+    );
     return null;
   }
   return key;
+}
+
+function validatedFingerprint(payload: Record<string, unknown>): string {
+  // Both write schemas produce normalized objects in schema-defined key order.
+  return createHash("sha256").update(JSON.stringify(payload)).digest("hex");
+}
+
+function replayIdempotentResponse(
+  response: Response,
+  cacheKey: string,
+  fingerprint: string,
+): boolean {
+  const cached = idempotentResponses.get(cacheKey);
+  if (!cached) return false;
+  if (cached.fingerprint !== fingerprint) {
+    sendApiError(
+      response,
+      409,
+      "This Idempotency-Key was already used with a different request.",
+    );
+  } else {
+    response.status(200).json(cached.body);
+  }
+  return true;
 }
 
 app.get("/api/v1", (_request, response) => {
@@ -179,8 +230,7 @@ app.get("/api/v1/config", (request, response) => {
 app.get("/api/v1/properties", (request, response) => {
   const parsed = propertyQuerySchema.safeParse(request.query);
   if (!parsed.success) {
-    response.status(400).json({
-      message: "Invalid property filters.",
+    sendApiError(response, 400, "Invalid property filters.", {
       issues: parsed.error.issues,
     });
     return;
@@ -218,7 +268,7 @@ app.get("/api/v1/properties/:id", (request, response) => {
     (item) => item.id === Number(request.params.id),
   );
   if (!property) {
-    response.status(404).json({ message: "Property not found." });
+    sendApiError(response, 404, "Property not found.");
     return;
   }
   response.json(property);
@@ -227,9 +277,9 @@ app.get("/api/v1/properties/:id", (request, response) => {
 app.get("/api/v1/spaces", (request, response) => {
   const parsed = spaceQuerySchema.safeParse(request.query);
   if (!parsed.success) {
-    response
-      .status(400)
-      .json({ message: "Invalid space filters.", issues: parsed.error.issues });
+    sendApiError(response, 400, "Invalid space filters.", {
+      issues: parsed.error.issues,
+    });
     return;
   }
   const filters = parsed.data;
@@ -275,7 +325,7 @@ app.get("/api/v1/spaces/:id", (request, response) => {
     (item) => item.id === Number(request.params.id),
   );
   if (!venue) {
-    response.status(404).json({ message: "Space venue not found." });
+    sendApiError(response, 404, "Space venue not found.");
     return;
   }
   response.json(venue);
@@ -287,25 +337,20 @@ app.post(
   (request, response) => {
     const idempotencyKey = requireIdempotency(request, response);
     if (!idempotencyKey) return;
-    const cached = idempotentResponses.get(`space:${idempotencyKey}`);
-    if (cached) {
-      response.status(200).json(cached);
-      return;
-    }
     const parsed = reservationSchema.safeParse(request.body);
     if (!parsed.success) {
-      response.status(400).json({
-        message: "Invalid reservation request.",
+      sendApiError(response, 400, "Invalid reservation request.", {
         issues: parsed.error.issues,
       });
       return;
     }
+    const cacheKey = `space:${idempotencyKey}`;
+    const fingerprint = validatedFingerprint(parsed.data);
+    if (replayIdempotentResponse(response, cacheKey, fingerprint)) return;
     const venue = spaceVenues.find((item) => item.id === parsed.data.venueId);
     const space = venue?.spaces.find((item) => item.id === parsed.data.spaceId);
     if (!venue || !space) {
-      response
-        .status(404)
-        .json({ message: "Venue or schedulable space not found." });
+      sendApiError(response, 404, "Venue or schedulable space not found.");
       return;
     }
     const reservation = {
@@ -320,7 +365,7 @@ app.post(
         kasaCustody: false,
       },
     };
-    idempotentResponses.set(`space:${idempotencyKey}`, reservation);
+    idempotentResponses.set(cacheKey, { fingerprint, body: reservation });
     response.status(201).json(reservation);
   },
 );
@@ -331,28 +376,26 @@ app.post(
   (request, response) => {
     const idempotencyKey = requireIdempotency(request, response);
     if (!idempotencyKey) return;
-    const cached = idempotentResponses.get(`rent:${idempotencyKey}`);
-    if (cached) {
-      response.status(200).json(cached);
-      return;
-    }
     const parsed = rentProofSchema.safeParse(request.body);
     if (!parsed.success) {
-      response.status(400).json({
-        message: "Invalid rent proof record.",
+      sendApiError(response, 400, "Invalid rent proof record.", {
         issues: parsed.error.issues,
       });
       return;
     }
+    const cacheKey = `rent:${idempotencyKey}`;
+    const fingerprint = validatedFingerprint(parsed.data);
+    if (replayIdempotentResponse(response, cacheKey, fingerprint)) return;
     const record = {
       id: randomUUID(),
       ...parsed.data,
-      status: "awaiting_landlord_confirmation",
+      status: "recorded_metadata",
+      linkage: { rentRecord: "unverified", document: "unverified" },
       moneyFlow: "tenant_to_landlord",
       kasaCustody: false,
       recordedAt: new Date().toISOString(),
     };
-    idempotentResponses.set(`rent:${idempotencyKey}`, record);
+    idempotentResponses.set(cacheKey, { fingerprint, body: record });
     response.status(201).json(record);
   },
 );
@@ -363,7 +406,7 @@ app.get("/api/v1/openapi.yaml", (_request, response) => {
 
 // Keep unknown API routes as JSON 404s, never the SPA's successful HTML page.
 app.use("/api", (_request, response) => {
-  response.status(404).json({ message: "API route not found." });
+  sendApiError(response, 404, "API route not found.");
 });
 
 if (apiConfig.serveWeb) {
@@ -382,22 +425,38 @@ if (apiConfig.serveWeb) {
 }
 
 app.use((_request, response) => {
-  response.status(404).json({ message: "Not found." });
+  sendApiError(response, 404, "Not found.");
 });
 
 app.use(
   (
-    error: Error,
+    error: Error & { type?: string },
     _request: Request,
     response: Response,
-    _next: NextFunction,
+    next: NextFunction,
   ) => {
-    void _next;
+    if (response.headersSent) {
+      next(error);
+      return;
+    }
+    if (error instanceof OriginNotAllowedError) {
+      sendApiError(response, 403, "Origin is not allowed by the Kasa API.");
+      return;
+    }
+    if (error.type === "entity.parse.failed") {
+      sendApiError(response, 400, "Request body must be valid JSON.");
+      return;
+    }
+    if (error.type === "entity.too.large") {
+      sendApiError(response, 413, "Request body exceeds the 250 KB limit.");
+      return;
+    }
     console.error(`[${response.locals.requestId}]`, error.message);
-    response.status(500).json({
-      message: "The Kasa API could not complete this request.",
-      requestId: response.locals.requestId,
-    });
+    sendApiError(
+      response,
+      500,
+      "The Kasa API could not complete this request.",
+    );
   },
 );
 

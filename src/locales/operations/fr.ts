@@ -1,6 +1,8 @@
 import type { OperationsDictionary } from "./types";
+import { rentFr } from "./rent-fr";
 
 export const fr = {
+  ...rentFr,
   documents_samplePreview: "Aperçu d’exemple",
   documents_localFile: "Fichier local",
   documents_closePreview: "Fermer l’aperçu du document",

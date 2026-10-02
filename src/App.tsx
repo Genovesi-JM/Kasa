@@ -77,6 +77,8 @@ import { createInitialDocumentState } from "./components/documentState";
 import { readPreference, writePreference } from "./platform/preferences";
 import { isWorkspaceListingOwner, ownsProperty } from "./propertyScope";
 import { propertyOperationStatus } from "./components/propertyOperationStatus";
+import type { PortfolioFilters } from "./components/PropertyPortfolio";
+import { createInitialPropertyListingState } from "./components/propertyListingState";
 import {
   buildPropertyOperationsSummary,
   type PropertyOperationsSummary,
@@ -162,6 +164,16 @@ const formatEuro = (value: number) =>
 
 type ServiceLaunchMode = AppRoute["service"];
 
+const PropertyPortfolio = lazy(() =>
+  import("./components/PropertyPortfolio").then((module) => ({
+    default: module.PropertyPortfolio,
+  })),
+);
+const PropertyListingWorkspace = lazy(() =>
+  import("./components/PropertyListingWorkspace").then((module) => ({
+    default: module.PropertyListingWorkspace,
+  })),
+);
 const PropertyOverview = lazy(() =>
   import("./components/PropertyOverview").then((module) => ({
     default: module.PropertyOverview,
@@ -2371,481 +2383,6 @@ function Saved({
           <h3>No saved homes match</h3>
           <p>Reset the filter or save more properties from discovery.</p>
         </div>
-      )}
-    </div>
-  );
-}
-
-interface PortfolioFilters {
-  status: string;
-  query: string;
-  sort: string;
-}
-
-function Portfolio({
-  role,
-  notify,
-  go,
-  onStartSpaceListing,
-  summary,
-  onOpenProperty,
-  filters,
-  setFilters,
-}: {
-  role: Role;
-  notify: (message: string) => void;
-  go: (view: View) => void;
-  onStartSpaceListing: () => void;
-  summary: PropertyOperationsSummary | null;
-  onOpenProperty: (property: Property) => void;
-  filters: PortfolioFilters;
-  setFilters: React.Dispatch<React.SetStateAction<PortfolioFilters>>;
-}) {
-  const { language } = useKasaI18n();
-  const [adding, setAdding] = useState(false);
-  const [choosingListing, setChoosingListing] = useState(false);
-  const [addStep, setAddStep] = useState(1);
-  const [listingUse, setListingUse] = useState<"Long-term rent" | "Sale">(
-    "Long-term rent",
-  );
-  const {
-    status: portfolioStatus,
-    query: portfolioQuery,
-    sort: portfolioSort,
-  } = filters;
-  const setPortfolioStatus = (status: string) =>
-    setFilters((current) => ({ ...current, status }));
-  const setPortfolioQuery = (query: string) =>
-    setFilters((current) => ({ ...current, query }));
-  const setPortfolioSort = (sort: string) =>
-    setFilters((current) => ({ ...current, sort }));
-  const closeAdd = () => {
-    setAdding(false);
-    setAddStep(1);
-  };
-  const startPropertyListing = (use: "Long-term rent" | "Sale") => {
-    setListingUse(use);
-    setChoosingListing(false);
-    setAdding(true);
-  };
-
-  if (role !== "landlord" || !summary)
-    return (
-      <section className="card padded">
-        <h2>Property Owner workspace</h2>
-        <p>Switch to the property owner workspace to open its portfolio.</p>
-        <ActionButton secondary onClick={() => go("overview")}>
-          Back to overview
-        </ActionButton>
-      </section>
-    );
-  const operationalProperties = summary.properties;
-  const hasRentRecords = (property: Property) =>
-    summary.rentRecords.some((record) => record.propertyId === property.id);
-  const openIssues = (property: Property) =>
-    summary.openMaintenance.filter(
-      (record) => record.propertyId === property.id,
-    ).length;
-  const visiblePortfolio = operationalProperties
-    .filter((property) => {
-      const status = hasRentRecords(property)
-        ? "With rent records"
-        : "Without rent records";
-      return (
-        (portfolioStatus === "All properties" || status === portfolioStatus) &&
-        matchesSearch(portfolioQuery, property.title, property.address)
-      );
-    })
-    .sort((a, b) =>
-      portfolioSort === "Property name"
-        ? a.title.localeCompare(b.title)
-        : portfolioSort === "Rent: high to low"
-          ? b.price - a.price
-          : portfolioSort === "Open issues first"
-            ? openIssues(b) - openIssues(a)
-            : b.id - a.id,
-    );
-  return (
-    <div className="page-stack">
-      <div className="page-actions">
-        <div className="segment">
-          {["All properties", "With rent records", "Without rent records"].map(
-            (status) => (
-              <button
-                key={status}
-                className={portfolioStatus === status ? "active" : ""}
-                onClick={() => setPortfolioStatus(status)}
-              >
-                {status}{" "}
-                <span>
-                  {status === "All properties"
-                    ? operationalProperties.length
-                    : status === "With rent records"
-                      ? operationalProperties.filter(hasRentRecords).length
-                      : operationalProperties.filter(
-                          (property) => !hasRentRecords(property),
-                        ).length}
-                </span>
-              </button>
-            ),
-          )}
-        </div>
-        <ActionButton icon={Plus} onClick={() => setChoosingListing(true)}>
-          Advertise property or space
-        </ActionButton>
-      </div>
-      <FilterToolbar
-        activeCount={
-          Number(portfolioStatus !== "All properties") +
-          Number(Boolean(portfolioQuery))
-        }
-        onReset={() => {
-          setPortfolioStatus("All properties");
-          setPortfolioQuery("");
-          setPortfolioSort("Property name");
-        }}
-      >
-        <label className="filter-search">
-          <Search size={15} />
-          <input
-            aria-label="Search portfolio"
-            placeholder="Search property"
-            value={portfolioQuery}
-            onChange={(event) => setPortfolioQuery(event.target.value)}
-          />
-        </label>
-        <select
-          aria-label="Sort portfolio"
-          value={portfolioSort}
-          onChange={(event) => setPortfolioSort(event.target.value)}
-        >
-          <option>Open issues first</option>
-          <option>Rent: high to low</option>
-          <option>Property name</option>
-        </select>
-      </FilterToolbar>
-      <section className="portfolio-list">
-        {visiblePortfolio.map((property) => (
-          <article className="portfolio-row" key={property.id}>
-            <img src={property.image} alt={property.title} />
-            <div className="portfolio-main">
-              <div>
-                <h3>{property.title}</h3>
-                <p>{property.address}</p>
-              </div>
-              <div className="occupancy-line">
-                <span>
-                  {property.listingType === "Rent"
-                    ? "Rental listing"
-                    : "Sale listing"}
-                </span>
-                <small>
-                  {
-                    summary.rentRecords.filter(
-                      (record) => record.propertyId === property.id,
-                    ).length
-                  }{" "}
-                  rent records · {openIssues(property)} open repairs
-                </small>
-              </div>
-            </div>
-            <div className="portfolio-stat">
-              <small>
-                {property.listingType === "Rent"
-                  ? "Listed monthly rent"
-                  : "Asking price"}
-              </small>
-              <strong>{formatEuro(property.price)}</strong>
-            </div>
-            <div className="portfolio-stat">
-              <small>Next action</small>
-              <button
-                className="text-button"
-                onClick={() => {
-                  if (openIssues(property)) go("maintenance");
-                  else if (
-                    summary.rentAwaitingOwner.some(
-                      (record) => record.propertyId === property.id,
-                    )
-                  )
-                    go("rent");
-                  else onOpenProperty(property);
-                }}
-              >
-                {openIssues(property)
-                  ? "Review repairs"
-                  : summary.rentAwaitingOwner.some(
-                        (record) => record.propertyId === property.id,
-                      )
-                    ? "Review rent record"
-                    : "Open property"}
-              </button>
-            </div>
-            <StatusPill
-              tone={
-                summary.currentRent.find(
-                  (record) => record.propertyId === property.id,
-                )?.status === "Confirmed"
-                  ? "mint"
-                  : "neutral"
-              }
-            >
-              {propertyOperationStatus(
-                summary.currentRent.find(
-                  (record) => record.propertyId === property.id,
-                )?.status ?? "No rent record this month",
-                language,
-              )}
-            </StatusPill>
-            <button
-              className="icon-button"
-              onClick={() => onOpenProperty(property)}
-              aria-label={`Open ${property.title}`}
-            >
-              <ChevronRight size={19} />
-            </button>
-          </article>
-        ))}
-        {visiblePortfolio.length === 0 && (
-          <div className="table-empty">
-            <Search size={22} />
-            <span>No properties match these filters.</span>
-          </div>
-        )}
-      </section>
-      {choosingListing && (
-        <Modal
-          title="What would you like to advertise?"
-          onClose={() => setChoosingListing(false)}
-        >
-          <div className="modal-body unified-listing-chooser">
-            <p>
-              Properties and spaces share one publishing entry. Kasa opens the
-              right workflow after you choose how the asset will be used.
-            </p>
-            <div>
-              <button onClick={() => startPropertyListing("Long-term rent")}>
-                <span className="hub-icon mint">
-                  <Home />
-                </span>
-                <span>
-                  <strong>Long-term rental property</strong>
-                  <small>Residential use measured in months or years</small>
-                </span>
-                <ChevronRight />
-              </button>
-              <button onClick={() => startPropertyListing("Sale")}>
-                <span className="hub-icon blue">
-                  <Building2 />
-                </span>
-                <span>
-                  <strong>Property for sale</strong>
-                  <small>Publish an owner-controlled sale listing</small>
-                </span>
-                <ChevronRight />
-              </button>
-              <button
-                onClick={() => {
-                  setChoosingListing(false);
-                  onStartSpaceListing();
-                }}
-              >
-                <span className="hub-icon gold">
-                  <CalendarDays />
-                </span>
-                <span>
-                  <strong>Reservable space</strong>
-                  <small>
-                    Sports or event use by hour, session or day—no overnight
-                    accommodation
-                  </small>
-                </span>
-                <ChevronRight />
-              </button>
-            </div>
-            <div className="scope-note">
-              <ShieldCheck size={16} />
-              <span>
-                One asset account and publishing entry; different operational
-                tools after publication.
-              </span>
-            </div>
-          </div>
-        </Modal>
-      )}
-      {adding && (
-        <Modal
-          title={
-            listingUse === "Sale"
-              ? "Advertise a property for sale"
-              : "Advertise a long-term rental"
-          }
-          onClose={closeAdd}
-        >
-          <div className="modal-body property-wizard">
-            <div className="wizard-progress">
-              <span className={addStep >= 1 ? "active" : ""}>
-                <i>1</i>Basics
-              </span>
-              <b />
-              <span className={addStep >= 2 ? "active" : ""}>
-                <i>2</i>Details
-              </span>
-              <b />
-              <span className={addStep >= 3 ? "active" : ""}>
-                <i>3</i>Review
-              </span>
-            </div>
-            {addStep === 1 && (
-              <>
-                <button
-                  className="photo-drop"
-                  onClick={() =>
-                    notify("Photo picker opened for the property record.")
-                  }
-                >
-                  <Camera size={27} />
-                  <strong>Add property photos</strong>
-                  <small>Upload up to 20 images · JPG or PNG</small>
-                </button>
-                <div className="form-grid">
-                  <label className="full">
-                    Property name
-                    <input defaultValue="Marina light apartment" />
-                  </label>
-                  <label>
-                    Property type
-                    <select defaultValue="Apartment">
-                      <option>Apartment</option>
-                      <option>House</option>
-                      <option>Studio</option>
-                      <option>Room</option>
-                    </select>
-                  </label>
-                  <label>
-                    Listing use
-                    <select
-                      value={listingUse}
-                      onChange={(event) =>
-                        setListingUse(
-                          event.target.value as "Long-term rent" | "Sale",
-                        )
-                      }
-                    >
-                      <option>Long-term rent</option>
-                      <option>Sale</option>
-                    </select>
-                  </label>
-                  <label className="full">
-                    Address
-                    <input defaultValue="Carrer de la Marina, Barcelona" />
-                  </label>
-                </div>
-              </>
-            )}
-            {addStep === 2 && (
-              <div className="form-grid">
-                <label>
-                  Bedrooms
-                  <input type="number" defaultValue="2" />
-                </label>
-                <label>
-                  Bathrooms
-                  <input type="number" defaultValue="2" />
-                </label>
-                <label>
-                  Size (m²)
-                  <input type="number" defaultValue="88" />
-                </label>
-                <label>
-                  {listingUse === "Sale" ? "Asking price" : "Monthly rent"}
-                  <input
-                    type="number"
-                    defaultValue={listingUse === "Sale" ? "450000" : "1750"}
-                  />
-                </label>
-                <label>
-                  Available from
-                  <input type="date" defaultValue="2026-09-01" />
-                </label>
-                <label>
-                  Furnishing
-                  <select>
-                    <option>Furnished</option>
-                    <option>Unfurnished</option>
-                    <option>Part furnished</option>
-                  </select>
-                </label>
-                <label className="full">
-                  Description
-                  <textarea defaultValue="Bright two-bedroom home with balcony, lift and excellent transport connections." />
-                </label>
-              </div>
-            )}
-            {addStep === 3 && (
-              <div className="wizard-review">
-                <div className="review-image">
-                  <img src={properties[0].image} alt="Property preview" />
-                  <StatusPill tone="amber">Draft</StatusPill>
-                </div>
-                <div>
-                  <span className="eyebrow">READY FOR REVIEW</span>
-                  <h3>Marina light apartment</h3>
-                  <p>Carrer de la Marina, Barcelona</p>
-                  <div className="review-facts">
-                    <span>
-                      <strong>2</strong> bedrooms
-                    </span>
-                    <span>
-                      <strong>88</strong> m²
-                    </span>
-                    <span>
-                      <strong>
-                        {listingUse === "Sale" ? "€450,000" : "€1,750"}
-                      </strong>{" "}
-                      {listingUse === "Sale" ? "asking price" : "/ month"}
-                    </span>
-                  </div>
-                </div>
-                <div className="scope-note">
-                  <ShieldCheck size={16} />
-                  <span>
-                    You publish and manage the listing directly. Kasa may
-                    moderate information for safety, but does not become your
-                    agent or negotiate on your behalf.
-                  </span>
-                </div>
-              </div>
-            )}
-            <div className="modal-actions">
-              <button
-                className="button button-secondary"
-                onClick={
-                  addStep === 1
-                    ? closeAdd
-                    : () => setAddStep((step) => step - 1)
-                }
-              >
-                {addStep === 1 ? "Cancel" : "Back"}
-              </button>
-              <button
-                className="button"
-                onClick={
-                  addStep === 3
-                    ? () => {
-                        notify(
-                          "Property submitted to the listing moderation queue.",
-                        );
-                        closeAdd();
-                      }
-                    : () => setAddStep((step) => step + 1)
-                }
-              >
-                {addStep === 3 ? "Submit for review" : "Continue"}
-              </button>
-            </div>
-          </div>
-        </Modal>
       )}
     </div>
   );
@@ -6760,6 +6297,9 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
   const [rentRecordState, setRentRecordState] = useState(
     createInitialRentRecordState,
   );
+  const [propertyListingState, setPropertyListingState] = useState(
+    createInitialPropertyListingState,
+  );
   const [portfolioFilters, setPortfolioFilters] = useState<PortfolioFilters>({
     status: "All properties",
     query: "",
@@ -7431,7 +6971,9 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
                 ? `${tr("common.back")} · ${tr(role === "tenant" ? "nav.myHome" : "nav.myProperties")}`
                 : propertyReturnTo === "overview"
                   ? `${tr("common.back")} · ${tr("common.overview")}`
-                  : undefined
+                  : propertyReturnTo === "saved"
+                    ? `${tr("common.back")} · ${tr("nav.savedHomes")}`
+                    : undefined
             }
             onMessage={() => {
               if (!isWorkspaceListingOwner(role, selectedProperty.id)) {
@@ -7525,19 +7067,24 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
             onOpenProperty={(property) => openProperty(property, "portfolio")}
           />
         ) : (
-          <Portfolio
+          <PropertyPortfolio
             filters={portfolioFilters}
             setFilters={setPortfolioFilters}
             summary={operationsSummary}
             onOpenProperty={(property) => openProperty(property, "portfolio")}
             role={role}
-            notify={notify}
             go={go}
-            onStartSpaceListing={() => {
-              setRole("spaceOperator");
-              go("spaceOnboarding");
-            }}
-          />
+          >
+            <PropertyListingWorkspace
+              role={role}
+              state={propertyListingState}
+              setState={setPropertyListingState}
+              onStartSpaceListing={() => {
+                setRole("spaceOperator");
+                go("spaceOnboarding");
+              }}
+            />
+          </PropertyPortfolio>
         );
       case "applications":
         return (

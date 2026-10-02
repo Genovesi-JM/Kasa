@@ -30,6 +30,26 @@ import {
   validateDocumentFile,
 } from "../src/components/documentState";
 import type { Role } from "../src/types";
+import {
+  createInitialRentRecordState,
+  filterRentRecords,
+  rentRecordSummary,
+  rentRecordsCsv,
+  rentStatuses,
+  rentTransferIssues,
+  rentTransferIssueMessages,
+  validateRentTransfer,
+  visibleRentRecords,
+} from "../src/components/rentRecordState";
+import {
+  localizedRentCsvLabels,
+  localizedRentSummaryLabels,
+  rentFormatters,
+  rentIssueKeys,
+  rentSortKeys,
+  rentStatusKeys,
+} from "../src/locales/operations/rentLabels";
+import type { OperationsValues } from "../src/locales/operations/types";
 
 const languages = ["pt", "en", "es", "fr", "ar", "zh"] as const;
 const instance = createInstance();
@@ -278,6 +298,220 @@ for (const language of languages) {
   );
 }
 
+assert.deepEqual(Object.keys(rentStatusKeys), [...rentStatuses]);
+assert.deepEqual(
+  Object.keys(rentIssueKeys).sort(),
+  Object.keys(rentTransferIssueMessages).sort(),
+);
+assert.deepEqual(Object.keys(rentSortKeys), [
+  "Most recently updated",
+  "Amount: high to low",
+  "Property name",
+]);
+const rentComponent = ts.createSourceFile(
+  "RentRecords.tsx",
+  readFileSync(
+    new URL("../src/components/RentRecords.tsx", import.meta.url),
+    "utf8",
+  ),
+  ts.ScriptTarget.Latest,
+  true,
+  ts.ScriptKind.TSX,
+);
+let rentOptions = 0;
+function visitRent(node: ts.Node) {
+  if (
+    ts.isJsxOpeningElement(node) &&
+    node.tagName.getText(rentComponent) === "option"
+  ) {
+    rentOptions += 1;
+    const value = node.attributes.properties.find(
+      (attribute) =>
+        ts.isJsxAttribute(attribute) &&
+        attribute.name.getText(rentComponent) === "value",
+    );
+    assert.ok(
+      value && ts.isJsxAttribute(value) && value.initializer,
+      "Rent filters need canonical option values",
+    );
+    if (ts.isStringLiteral(value.initializer)) {
+      assert.ok(
+        ["All periods", "All statuses", "All properties"].includes(
+          value.initializer.text,
+        ),
+      );
+    } else {
+      assert.ok(
+        ts.isJsxExpression(value.initializer) && value.initializer.expression,
+      );
+      assert.ok(
+        ["period", "status", "property", "value"].includes(
+          value.initializer.expression.getText(rentComponent),
+        ),
+      );
+    }
+  }
+  if (ts.isJsxText(node))
+    assert.equal(
+      node.text.trim(),
+      "",
+      "Rent UI copy must use translation resources",
+    );
+  if (
+    ts.isJsxAttribute(node) &&
+    ["aria-label", "title", "placeholder"].includes(
+      node.name.getText(rentComponent),
+    )
+  ) {
+    assert.ok(
+      node.initializer && ts.isJsxExpression(node.initializer),
+      "Accessible rent labels must be localized",
+    );
+  }
+  ts.forEachChild(node, visitRent);
+}
+visitRent(rentComponent);
+assert.equal(rentOptions, 7);
+
+const invalidRentDraft = {
+  amount: "1.001",
+  transferredOn: "2099-02-30",
+  reference: "",
+  note: "x".repeat(1001),
+};
+assert.deepEqual(rentTransferIssues(invalidRentDraft), {
+  amount: "amount",
+  transferredOn: "transferredOn",
+  reference: "reference",
+  note: "note",
+});
+assert.deepEqual(
+  validateRentTransfer(invalidRentDraft),
+  rentTransferIssueMessages,
+  "Existing English validator contract remains unchanged",
+);
+const rentState = createInitialRentRecordState();
+const originalRentState = JSON.stringify(rentState);
+const tenantRentRecords = visibleRentRecords(rentState, "tenant");
+const rentRecord = tenantRentRecords.find((record) => record.transfer)!;
+const exportRecord = {
+  ...rentRecord,
+  transfer: {
+    ...rentRecord.transfer!,
+    reference: '=HYPERLINK("unsafe")',
+    note: "Original note, unchanged.",
+  },
+};
+const defaultSummary = rentRecordSummary(exportRecord);
+const defaultCsv = rentRecordsCsv([exportRecord]);
+const defaultCsvRow = defaultCsv.split("\r\n")[1];
+const stableCsvData = defaultCsvRow.slice(defaultCsvRow.indexOf('","') + 2);
+const rentFeedback: OperationsMessage = { key: "rent_transferSaved" };
+for (const language of languages) {
+  await instance.changeLanguage(language);
+  const tr = (key: OperationsKey, values?: OperationsValues) =>
+    operationText(instance, language, key, values);
+  const locale = operationsLocales[language];
+  const formats = rentFormatters(locale);
+  const labels = localizedRentSummaryLabels(tr, locale);
+  const summary = rentRecordSummary(exportRecord, labels);
+  assert.ok(summary.includes(operationsResources[language].rent_summaryScope));
+  assert.ok(
+    summary.includes(operationsResources[language].rent_summaryBankNotice),
+  );
+  assert.ok(summary.includes(tr(rentStatusKeys[exportRecord.status])));
+  assert.ok(summary.includes(formats.money(exportRecord.amountDueCents)));
+  assert.ok(
+    summary.includes(exportRecord.transfer.reference),
+    "User reference is never translated",
+  );
+  assert.ok(summary.includes(exportRecord.tenant));
+  assert.ok(summary.includes(exportRecord.property));
+  assert.ok(!summary.includes("{{"));
+  assert.equal(
+    formats.dateLabel("2026-10-03"),
+    new Date("2026-10-03T12:00:00").toLocaleDateString(locale, {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    }),
+  );
+  assert.equal(
+    formats.periodLabel("2026-10"),
+    new Date("2026-10-01T12:00:00").toLocaleDateString(locale, {
+      month: "long",
+      year: "numeric",
+    }),
+  );
+  for (const [code, key] of Object.entries(rentIssueKeys)) {
+    assert.ok(
+      tr(key).includes(operationsResources[language][key]),
+      `${language} error ${code}`,
+    );
+  }
+  for (const count of [0, 1, 2]) {
+    for (const key of [
+      "rent_matchingCount",
+      "rent_allPeriodsCount",
+      "rent_csvStarted",
+    ] as const) {
+      assert.ok(tr(key, { count }).includes(String(count)));
+      assert.ok(!tr(key, { count }).includes("{{"));
+    }
+  }
+  assert.ok(
+    tr(rentFeedback.key).includes(
+      operationsResources[language].rent_transferSaved,
+    ),
+  );
+  for (const status of rentStatuses) {
+    assert.ok(
+      tr(rentStatusKeys[status]).includes(
+        operationsResources[language][rentStatusKeys[status]],
+      ),
+    );
+    const filtered = filterRentRecords(tenantRentRecords, {
+      status,
+      property: "All properties",
+      period: "All periods",
+      sort: "Most recently updated",
+    });
+    assert.ok(
+      filtered.every((record) => record.status === status),
+      "Localized labels cannot change domain filtering",
+    );
+  }
+  const csv = rentRecordsCsv([exportRecord], localizedRentCsvLabels(tr));
+  assert.ok(
+    csv
+      .split("\r\n")[0]
+      .includes(operationsResources[language].rent_csvAmountDue),
+  );
+  assert.ok(
+    csv.split("\r\n")[1].endsWith(stableCsvData),
+    "CSV amounts, dates, statuses and user text stay canonical",
+  );
+  assert.ok(
+    csv.includes(`"'=HYPERLINK(""unsafe"")"`),
+    "Localized CSV retains spreadsheet formula neutralization",
+  );
+  assert.equal(
+    rentRecordSummary(exportRecord),
+    defaultSummary,
+    "Default summary helper output stays English",
+  );
+  assert.equal(
+    rentRecordsCsv([exportRecord]),
+    defaultCsv,
+    "Default CSV helper output stays English",
+  );
+  assert.equal(
+    JSON.stringify(rentState),
+    originalRentState,
+    "Locale changes never rewrite rent data or history",
+  );
+}
+
 console.log(
-  "Operations localization checks passed: all six dictionaries, plural forms, interpolation, bilingual labels, canonical filter values, structured errors and language-independent document state.",
+  "Operations localization checks passed: all six dictionaries, plurals, interpolation, bilingual labels, canonical document/rent filters, structured errors, localized rent exports and unchanged domain state.",
 );

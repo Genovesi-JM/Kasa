@@ -115,6 +115,8 @@ try {
       body: "{}",
     });
     assert.equal(write.status, 503);
+    const writeError = (await write.json()) as Record<string, unknown>;
+    assert.equal(writeError.requestId, write.headers.get("x-request-id"));
   }
   passed(
     "catalogue remains available while every existing write route is disabled",
@@ -129,6 +131,12 @@ try {
   const blockedOrigin = await fetch(`${base}/api/v1/health`, {
     headers: { origin: "https://unapproved.example" },
   });
+  assert.equal(blockedOrigin.status, 403);
+  const originError = (await blockedOrigin.json()) as Record<string, unknown>;
+  assert.equal(
+    originError.requestId,
+    blockedOrigin.headers.get("x-request-id"),
+  );
   assert.equal(blockedOrigin.headers.get("access-control-allow-origin"), null);
   assert.match(
     page.headers.get("content-security-policy") || "",
@@ -142,6 +150,22 @@ try {
   assert.equal((await fetch(`${missingWeb.base}/api/v1/health`)).status, 200);
   assert.equal((await fetch(`${missingWeb.base}/api/v1/ready`)).status, 503);
   passed("missing web build fails readiness without conflating liveness");
+
+  const unavailableContract = await fetch(
+    `${missingWeb.base}/api/v1/openapi.yaml`,
+  );
+  assert.equal(unavailableContract.status, 500);
+  assert.match(
+    unavailableContract.headers.get("content-type") || "",
+    /application\/json/,
+  );
+  assert.deepEqual(await unavailableContract.json(), {
+    message: "The Kasa API could not complete this request.",
+    requestId: unavailableContract.headers.get("x-request-id"),
+  });
+  passed(
+    "unexpected resource failures return a sanitized error with a request ID",
+  );
 
   const unsafe = await start({
     env: {

@@ -46,12 +46,23 @@ export const reservationSchema = z
 
 export const rentProofSchema = z.object({
   rentRecordId: z.string().uuid(),
-  amount: z.number().positive(),
+  amount: z
+    .number()
+    .positive()
+    .max(1_000_000)
+    .refine((amount) => /^\d+(?:\.\d{1,2})?$/.test(String(amount)), {
+      message: "amount must contain whole cents (at most two decimal places)",
+    }),
   currency: z
     .string()
-    .length(3)
-    .transform((value) => value.toUpperCase()),
+    .transform((value) => value.toUpperCase())
+    .pipe(z.enum(["EUR", "AOA"])),
   transferReference: z.string().trim().min(3).max(120),
   documentReference: z.string().trim().min(3).max(240),
-  transferredAt: z.iso.datetime(),
+  transferredAt: z.iso
+    .datetime({ offset: true })
+    .refine((value) => Date.parse(value) <= Date.now(), {
+      message: "transferredAt cannot be in the future",
+    })
+    .transform((value) => new Date(value).toISOString()),
 });

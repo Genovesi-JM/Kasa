@@ -21,6 +21,16 @@ import {
 } from "lucide-react";
 import type { Role } from "../types";
 import { useDialogFocus } from "./useDialogFocus";
+import { useOperationsI18n } from "./useOperationsI18n";
+import type { OperationsMessage } from "../locales/operations/types";
+import {
+  localizedRentCsvLabels,
+  localizedRentSummaryLabels,
+  rentFormatters,
+  rentIssueKeys,
+  rentSortKeys,
+  rentStatusKeys,
+} from "../locales/operations/rentLabels";
 import {
   canConfirmRentRecord,
   canRecordRentTransfer,
@@ -33,31 +43,16 @@ import {
   rentStatuses,
   rentToday,
   requestRentCorrection,
-  validateRentTransfer,
+  rentTransferIssues,
   visibleRentRecords,
   type RentRecord,
   type RentRecordFilters,
   type RentRecordState,
   type RentTransferDraft,
-  type RentTransferErrors,
+  type RentTransferIssues,
 } from "./rentRecordState";
 import "./rentRecords.css";
 
-const money = (cents: number) =>
-  new Intl.NumberFormat("en-GB", { style: "currency", currency: "EUR" }).format(
-    cents / 100,
-  );
-const dateLabel = (value: string) =>
-  new Date(`${value}T12:00:00`).toLocaleDateString("en-GB", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
-const periodLabel = (value: string) =>
-  new Date(`${value}-01T12:00:00`).toLocaleDateString("en-GB", {
-    month: "long",
-    year: "numeric",
-  });
 const defaultFilters = (): RentRecordFilters => ({
   status: "All statuses",
   property: "All properties",
@@ -66,6 +61,7 @@ const defaultFilters = (): RentRecordFilters => ({
 });
 
 function RentStatus({ record }: { record: RentRecord }) {
+  const { tr } = useOperationsI18n();
   const tone =
     record.status === "Confirmed"
       ? "mint"
@@ -79,7 +75,7 @@ function RentStatus({ record }: { record: RentRecord }) {
       {record.status === "Confirmed" && (
         <CheckCircle2 size={13} aria-hidden="true" />
       )}
-      {record.status}
+      {tr(rentStatusKeys[record.status])}
     </span>
   );
 }
@@ -93,6 +89,7 @@ function TransferForm({
   onSave: (draft: RentTransferDraft) => void;
   onCancel: () => void;
 }) {
+  const { tr } = useOperationsI18n();
   const id = useId();
   const [draft, setDraft] = useState<RentTransferDraft>(() => ({
     amount: (
@@ -102,7 +99,7 @@ function TransferForm({
     reference: record.transfer?.reference ?? "",
     note: record.transfer?.note ?? "",
   }));
-  const [errors, setErrors] = useState<RentTransferErrors>({});
+  const [errors, setErrors] = useState<RentTransferIssues>({});
   const amountRef = useRef<HTMLInputElement>(null);
   const errorRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -120,7 +117,7 @@ function TransferForm({
   const errorText = (field: keyof RentTransferDraft) =>
     errors[field] && (
       <small id={`${id}-${field}-error`} className="rent-field-error">
-        {errors[field]}
+        {tr(rentIssueKeys[errors[field]])}
       </small>
     );
   return (
@@ -137,18 +134,15 @@ function TransferForm({
           note: String(values.get("note") ?? ""),
         };
         setDraft(submitted);
-        const nextErrors = validateRentTransfer(submitted);
+        const nextErrors = rentTransferIssues(submitted);
         setErrors(nextErrors);
         if (!Object.keys(nextErrors).length) onSave(submitted);
       }}
     >
       <h3>
-        {record.transfer ? "Edit transfer details" : "Record transfer details"}
+        {tr(record.transfer ? "rent_editTransfer" : "rent_recordTransfer")}
       </h3>
-      <p className="rent-muted">
-        Use example details. This form records a transfer description; it does
-        not move money or upload proof.
-      </p>
+      <p className="rent-muted">{tr("rent_formScope")}</p>
       {Object.keys(errors).length > 0 && (
         <div
           className="rent-form-errors"
@@ -156,7 +150,7 @@ function TransferForm({
           tabIndex={-1}
           ref={errorRef}
         >
-          <strong>Check these details</strong>
+          <strong>{tr("rent_checkDetails")}</strong>
           <ul>
             {Object.entries(errors).map(([field, message]) => (
               <li key={field}>
@@ -167,7 +161,7 @@ function TransferForm({
                     document.getElementById(`${id}-${field}`)?.focus()
                   }
                 >
-                  {message}
+                  {tr(rentIssueKeys[message])}
                 </button>
               </li>
             ))}
@@ -176,12 +170,12 @@ function TransferForm({
       )}
       <div className="rent-form-grid">
         <label htmlFor={`${id}-amount`}>
-          Transferred amount (€)
+          {tr("rent_transferredAmount")}
           <input
             id={`${id}-amount`}
             ref={amountRef}
             name="amount"
-            aria-label="Transferred amount (€)"
+            aria-label={tr("rent_transferredAmount")}
             inputMode="decimal"
             value={draft.amount}
             maxLength={15}
@@ -189,17 +183,15 @@ function TransferForm({
             onChange={(event) => change("amount", event.target.value)}
             {...errorProps("amount")}
           />
-          <small className="rent-muted">
-            Use a decimal point or comma, without thousands separators.
-          </small>
+          <small className="rent-muted">{tr("rent_decimalHint")}</small>
           {errorText("amount")}
         </label>
         <label htmlFor={`${id}-transferredOn`}>
-          Transfer date
+          {tr("rent_transferDate")}
           <input
             id={`${id}-transferredOn`}
             name="transferredOn"
-            aria-label="Transfer date"
+            aria-label={tr("rent_transferDate")}
             type="date"
             value={draft.transferredOn}
             max={rentToday()}
@@ -213,26 +205,26 @@ function TransferForm({
           {errorText("transferredOn")}
         </label>
         <label className="rent-form-wide" htmlFor={`${id}-reference`}>
-          Transfer reference
+          {tr("rent_transferReference")}
           <input
             id={`${id}-reference`}
             name="reference"
-            aria-label="Transfer reference"
+            aria-label={tr("rent_transferReference")}
             value={draft.reference}
             maxLength={100}
             required
-            placeholder="For example, EXAMPLE-SEPTEMBER-RENT"
+            placeholder={tr("rent_referencePlaceholder")}
             onChange={(event) => change("reference", event.target.value)}
             {...errorProps("reference")}
           />
           {errorText("reference")}
         </label>
         <label className="rent-form-wide" htmlFor={`${id}-note`}>
-          Note (optional)
+          {tr("rent_optionalNote")}
           <textarea
             id={`${id}-note`}
             name="note"
-            aria-label="Transfer note"
+            aria-label={tr("rent_transferNote")}
             value={draft.note}
             maxLength={1000}
             rows={3}
@@ -248,10 +240,10 @@ function TransferForm({
           className="button button-secondary"
           onClick={onCancel}
         >
-          Cancel edit
+          {tr("rent_cancelEdit")}
         </button>
         <button type="submit" className="button">
-          Save transfer details
+          {tr("rent_saveTransfer")}
         </button>
       </div>
     </form>
@@ -271,28 +263,34 @@ function RentRecordDialog({
   setState: Dispatch<SetStateAction<RentRecordState>>;
   onClose: () => void;
 }) {
+  const { tr, locale, language } = useOperationsI18n();
+  const { money, dateLabel, periodLabel } = rentFormatters(locale);
+  const summaryLabels = localizedRentSummaryLabels(tr, locale);
   const dialogRef = useDialogFocus<HTMLDivElement>(onClose);
   const titleRef = useRef<HTMLHeadingElement>(null);
   const copyRef = useRef<HTMLTextAreaElement>(null);
   const [editing, setEditing] = useState(initiallyEditing);
   const [correcting, setCorrecting] = useState(false);
   const [correctionNote, setCorrectionNote] = useState("");
-  const [correctionError, setCorrectionError] = useState("");
-  const [feedback, setFeedback] = useState("");
+  const [correctionError, setCorrectionError] = useState(false);
+  const [feedback, setFeedback] = useState<OperationsMessage | null>(null);
   const [showCopyFallback, setShowCopyFallback] = useState(false);
   const [copyPendingFor, setCopyPendingFor] = useState<{
     record: RentRecord;
     role: Role;
+    language: string;
   } | null>(null);
   const copySequence = useRef(0);
   const copying =
-    copyPendingFor?.record === record && copyPendingFor.role === role;
+    copyPendingFor?.record === record &&
+    copyPendingFor.role === role &&
+    copyPendingFor.language === language;
   useLayoutEffect(
     () => () => {
       // Ignore results from a previous record version, workspace, or closed dialog.
       copySequence.current += 1;
     },
-    [record, role],
+    [record, role, language],
   );
   const id = useId();
   const canEdit = canRecordRentTransfer(record, role);
@@ -310,21 +308,19 @@ function RentRecordDialog({
   const copy = async () => {
     const sequence = ++copySequence.current;
     const isCurrent = () => sequence === copySequence.current;
-    const summary = rentRecordSummary(record);
-    setCopyPendingFor({ record, role });
+    const summary = rentRecordSummary(record, summaryLabels);
+    setCopyPendingFor({ record, role, language });
     try {
       if (!navigator.clipboard?.writeText)
         throw new Error("Clipboard unavailable");
       await navigator.clipboard.writeText(summary);
       if (!isCurrent()) return;
       setShowCopyFallback(false);
-      setFeedback("Sample record summary copied.");
+      setFeedback({ key: "rent_summaryCopied" });
     } catch {
       if (!isCurrent()) return;
       setShowCopyFallback(true);
-      setFeedback(
-        "Clipboard access is unavailable. Select and copy the summary below.",
-      );
+      setFeedback({ key: "rent_clipboardUnavailable" });
       requestAnimationFrame(() => {
         if (!isCurrent()) return;
         copyRef.current?.focus();
@@ -353,7 +349,7 @@ function RentRecordDialog({
       <section className="modal-card rent-record-dialog">
         <header>
           <div>
-            <span className="eyebrow">RENT RECORD</span>
+            <span className="eyebrow">{tr("rent_record")}</span>
             <h2 id={`${id}-title`} ref={titleRef} tabIndex={-1}>
               {periodLabel(record.period)}
             </h2>
@@ -361,7 +357,7 @@ function RentRecordDialog({
           <button
             type="button"
             className="icon-button"
-            aria-label="Close rent record"
+            aria-label={tr("rent_closeRecord")}
             onClick={onClose}
             data-dialog-initial-focus
           >
@@ -377,14 +373,14 @@ function RentRecordDialog({
             <RentStatus record={record} />
           </div>
           <dl className="rent-detail-fields">
-            {field("Amount due", money(record.amountDueCents))}
-            {field("Due date", dateLabel(record.dueOn))}
-            {field("Listing owner", record.owner)}
-            {field("Record ID", record.id)}
+            {field(tr("rent_amountDue"), money(record.amountDueCents))}
+            {field(tr("rent_dueDate"), dateLabel(record.dueOn))}
+            {field(tr("rent_owner"), record.owner)}
+            {field(tr("rent_recordId"), record.id)}
           </dl>
           {record.correctionNote && (
             <div className="rent-correction-note">
-              <strong>Correction requested</strong>
+              <strong>{tr("rent_correctionRequested")}</strong>
               <p>{record.correctionNote}</p>
             </div>
           )}
@@ -396,9 +392,7 @@ function RentRecordDialog({
                 setState((current) =>
                   recordRentTransfer(current, role, record.id, draft),
                 );
-                setFeedback(
-                  "Transfer details saved. Awaiting review in the owner workspace.",
-                );
+                setFeedback({ key: "rent_transferSaved" });
                 finishEdit();
               }}
             />
@@ -408,33 +402,32 @@ function RentRecordDialog({
                 className="rent-detail-section"
                 aria-labelledby={`${id}-transfer-title`}
               >
-                <h3 id={`${id}-transfer-title`}>Recorded transfer</h3>
+                <h3 id={`${id}-transfer-title`}>
+                  {tr("rent_recordedTransfer")}
+                </h3>
                 {record.transfer ? (
                   <>
                     <dl className="rent-detail-fields">
                       {field(
-                        "Recorded amount",
+                        tr("rent_recordedAmount"),
                         money(record.transfer.amountCents),
                       )}
                       {field(
-                        "Transfer date",
+                        tr("rent_transferDate"),
                         dateLabel(record.transfer.transferredOn),
                       )}
-                      {field("Reference", record.transfer.reference)}
+                      {field(tr("rent_reference"), record.transfer.reference)}
                       {record.transfer.note &&
-                        field("Note", record.transfer.note)}
+                        field(tr("rent_note"), record.transfer.note)}
                     </dl>
                     {record.transfer.amountCents !== record.amountDueCents && (
                       <p className="rent-amount-mismatch">
-                        The recorded amount differs from the rent amount.
-                        Correct the details before owner confirmation.
+                        {tr("rent_amountMismatch")}
                       </p>
                     )}
                   </>
                 ) : (
-                  <p className="rent-muted">
-                    No transfer details have been recorded for this period.
-                  </p>
+                  <p className="rent-muted">{tr("rent_noTransfer")}</p>
                 )}
                 {canEdit && (
                   <button
@@ -442,13 +435,15 @@ function RentRecordDialog({
                     className="button"
                     onClick={() => {
                       setEditing(true);
-                      setFeedback("");
+                      setFeedback(null);
                     }}
                   >
                     <Pencil size={16} aria-hidden="true" />
-                    {record.transfer
-                      ? "Edit transfer details"
-                      : "Record transfer details"}
+                    {tr(
+                      record.transfer
+                        ? "rent_editTransfer"
+                        : "rent_recordTransfer",
+                    )}
                   </button>
                 )}
               </section>
@@ -457,11 +452,8 @@ function RentRecordDialog({
                   className="rent-owner-review"
                   aria-labelledby={`${id}-review-title`}
                 >
-                  <h3 id={`${id}-review-title`}>Owner review</h3>
-                  <p className="rent-muted">
-                    Confirming changes this sample record; it does not verify a
-                    bank transaction.
-                  </p>
+                  <h3 id={`${id}-review-title`}>{tr("rent_ownerReview")}</h3>
+                  <p className="rent-muted">{tr("rent_reviewScope")}</p>
                   <div className="rent-dialog-actions">
                     <button
                       type="button"
@@ -469,7 +461,7 @@ function RentRecordDialog({
                       aria-expanded={correcting}
                       onClick={() => setCorrecting((value) => !value)}
                     >
-                      Request correction
+                      {tr("rent_requestCorrection")}
                     </button>
                     <button
                       type="button"
@@ -479,11 +471,11 @@ function RentRecordDialog({
                         setState((current) =>
                           confirmRentRecord(current, role, record.id),
                         );
-                        setFeedback("Owner confirmation recorded in this tab.");
+                        setFeedback({ key: "rent_ownerConfirmed" });
                         requestAnimationFrame(() => titleRef.current?.focus());
                       }}
                     >
-                      Confirm recorded transfer
+                      {tr("rent_confirmTransfer")}
                     </button>
                   </div>
                   {correcting && (
@@ -498,9 +490,7 @@ function RentRecordDialog({
                           ) ?? "",
                         ).trim();
                         if (!submittedNote || submittedNote.length > 500) {
-                          setCorrectionError(
-                            "Describe what needs correcting in 1–500 characters.",
-                          );
+                          setCorrectionError(true);
                           document.getElementById(`${id}-correction`)?.focus();
                           return;
                         }
@@ -513,25 +503,23 @@ function RentRecordDialog({
                           ),
                         );
                         setCorrecting(false);
-                        setFeedback(
-                          "Correction request saved in this tab. The tenant can edit the record.",
-                        );
+                        setFeedback({ key: "rent_correctionSaved" });
                         requestAnimationFrame(() => titleRef.current?.focus());
                       }}
                     >
                       <label htmlFor={`${id}-correction`}>
-                        What needs correcting?
+                        {tr("rent_correctionQuestion")}
                         <textarea
                           id={`${id}-correction`}
                           name="correctionNote"
-                          aria-label="What needs correcting?"
+                          aria-label={tr("rent_correctionQuestion")}
                           value={correctionNote}
                           maxLength={500}
                           rows={3}
                           required
                           onChange={(event) => {
                             setCorrectionNote(event.target.value);
-                            setCorrectionError("");
+                            setCorrectionError(false);
                           }}
                           aria-invalid={Boolean(correctionError)}
                           aria-describedby={
@@ -547,11 +535,11 @@ function RentRecordDialog({
                           className="rent-field-error"
                           role="alert"
                         >
-                          {correctionError}
+                          {tr("rent_errorCorrection")}
                         </p>
                       )}
                       <button type="submit" className="button">
-                        Save correction request
+                        {tr("rent_saveCorrection")}
                       </button>
                     </form>
                   )}
@@ -561,13 +549,13 @@ function RentRecordDialog({
                 className="rent-detail-section"
                 aria-labelledby={`${id}-history-title`}
               >
-                <h3 id={`${id}-history-title`}>Record history</h3>
+                <h3 id={`${id}-history-title`}>{tr("rent_history")}</h3>
                 <ol className="rent-record-history">
                   {record.activity.map((entry) => (
                     <li key={entry.id}>
                       <strong>{entry.label}</strong>
                       <time dateTime={entry.at}>
-                        {new Date(entry.at).toLocaleString("en-GB", {
+                        {new Date(entry.at).toLocaleString(locale, {
                           dateStyle: "medium",
                           timeStyle: "short",
                         })}
@@ -583,19 +571,19 @@ function RentRecordDialog({
                 onClick={() => void copy()}
               >
                 <Clipboard size={16} aria-hidden="true" />
-                {copying ? "Copying…" : "Copy sample summary"}
+                {tr(copying ? "rent_copying" : "rent_copySummary")}
               </button>
             </>
           )}
           <p className="rent-action-feedback" role="status">
-            {feedback}
+            {feedback && tr(feedback.key, feedback.values)}
           </p>
           {showCopyFallback && (
             <label className="rent-copy-fallback">
-              Sample summary
+              {tr("rent_sampleSummary")}
               <textarea
                 ref={copyRef}
-                value={rentRecordSummary(record)}
+                value={rentRecordSummary(record, summaryLabels)}
                 readOnly
                 rows={7}
               />
@@ -617,10 +605,12 @@ export function RentRecords({
   state: RentRecordState;
   setState: Dispatch<SetStateAction<RentRecordState>>;
 }) {
+  const { tr, locale } = useOperationsI18n();
+  const { money, periodLabel } = rentFormatters(locale);
   const [filters, setFilters] = useState(defaultFilters);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [initiallyEditing, setInitiallyEditing] = useState(false);
-  const [feedback, setFeedback] = useState("");
+  const [feedback, setFeedback] = useState<OperationsMessage | null>(null);
   const records = visibleRentRecords(state, role);
   const visible = filterRentRecords(records, filters);
   const selected = records.find((record) => record.id === selectedId);
@@ -641,22 +631,24 @@ export function RentRecords({
     let link: HTMLAnchorElement | undefined;
     try {
       url = URL.createObjectURL(
-        new Blob(["\uFEFF", rentRecordsCsv(visible)], {
-          type: "text/csv;charset=utf-8",
-        }),
+        new Blob(
+          ["\uFEFF", rentRecordsCsv(visible, localizedRentCsvLabels(tr))],
+          {
+            type: "text/csv;charset=utf-8",
+          },
+        ),
       );
       link = document.createElement("a");
       link.href = url;
       link.download = `kasa-sample-rent-${rentToday()}.csv`;
       document.body.append(link);
       link.click();
-      setFeedback(
-        `CSV download started for ${visible.length} visible ${visible.length === 1 ? "record" : "records"}.`,
-      );
+      setFeedback({
+        key: "rent_csvStarted",
+        values: { count: visible.length },
+      });
     } catch {
-      setFeedback(
-        "The CSV could not be downloaded. Try again in a browser that supports file downloads.",
-      );
+      setFeedback({ key: "rent_csvFailed" });
     } finally {
       link?.remove();
       if (url) {
@@ -669,24 +661,19 @@ export function RentRecords({
     return (
       <div className="empty-state">
         <FileText size={28} />
-        <h3>Rent records</h3>
-        <p>Rent records are available in the tenant and landlord workspaces.</p>
+        <h3>{tr("rent_title")}</h3>
+        <p>{tr("rent_workspaceScope")}</p>
       </div>
     );
   return (
     <div className="page-stack rent-records-page">
       <section className="rent-managed-banner">
         <div>
-          <span className="eyebrow">RENT RECORDS</span>
+          <span className="eyebrow">{tr("rent_title")}</span>
           <h2>
-            {role === "tenant"
-              ? "Keep your transfer details together"
-              : "Review recorded rent transfers"}
+            {tr(role === "tenant" ? "rent_tenantTitle" : "rent_ownerTitle")}
           </h2>
-          <p>
-            Sample records stay in this tab until reload. No money moves and no
-            bank account is provided.
-          </p>
+          <p>{tr("rent_sessionScope")}</p>
         </div>
         {nextRecord && (
           <button
@@ -695,25 +682,27 @@ export function RentRecords({
             onClick={() => open(nextRecord, true)}
           >
             <Pencil size={16} aria-hidden="true" />
-            Record transfer details
+            {tr("rent_recordTransfer")}
           </button>
         )}
       </section>
       <section
         className="rent-managed-metrics"
-        aria-label="Rent record summary, all periods"
+        aria-label={tr("rent_metricsLabel")}
       >
         <div className="card">
-          <span>Confirmed in sample records</span>
+          <span>{tr("rent_confirmedMetric")}</span>
           <strong>
             {money(
               confirmed.reduce((sum, record) => sum + record.amountDueCents, 0),
             )}
           </strong>
-          <small>{confirmed.length} records · all periods</small>
+          <small>
+            {tr("rent_allPeriodsCount", { count: confirmed.length })}
+          </small>
         </div>
         <div className="card">
-          <span>Awaiting owner review</span>
+          <span>{tr("rent_awaitingReview")}</span>
           <strong>
             {
               records.filter(
@@ -721,10 +710,10 @@ export function RentRecords({
               ).length
             }
           </strong>
-          <small>Recorded transfer details</small>
+          <small>{tr("rent_recordedDetails")}</small>
         </div>
         <div className="card">
-          <span>Details to add or correct</span>
+          <span>{tr("rent_missingDetails")}</span>
           <strong>
             {
               records.filter(
@@ -734,12 +723,12 @@ export function RentRecords({
               ).length
             }
           </strong>
-          <small>Open a record to inspect it</small>
+          <small>{tr("rent_inspectHint")}</small>
         </div>
       </section>
       <div className="rent-managed-filters">
         <label>
-          Period
+          {tr("rent_period")}
           <select
             value={filters.period}
             onChange={(event) =>
@@ -749,7 +738,7 @@ export function RentRecords({
               }))
             }
           >
-            <option>All periods</option>
+            <option value="All periods">{tr("rent_allPeriods")}</option>
             {[...new Set(records.map((record) => record.period))]
               .sort()
               .reverse()
@@ -761,7 +750,7 @@ export function RentRecords({
           </select>
         </label>
         <label>
-          Status
+          {tr("rent_status")}
           <select
             value={filters.status}
             onChange={(event) =>
@@ -771,14 +760,16 @@ export function RentRecords({
               }))
             }
           >
-            <option>All statuses</option>
+            <option value="All statuses">{tr("rent_allStatuses")}</option>
             {rentStatuses.map((status) => (
-              <option key={status}>{status}</option>
+              <option key={status} value={status}>
+                {tr(rentStatusKeys[status])}
+              </option>
             ))}
           </select>
         </label>
         <label>
-          Property
+          {tr("rent_property")}
           <select
             value={filters.property}
             onChange={(event) =>
@@ -788,16 +779,18 @@ export function RentRecords({
               }))
             }
           >
-            <option>All properties</option>
+            <option value="All properties">{tr("rent_allProperties")}</option>
             {[...new Set(records.map((record) => record.property))].map(
               (property) => (
-                <option key={property}>{property}</option>
+                <option key={property} value={property}>
+                  {property}
+                </option>
               ),
             )}
           </select>
         </label>
         <label>
-          Sort
+          {tr("rent_sort")}
           <select
             value={filters.sort}
             onChange={(event) =>
@@ -807,9 +800,11 @@ export function RentRecords({
               }))
             }
           >
-            <option>Most recently updated</option>
-            <option>Amount: high to low</option>
-            <option>Property name</option>
+            {Object.entries(rentSortKeys).map(([value, key]) => (
+              <option key={value} value={value}>
+                {tr(key)}
+              </option>
+            ))}
           </select>
         </label>
         {(activeFilters > 0 || filters.sort !== "Most recently updated") && (
@@ -818,7 +813,9 @@ export function RentRecords({
             className="text-button"
             onClick={() => setFilters(defaultFilters())}
           >
-            Reset{activeFilters ? ` (${activeFilters})` : " sort"}
+            {activeFilters
+              ? tr("rent_resetActive", { count: activeFilters })
+              : tr("rent_resetSort")}
           </button>
         )}
       </div>
@@ -828,10 +825,9 @@ export function RentRecords({
       >
         <header>
           <div>
-            <h2 id="rent-managed-list-title">Rent records</h2>
+            <h2 id="rent-managed-list-title">{tr("rent_title")}</h2>
             <p role="status">
-              {visible.length} {visible.length === 1 ? "record" : "records"}{" "}
-              match
+              {tr("rent_matchingCount", { count: visible.length })}
             </p>
           </div>
           <button
@@ -841,7 +837,7 @@ export function RentRecords({
             disabled={!visible.length}
           >
             <Download size={16} aria-hidden="true" />
-            Export visible CSV
+            {tr("rent_exportCsv")}
           </button>
         </header>
         {visible.map((record) => (
@@ -850,7 +846,11 @@ export function RentRecords({
             className="rent-managed-row"
             key={record.id}
             onClick={() => open(record)}
-            aria-label={`Open ${periodLabel(record.period)} rent record for ${record.tenant}, ${record.property}`}
+            aria-label={tr("rent_openRecord", {
+              period: periodLabel(record.period),
+              tenant: record.tenant,
+              property: record.property,
+            })}
           >
             <span className="rent-managed-period">
               <strong>{periodLabel(record.period)}</strong>
@@ -859,7 +859,7 @@ export function RentRecords({
             <span className="rent-managed-property">{record.property}</span>
             <span className="rent-managed-amount">
               <strong>{money(record.amountDueCents)}</strong>
-              <small>Rent amount</small>
+              <small>{tr("rent_rentAmount")}</small>
             </span>
             <RentStatus record={record} />
             <ChevronRight size={18} aria-hidden="true" />
@@ -868,20 +868,20 @@ export function RentRecords({
         {!visible.length && (
           <div className="empty-state">
             <Search size={26} />
-            <h3>No records match</h3>
-            <p>Change the period, status, or property filter.</p>
+            <h3>{tr("rent_noMatches")}</h3>
+            <p>{tr("rent_noMatchesHint")}</p>
             <button
               type="button"
               className="button button-secondary"
               onClick={() => setFilters(defaultFilters())}
             >
-              Reset filters
+              {tr("rent_resetFilters")}
             </button>
           </div>
         )}
       </section>
       <p className="rent-action-feedback" role="status">
-        {feedback}
+        {feedback && tr(feedback.key, feedback.values)}
       </p>
       {selected && (
         <RentRecordDialog

@@ -1,6 +1,8 @@
 import type { OperationsDictionary } from "./types";
+import { rentZh } from "./rent-zh";
 
 export const zh = {
+  ...rentZh,
   documents_samplePreview: "示例预览",
   documents_localFile: "本地文件",
   documents_closePreview: "关闭文档预览",

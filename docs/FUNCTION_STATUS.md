@@ -2,7 +2,7 @@
 
 This matrix distinguishes working frontend behaviour from production integrations. **Admin → System status** shows runtime checks and integration status.
 
-Frontend workflow update: 2 October 2026. Production-integration requirements remain unchanged.
+Frontend workflow update: 3 October 2026. Production-integration requirements remain unchanged.
 
 The public [GitHub Pages URL](https://genovesi-jm.github.io/Kasa/) opens the software directly, without an account. The guided presentation is optional at [`?present=1`](https://genovesi-jm.github.io/Kasa/?present=1). GitHub Pages serves the frontend; it does not host the local API or provide authentication, message delivery or a database.
 
@@ -27,21 +27,23 @@ The following frontend workflows update shared state in the current open tab:
 
 - Messages: separate inboxes for all five workspaces, matching contacts, conversation search, unread state, drafts, local composition and block/unblock controls. Composed messages are not delivered.
 - Property dashboards: current-month rent totals, outstanding owner reviews, pending applications, open repairs, future visits and recent activity derive from visible records. Portfolio search and sorting persist across navigation; property details return to the originating portfolio or overview. Owners see only their own properties and cannot create a conversation with themselves.
+- Property drafts: owners can enter rent/sale details, retain edits across steps and navigation, select local photos and a cover, review the actual values, mark a valid draft ready, resume it, or remove/restore it. Drafts are separate from the public catalogue and are never reported as published or submitted to moderation. The property portfolio keeps record counts, rent status and repair actions available on phones.
 - Saved searches and homes: separate collections per workspace, exact search/filter snapshots, reopening, rename, delete and undo. Saved searches do not generate notifications.
 - Applications: validated rental submissions retain move-in date, household size and introduction, prevent duplicate tenant/property records and appear in the Applications list. Record details, document summaries, explicit owner review/status changes and activity history remain local. Tenants see only their own records and owners can review only their own properties; no real approval or document request is issued.
 - Notifications: header and full-page feed share per-workspace unread counts. Individual/read-all actions update both surfaces; opening an update marks it read and opens the relevant screen.
 - Bookings: status filters, details, local acceptance of proposed times, keeping the original request and local cancellation reasons. No venue is contacted, reservation made or refund processed.
 - Property details: accessible galleries and shareable links; validated viewing requests retain the entered date, time and note, support editing/cancellation, and remain visible when revisiting the property.
 - Maintenance: validated issue reports, keyboard-accessible board/list/details, date/time/provider arrangements, explicit owner start/resolve/reopen actions and request history. Records and mutations are limited to the sample owner's properties and tenant's home. Sidebar counts reflect open records.
-- Rent records: exact decimal amount/date/reference validation, tenant editing and correction handling, explicit owner confirmation, record history, clipboard fallback and scoped CSV export. Ownership checks prevent reviewing unrelated properties. These actions record sample state and never execute or verify a bank transfer.
+- Rent records: exact decimal amount/date/reference validation, tenant editing and correction handling, explicit owner confirmation, record history, clipboard fallback and scoped CSV export. Controls, validation, dates and export labels support all six languages. Ownership checks prevent reviewing unrelated properties. These actions record sample state and never execute or verify a bank transfer.
 - Documents: workspace-isolated sample previews and local PDF, raster image and plain-text files, with type/size limits, filtering, download, removal and undo. Controls, errors, counts and dates support all six interface languages. Preview object URLs are released on close. Selected files remain in memory; no upload, signing or verification occurs.
-- Settings and Help: real language/motion controls, device-local preference persistence with unavailable-storage fallback, workspace identity and links to software workflows. Settings/help content supports all six interface languages. Rent, maintenance and document modules load when opened.
+- Settings and Help: real language/motion controls, device-local preference persistence with unavailable-storage fallback, workspace identity and links to software workflows. Settings/help content supports all six interface languages. Operational screens and their added translation dictionaries load when opened.
 
 These changes survive navigation within that app instance. Reloading or closing the tab, or resetting a presentation scene, restores sample data; separate tabs do not share the changes. No production database or authenticated account owns these records.
 
 Other product areas remain illustrative UI flows, including:
 
 - External bank verification and persistent proof storage.
+- Property moderation and public listing publication.
 - Provider jobs and operator calendars.
 - Kasa Work job and freelance discovery, private applications, hiring posts and candidate conversations.
 - Admin moderation, verification queues, feature switches and analytics.
@@ -75,6 +77,8 @@ npm run check
 ```
 
 It checks formatting, lint, client and server TypeScript, the production build, API security headers, request validation, not-found behaviour, property/Spaces filters, OpenAPI availability, write authentication, idempotent reservations, direct-to-venue settlement metadata and direct tenant-to-landlord rent records.
+
+API regressions cover payload conflicts on reused request keys, normalized replays, traceable client errors, fractional-cent and future-transfer rejection, supported demo currencies, and unverified metadata references. The metadata adapter never fetches a supplied document reference or enters a real landlord-confirmation workflow.
 
 Run the frontend state checks directly:
 

@@ -1,4 +1,7 @@
+import { rentEn } from "./rent-en";
+
 export const en = {
+  ...rentEn,
   documents_samplePreview: "Sample preview",
   documents_localFile: "Local file",
   documents_closePreview: "Close document preview",
