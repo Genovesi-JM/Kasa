@@ -10,7 +10,7 @@ import {
 } from "../src/presentation/journeys";
 import { properties } from "../src/data";
 
-assert.equal(isPresentationEntry(""), true);
+assert.equal(isPresentationEntry(""), false);
 assert.equal(isPresentationEntry("?present=1&journey=my-home"), true);
 for (const query of [
   "?app=1",

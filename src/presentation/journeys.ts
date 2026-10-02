@@ -532,8 +532,7 @@ export function isPresentationEntry(search: string) {
     !params.has("app") &&
     !params.has("device") &&
     !params.has("simulator") &&
-    (params.get("present") === "1" ||
-      (!params.has("role") && !params.has("view")))
+    params.get("present") === "1"
   );
 }
 

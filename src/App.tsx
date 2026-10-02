@@ -1,4 +1,12 @@
-import { lazy, Suspense, useEffect, useMemo, useState } from "react";
+import {
+  lazy,
+  Suspense,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useTranslation } from "react-i18next";
 import {
   ArrowLeft,
@@ -34,11 +42,9 @@ import {
   Menu,
   MessageCircle,
   MoreHorizontal,
-  Paperclip,
   Plus,
   Repeat2,
   Search,
-  Send,
   Settings,
   ShieldCheck,
   Sparkles,
@@ -56,13 +62,14 @@ import {
 } from "lucide-react";
 import {
   applications,
-  conversations,
   maintenance,
   properties,
   providers,
-  spaceBookings,
   spaceVenues,
+  workOpportunities,
 } from "./data";
+import { marketplaceMatches, matchesSearch, type SearchScope } from "./search";
+import { appRouteUrl, readAppRoute, type AppRoute } from "./navigation";
 import {
   displayTranslation,
   languages,
@@ -70,13 +77,43 @@ import {
   type LanguageCode,
 } from "./i18n";
 import { DeviceSimulator } from "./components/DeviceSimulator";
+import { Messages } from "./components/Messages";
+import {
+  NotificationsPopover,
+  NotificationsView,
+} from "./components/Notifications";
+import {
+  createInitialNotificationState,
+  type KasaNotification,
+} from "./components/notificationState";
+import { Applications } from "./components/Applications";
+import { createInitialApplicationState } from "./components/applicationState";
+import {
+  createInitialDiscoverState,
+  resetDiscoverFilters,
+  updateDiscoverState,
+  type DiscoverFilters,
+  type DiscoverFilterUpdate,
+} from "./components/discoverState";
+import {
+  createInitialMessageState,
+  openPropertyConversation,
+  unreadMessageCount,
+} from "./components/messageState";
+import { createInitialSpaceBookingsState } from "./components/spaceBookingsState";
+import { SpaceBookingsView } from "./components/SpaceBookings";
+import { useDialogFocus } from "./components/useDialogFocus";
+import { useMediaQuery } from "./components/useMediaQuery";
+import {
+  PropertyGallery,
+  PropertyShareButton,
+} from "./components/PropertyGallery";
 import {
   MortgageCardEstimate,
   MortgageEstimator,
 } from "./components/MortgageEstimator";
 import { isPointInsideZone, type ZonePoint } from "./components/mapGeometry";
 import type {
-  Application,
   MaintenanceRequest,
   Property,
   Role,
@@ -105,14 +142,6 @@ const KasaMap = lazy(() =>
     default: module.KasaMap,
   })),
 );
-
-const roleValues: Role[] = [
-  "landlord",
-  "tenant",
-  "provider",
-  "spaceOperator",
-  "admin",
-];
 
 const shownApiFallbackWarnings = new Set<string>();
 
@@ -167,40 +196,6 @@ function LanguageSwitcher({
     </label>
   );
 }
-
-const viewTitles: Record<View, { title: string; eyebrow: string }> = {
-  overview: { title: "Good morning, Olivia", eyebrow: "Tuesday, 21 August" },
-  discover: { title: "Find a place that feels right", eyebrow: "DISCOVER" },
-  saved: { title: "Saved for later", eyebrow: "SHORTLIST" },
-  property: { title: "Property details", eyebrow: "DISCOVER" },
-  portfolio: { title: "Your homes, in one place", eyebrow: "PORTFOLIO" },
-  applications: { title: "Applications", eyebrow: "WORKFLOW" },
-  messages: { title: "Messages", eyebrow: "INBOX" },
-  notifications: { title: "Notifications", eyebrow: "UPDATES" },
-  profile: { title: "Profile", eyebrow: "ACCOUNT" },
-  rent: { title: "Rent records", eyebrow: "RECONCILIATION" },
-  maintenance: { title: "Maintenance", eyebrow: "COORDINATION" },
-  documents: { title: "Documents", eyebrow: "RECORDS" },
-  services: { title: "Trusted local help", eyebrow: "SERVICE DIRECTORY" },
-  spaces: {
-    title: "Find a space that fits the moment",
-    eyebrow: "KASA SPACES · PHASE 2",
-  },
-  spaceVenue: { title: "Venue details", eyebrow: "KASA SPACES" },
-  spaceBookings: { title: "My space bookings", eyebrow: "RESERVATIONS" },
-  spaceOperator: {
-    title: "Poblenou MultiSport Club",
-    eyebrow: "VENUE OPERATIONS",
-  },
-  spaceOnboarding: { title: "Publish your venue", eyebrow: "VENUE ONBOARDING" },
-  spacesPlan: { title: "Kasa Spaces plans", eyebrow: "BUSINESS MODEL" },
-  provider: { title: "Service business", eyebrow: "PROVIDER WORKSPACE" },
-  admin: { title: "Trust & platform controls", eyebrow: "ADMIN" },
-  diagnostics: { title: "System status", eyebrow: "FUNCTION CHECK" },
-  insights: { title: "Portfolio insights", eyebrow: "ANALYTICS" },
-  plan: { title: "Commercial model", eyebrow: "AGREED DIRECTION" },
-};
-const viewValues = Object.keys(viewTitles) as View[];
 
 interface NavItem {
   id: View;
@@ -1269,23 +1264,38 @@ function UniversalHome({
   go,
   openServices,
   setDiscoveryIntent,
+  onSearch,
+  initialQuery = "",
+  onAllSearch,
 }: {
   go: (view: View) => void;
   openServices: (mode: ServiceLaunchMode) => void;
   setDiscoveryIntent: (intent: "Rent" | "Buy") => void;
+  onSearch: (
+    scope: Exclude<SearchScope, "all">,
+    query: string,
+    intent?: "Rent" | "Buy",
+  ) => void;
+  initialQuery?: string;
+  onAllSearch: (query: string) => void;
 }) {
   const { tr } = useKasaI18n();
   const [chooserOpen, setChooserOpen] = useState(false);
   const [scope, setScope] = useState<
     "all" | "homes" | "work" | "services" | "spaces"
   >("all");
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState(initialQuery);
+  const [submittedQuery, setSubmittedQuery] = useState<string | null>(
+    initialQuery || null,
+  );
+  const results =
+    submittedQuery === null ? null : marketplaceMatches(submittedQuery);
 
   const launchSearch = () => {
-    if (scope === "work") return openServices("jobs");
-    if (scope === "services") return openServices("discover");
-    if (scope === "spaces") return go("spaces");
-    go("discover");
+    if (scope === "all") {
+      setSubmittedQuery(query.trim());
+      onAllSearch(query.trim());
+    } else onSearch(scope, query.trim());
   };
 
   const choose = (action: () => void) => {
@@ -1343,6 +1353,7 @@ function UniversalHome({
             <button
               key={id}
               className={scope === id ? "active" : ""}
+              aria-pressed={scope === id}
               onClick={() => setScope(id)}
             >
               {label}
@@ -1350,6 +1361,51 @@ function UniversalHome({
           ))}
         </div>
       </section>
+
+      {results && (
+        <section
+          className="card padded home-search-results"
+          aria-label={tr("universalHome.searchResults")}
+        >
+          <SectionHeading
+            title={
+              submittedQuery
+                ? `${tr("universalHome.resultsFor")} “${submittedQuery}”`
+                : tr("universalHome.searchResults")
+            }
+          />
+          <div className="home-search-result-groups">
+            {(
+              [
+                ["rent", tr("universalHome.findHome"), "homes", "Rent"],
+                ["buy", tr("universalHome.buyProperty"), "homes", "Buy"],
+                ["services", tr("common.services"), "services"],
+                ["work", tr("universalHome.work"), "work"],
+                ["spaces", tr("common.spaces"), "spaces"],
+              ] as const
+            ).map(([id, title, resultScope, intent]) => (
+              <button
+                key={id}
+                disabled={results[id].length === 0}
+                onClick={() =>
+                  onSearch(resultScope, submittedQuery ?? "", intent)
+                }
+              >
+                <span>
+                  <strong>{title}</strong>
+                  <small>
+                    {results[id].length} {tr("universalHome.matches")}
+                  </small>
+                </span>
+                <ArrowRight size={18} />
+              </button>
+            ))}
+          </div>
+          {Object.values(results).every((items) => items.length === 0) && (
+            <p role="status">{tr("universalHome.noSearchResults")}</p>
+          )}
+        </section>
+      )}
 
       <section className="universal-area-grid">
         <button
@@ -1524,71 +1580,6 @@ function UniversalHome({
           </div>
         </Modal>
       )}
-    </div>
-  );
-}
-
-function NotificationsView({ notify }: { notify: (message: string) => void }) {
-  const { tr } = useKasaI18n();
-  const items = [
-    {
-      icon: BriefcaseBusiness,
-      title: tr("universalHome.jobMatch"),
-      note: tr("universalHome.jobMatchNote"),
-      time: tr("common.today"),
-      fresh: true,
-    },
-    {
-      icon: MessageCircle,
-      title: tr("universalHome.newMessage"),
-      note: tr("universalHome.newMessageNote"),
-      time: "12 min",
-      fresh: true,
-    },
-    {
-      icon: Wrench,
-      title: tr("universalHome.repairUpdate"),
-      note: tr("universalHome.repairNote"),
-      time: tr("shell.yesterday"),
-      fresh: false,
-    },
-    {
-      icon: CalendarDays,
-      title: tr("universalHome.spaceReminder"),
-      note: tr("universalHome.spaceReminderNote"),
-      time: "19 Aug",
-      fresh: false,
-    },
-  ];
-  return (
-    <div className="simple-mobile-page notification-page">
-      <header>
-        <div>
-          <span className="eyebrow">{tr("universalHome.yourUpdates")}</span>
-          <h2>{tr("common.notifications")}</h2>
-        </div>
-        <button
-          className="text-button"
-          onClick={() => notify(tr("shell.notificationsRead"))}
-        >
-          {tr("shell.markAllRead")}
-        </button>
-      </header>
-      <section className="notification-feed">
-        {items.map(({ icon: Icon, title, note, time, fresh }) => (
-          <button key={title} onClick={() => notify(title)}>
-            {fresh && <i />}
-            <span className="notification-feed-icon">
-              <Icon />
-            </span>
-            <span>
-              <strong>{title}</strong>
-              <small>{note}</small>
-            </span>
-            <time>{time}</time>
-          </button>
-        ))}
-      </section>
     </div>
   );
 }
@@ -1829,32 +1820,55 @@ function Discover({
   notify,
   onOpen,
   initialIntent,
+  initialQuery = "",
+  onIntentChange,
+  onQueryChange,
+  filters,
+  onFiltersChange,
 }: {
   favourites: number[];
   toggleFavourite: (id: number) => void;
   notify: (message: string) => void;
   onOpen: (property: Property) => void;
   initialIntent: "Rent" | "Buy";
+  initialQuery?: string;
+  onIntentChange: (intent: "Rent" | "Buy") => void;
+  onQueryChange?: (query: string) => void;
+  filters: DiscoverFilters;
+  onFiltersChange: (update: DiscoverFilterUpdate) => void;
 }) {
   const { tr } = useKasaI18n();
   const [catalogProperties, setCatalogProperties] = useState(properties);
-  const [query, setQuery] = useState("");
-  const [maxPrice, setMaxPrice] = useState("Any price");
-  const [minPrice, setMinPrice] = useState("0");
-  const [intent, setIntent] = useState<"Rent" | "Buy">(initialIntent);
-  const [viewMode, setViewMode] = useState<"list" | "map">("list");
-  const [verifiedOnly, setVerifiedOnly] = useState(false);
-  const [propertyType, setPropertyType] = useState("All types");
-  const [bedrooms, setBedrooms] = useState("Any bedrooms");
-  const [bathrooms, setBathrooms] = useState("Any bathrooms");
-  const [furnishing, setFurnishing] = useState("Any furnishing");
-  const [petPolicy, setPetPolicy] = useState("Any pet policy");
-  const [minSize, setMinSize] = useState("0");
-  const [availability, setAvailability] = useState("Any availability");
-  const [features, setFeatures] = useState<string[]>([]);
-  const [showMoreFilters, setShowMoreFilters] = useState(false);
-  const [sort, setSort] = useState("Recommended");
-  const [drawnZone, setDrawnZone] = useState<ZonePoint[]>([]);
+  const [query, setQuery] = useState(initialQuery);
+  useEffect(() => onQueryChange?.(query), [query, onQueryChange]);
+  const intent = initialIntent;
+  const {
+    maxPrice,
+    minPrice,
+    viewMode,
+    verifiedOnly,
+    propertyType,
+    bedrooms,
+    bathrooms,
+    furnishing,
+    petPolicy,
+    minSize,
+    availability,
+    features,
+    showMoreFilters,
+    sort,
+    drawnZone,
+  } = filters;
+  const updateFilter = <Key extends keyof DiscoverFilters>(
+    key: Key,
+    update:
+      | DiscoverFilters[Key]
+      | ((current: DiscoverFilters[Key]) => DiscoverFilters[Key]),
+  ) =>
+    onFiltersChange((current) => ({
+      ...current,
+      [key]: typeof update === "function" ? update(current[key]) : update,
+    }));
   const featureOptions = [
     ["Outdoor space", tr("discover.terrace")],
     ["Parking", tr("discover.parking")],
@@ -1864,7 +1878,7 @@ function Discover({
     ["Bills included", tr("discover.bills")],
   ];
   const toggleFeature = (feature: string) =>
-    setFeatures((current) =>
+    updateFilter("features", (current) =>
       current.includes(feature)
         ? current.filter((item) => item !== feature)
         : [...current, feature],
@@ -1886,10 +1900,15 @@ function Discover({
 
   const filtered = catalogProperties
     .filter((property) => {
-      const matchQuery =
-        `${property.title} ${property.address} ${property.city} ${property.neighbourhood} ${property.amenities.join(" ")}`
-          .toLowerCase()
-          .includes(query.toLowerCase());
+      const matchQuery = matchesSearch(
+        query,
+        property.title,
+        property.address,
+        property.city,
+        property.neighbourhood,
+        property.propertyType,
+        ...property.amenities,
+      );
       const limit = maxPrice === "Any price" ? Infinity : Number(maxPrice);
       const matchType =
         propertyType === "All types" || property.propertyType === propertyType;
@@ -1966,25 +1985,10 @@ function Discover({
     Number(drawnZone.length >= 3) +
     features.length;
   const resetFilters = () => {
-    setMaxPrice("Any price");
-    setMinPrice("0");
-    setPropertyType("All types");
-    setBedrooms("Any bedrooms");
-    setBathrooms("Any bathrooms");
-    setFurnishing("Any furnishing");
-    setPetPolicy("Any pet policy");
-    setMinSize("0");
-    setAvailability("Any availability");
-    setFeatures([]);
-    setVerifiedOnly(false);
-    setSort("Recommended");
-    setDrawnZone([]);
+    onFiltersChange(resetDiscoverFilters);
   };
   const chooseIntent = (next: "Rent" | "Buy") => {
-    setIntent(next);
-    setMaxPrice("Any price");
-    setMinPrice("0");
-    setSort("Recommended");
+    onIntentChange(next);
   };
   return (
     <div className="page-stack">
@@ -2026,7 +2030,7 @@ function Discover({
               : tr("discover.maximumSalePrice")
           }
           value={maxPrice}
-          onChange={(event) => setMaxPrice(event.target.value)}
+          onChange={(event) => updateFilter("maxPrice", event.target.value)}
         >
           {intent === "Rent" ? (
             <>
@@ -2046,7 +2050,7 @@ function Discover({
         </select>
         <button
           className={`filter-button ${verifiedOnly ? "selected" : ""}`}
-          onClick={() => setVerifiedOnly((value) => !value)}
+          onClick={() => updateFilter("verifiedOnly", (value) => !value)}
           aria-pressed={verifiedOnly}
         >
           <BadgeCheck size={18} /> {tr("discover.checkedOnly")}
@@ -2056,7 +2060,7 @@ function Discover({
         <select
           aria-label={tr("discover.propertyType")}
           value={propertyType}
-          onChange={(event) => setPropertyType(event.target.value)}
+          onChange={(event) => updateFilter("propertyType", event.target.value)}
         >
           <option value="All types">{tr("discover.allTypes")}</option>
           <option value="Apartment">{tr("common.apartment")}</option>
@@ -2067,7 +2071,7 @@ function Discover({
         <select
           aria-label={tr("discover.minimumBedrooms")}
           value={bedrooms}
-          onChange={(event) => setBedrooms(event.target.value)}
+          onChange={(event) => updateFilter("bedrooms", event.target.value)}
         >
           <option value="Any bedrooms">{tr("discover.anyBeds")}</option>
           <option value="1">1+</option>
@@ -2077,7 +2081,7 @@ function Discover({
         <select
           aria-label={tr("discover.petPolicyLabel")}
           value={petPolicy}
-          onChange={(event) => setPetPolicy(event.target.value)}
+          onChange={(event) => updateFilter("petPolicy", event.target.value)}
         >
           <option value="Any pet policy">{tr("discover.anyPets")}</option>
           <option value="Pets allowed">{tr("discover.petsAllowed")}</option>
@@ -2085,7 +2089,7 @@ function Discover({
         </select>
         <button
           className={`more-filter-button ${showMoreFilters ? "active" : ""}`}
-          onClick={() => setShowMoreFilters((value) => !value)}
+          onClick={() => updateFilter("showMoreFilters", (value) => !value)}
         >
           <SlidersHorizontal size={15} />{" "}
           {showMoreFilters
@@ -2101,7 +2105,9 @@ function Discover({
               <span>{tr("common.minimumPrice")}</span>
               <select
                 value={minPrice}
-                onChange={(event) => setMinPrice(event.target.value)}
+                onChange={(event) =>
+                  updateFilter("minPrice", event.target.value)
+                }
               >
                 <option value="0">{tr("common.any")}</option>
                 {intent === "Rent" ? (
@@ -2121,7 +2127,9 @@ function Discover({
               <span>{tr("discover.anyBaths")}</span>
               <select
                 value={bathrooms}
-                onChange={(event) => setBathrooms(event.target.value)}
+                onChange={(event) =>
+                  updateFilter("bathrooms", event.target.value)
+                }
               >
                 <option value="Any bathrooms">{tr("common.any")}</option>
                 <option value="1">1+</option>
@@ -2133,7 +2141,9 @@ function Discover({
               <span>{tr("discover.minSize")}</span>
               <select
                 value={minSize}
-                onChange={(event) => setMinSize(event.target.value)}
+                onChange={(event) =>
+                  updateFilter("minSize", event.target.value)
+                }
               >
                 <option value="0">{tr("common.any")}</option>
                 <option value="50">50 m²</option>
@@ -2145,7 +2155,9 @@ function Discover({
               <span>{tr("discover.anyFurnishing")}</span>
               <select
                 value={furnishing}
-                onChange={(event) => setFurnishing(event.target.value)}
+                onChange={(event) =>
+                  updateFilter("furnishing", event.target.value)
+                }
               >
                 <option value="Any furnishing">{tr("common.any")}</option>
                 <option value="Furnished">{tr("discover.furnished")}</option>
@@ -2158,7 +2170,9 @@ function Discover({
               <span>{tr("discover.availability")}</span>
               <select
                 value={availability}
-                onChange={(event) => setAvailability(event.target.value)}
+                onChange={(event) =>
+                  updateFilter("availability", event.target.value)
+                }
               >
                 <option value="Any availability">{tr("common.any")}</option>
                 <option value="Available now">
@@ -2170,7 +2184,7 @@ function Discover({
               <span>{tr("common.sort")}</span>
               <select
                 value={sort}
-                onChange={(event) => setSort(event.target.value)}
+                onChange={(event) => updateFilter("sort", event.target.value)}
               >
                 <option value="Recommended">{tr("common.recommended")}</option>
                 <option value="Newest">{tr("common.newest")}</option>
@@ -2221,13 +2235,13 @@ function Discover({
           <div className="view-toggle">
             <button
               className={viewMode === "list" ? "active" : ""}
-              onClick={() => setViewMode("list")}
+              onClick={() => updateFilter("viewMode", "list")}
             >
               <LayoutDashboard size={15} /> {tr("common.list")}
             </button>
             <button
               className={viewMode === "map" ? "active" : ""}
-              onClick={() => setViewMode("map")}
+              onClick={() => updateFilter("viewMode", "map")}
             >
               <Map size={15} /> {tr("common.map")}
             </button>
@@ -2264,7 +2278,7 @@ function Discover({
                 image: property.image,
               }))}
               zone={drawnZone}
-              onZoneChange={setDrawnZone}
+              onZoneChange={(zone) => updateFilter("drawnZone", zone)}
               onOpen={(id) => {
                 const property = catalogProperties.find(
                   (item) => item.id === id,
@@ -2329,25 +2343,22 @@ function Modal({
   onClose: () => void;
 }) {
   const { tr } = useKasaI18n();
-  useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [onClose]);
+  const dialogRef = useDialogFocus<HTMLDivElement>(onClose);
 
   return (
     <div
       className="modal-layer"
+      ref={dialogRef}
       role="dialog"
       aria-modal="true"
       aria-label={title}
+      tabIndex={-1}
     >
       <button
         className="modal-scrim"
         onClick={onClose}
-        aria-label={tr("common.close")}
+        tabIndex={-1}
+        aria-hidden="true"
       />
       <section className="modal-card">
         <header>
@@ -2359,7 +2370,7 @@ function Modal({
             className="icon-button"
             onClick={onClose}
             aria-label={tr("common.close")}
-            autoFocus
+            data-dialog-initial-focus
           >
             <X size={20} />
           </button>
@@ -2406,24 +2417,16 @@ function PropertyDetail({
             <Heart size={16} fill={favourite ? "currentColor" : "none"} />{" "}
             {favourite ? tr("common.saved") : tr("common.save")}
           </button>
-          <button
-            className="soft-button"
-            onClick={() => notify("Share link copied.")}
-          >
-            {tr("discover.share")}
-          </button>
+          <PropertyShareButton
+            property={property}
+            label={tr("discover.share")}
+          />
         </div>
       </div>
-      <section className="property-gallery">
-        <img src={property.gallery[0]} alt={property.title} />
-        <img src={property.gallery[1]} alt={`${property.title} interior`} />
-        <div className="gallery-last">
-          <img src={property.gallery[2]} alt={`${property.title} detail`} />
-          <button onClick={() => notify("Full photo gallery opened.")}>
-            {tr("discover.viewPhotos")}
-          </button>
-        </div>
-      </section>
+      <PropertyGallery
+        property={property}
+        viewPhotosLabel={tr("discover.viewPhotos")}
+      />
       <div className="detail-layout">
         <main>
           <section className="detail-heading">
@@ -3261,393 +3264,6 @@ function Portfolio({
   );
 }
 
-function Applications({
-  role,
-  notify,
-}: {
-  role: Role;
-  notify: (message: string) => void;
-}) {
-  const [tab, setTab] = useState("All");
-  const [propertyFilter, setPropertyFilter] = useState("All properties");
-  const [completeness, setCompleteness] = useState("Any completeness");
-  const [applicationSort, setApplicationSort] = useState("Newest submitted");
-  const baseApplications =
-    role === "tenant"
-      ? applications.filter((item) => item.applicant === "Inês Duarte")
-      : applications;
-  const visible = baseApplications
-    .filter(
-      (item) =>
-        (tab === "All" || item.status === tab) &&
-        (propertyFilter === "All properties" ||
-          item.property === propertyFilter) &&
-        (completeness === "Any completeness" ||
-          item.score >= Number(completeness)),
-    )
-    .sort((a, b) =>
-      applicationSort === "Oldest submitted"
-        ? b.id - a.id
-        : applicationSort === "Most complete"
-          ? b.score - a.score
-          : applicationSort === "Action required first"
-            ? Number(!["Review", "Documents"].includes(a.status)) -
-              Number(!["Review", "Documents"].includes(b.status))
-            : a.id - b.id,
-    );
-  const statuses = ["All", "Review", "Documents", "Approved", "Draft"];
-  const displayStatus = (status: Application["status"]) =>
-    status === "Review"
-      ? "Under review"
-      : status === "Documents"
-        ? "Documents requested"
-        : status;
-  const activeFilters =
-    Number(tab !== "All") +
-    Number(propertyFilter !== "All properties") +
-    Number(completeness !== "Any completeness");
-  return (
-    <div className="page-stack">
-      <div className="page-actions">
-        <div className="segment compact">
-          {statuses.map((item) => (
-            <button
-              key={item}
-              className={tab === item ? "active" : ""}
-              onClick={() => setTab(item)}
-            >
-              {item === "Review"
-                ? "Review"
-                : item === "Documents"
-                  ? "Documents"
-                  : item}
-            </button>
-          ))}
-        </div>
-        {role === "tenant" && (
-          <ActionButton
-            icon={Plus}
-            onClick={() =>
-              notify("Select a rental property first to start an application.")
-            }
-          >
-            New rental application
-          </ActionButton>
-        )}
-      </div>
-      <FilterToolbar
-        activeCount={activeFilters}
-        onReset={() => {
-          setTab("All");
-          setPropertyFilter("All properties");
-          setCompleteness("Any completeness");
-          setApplicationSort("Newest submitted");
-        }}
-      >
-        <select
-          aria-label="Filter applications by property"
-          value={propertyFilter}
-          onChange={(event) => setPropertyFilter(event.target.value)}
-        >
-          <option>All properties</option>
-          {[...new Set(baseApplications.map((item) => item.property))].map(
-            (property) => (
-              <option key={property}>{property}</option>
-            ),
-          )}
-        </select>
-        <select
-          aria-label="Filter by profile completeness"
-          value={completeness}
-          onChange={(event) => setCompleteness(event.target.value)}
-        >
-          <option>Any completeness</option>
-          <option value="80">80%+ complete</option>
-          <option value="90">90%+ complete</option>
-        </select>
-        <select
-          aria-label="Sort applications"
-          value={applicationSort}
-          onChange={(event) => setApplicationSort(event.target.value)}
-        >
-          <option>Newest submitted</option>
-          <option>Oldest submitted</option>
-          <option>Most complete</option>
-          <option>Action required first</option>
-        </select>
-      </FilterToolbar>
-      <section className="card applications-table">
-        <div className="table-head">
-          <span>{role === "landlord" ? "Applicant" : "Application"}</span>
-          <span>Property</span>
-          <span>Submitted</span>
-          <span>Profile</span>
-          <span>Status</span>
-          <span />
-        </div>
-        {visible.map((application: Application) => (
-          <button
-            className="table-row"
-            key={application.id}
-            onClick={() =>
-              notify(`${application.applicant}'s application record opened.`)
-            }
-          >
-            <span className="applicant-cell">
-              <Avatar initials={application.avatar} />
-              <strong>
-                {role === "landlord"
-                  ? application.applicant
-                  : `Application #10${application.id}`}
-              </strong>
-            </span>
-            <span>{application.property}</span>
-            <span>{application.submitted}</span>
-            <span>
-              <b className="score-inline">{application.score}%</b> complete
-            </span>
-            <span>
-              <StatusPill
-                tone={
-                  application.status === "Approved"
-                    ? "mint"
-                    : application.status === "Documents"
-                      ? "amber"
-                      : application.status === "Draft"
-                        ? "neutral"
-                        : "blue"
-                }
-              >
-                {displayStatus(application.status)}
-              </StatusPill>
-            </span>
-            <ChevronRight size={17} />
-          </button>
-        ))}
-        {visible.length === 0 && (
-          <div className="table-empty">
-            <Search size={22} />
-            <span>No rental applications match these filters.</span>
-          </div>
-        )}
-      </section>
-      <div className="scope-note">
-        <ShieldCheck size={17} />
-        <span>
-          Kasa organizes rental applications and documents. Profile completeness
-          only shows whether requested fields are present—it is not a “best
-          tenant” score. Listing parties decide directly.
-        </span>
-      </div>
-    </div>
-  );
-}
-
-function Messages({ notify }: { notify: (message: string) => void }) {
-  const [selectedName, setSelectedName] = useState(conversations[0].name);
-  const [mobileChatOpen, setMobileChatOpen] = useState(false);
-  const [draft, setDraft] = useState("");
-  const [conversationQuery, setConversationQuery] = useState("");
-  const [conversationContext, setConversationContext] =
-    useState("All conversations");
-  const [conversationSort, setConversationSort] = useState("Most recent");
-  const visibleConversations = conversations
-    .filter((conversation) => {
-      const matchesQuery =
-        `${conversation.name} ${conversation.property} ${conversation.preview}`
-          .toLowerCase()
-          .includes(conversationQuery.toLowerCase());
-      const matchesContext =
-        conversationContext === "All conversations" ||
-        (conversationContext === "Unread"
-          ? conversation.unread > 0
-          : conversationContext === "Maintenance"
-            ? conversation.property.startsWith("Maintenance")
-            : !conversation.property.startsWith("Maintenance"));
-      return matchesQuery && matchesContext;
-    })
-    .sort((a, b) =>
-      conversationSort === "Unread first"
-        ? b.unread - a.unread
-        : conversations.indexOf(a) - conversations.indexOf(b),
-    );
-  const selectedConversation =
-    visibleConversations.find(
-      (conversation) => conversation.name === selectedName,
-    ) ?? visibleConversations[0];
-  const send = () => {
-    if (!draft.trim()) return;
-    notify("Message added to the demo conversation.");
-    setDraft("");
-  };
-  return (
-    <section
-      className={`messages-layout card ${mobileChatOpen ? "chat-open" : ""}`}
-    >
-      <aside className="conversation-list">
-        <div className="conversation-search">
-          <Search size={17} />
-          <input
-            placeholder="Search messages"
-            aria-label="Search messages"
-            value={conversationQuery}
-            onChange={(event) => setConversationQuery(event.target.value)}
-          />
-        </div>
-        <div className="conversation-filters">
-          <select
-            aria-label="Conversation type"
-            value={conversationContext}
-            onChange={(event) => setConversationContext(event.target.value)}
-          >
-            <option>All conversations</option>
-            <option>Unread</option>
-            <option>Property</option>
-            <option>Maintenance</option>
-          </select>
-          <select
-            aria-label="Sort messages"
-            value={conversationSort}
-            onChange={(event) => setConversationSort(event.target.value)}
-          >
-            <option>Most recent</option>
-            <option>Unread first</option>
-          </select>
-        </div>
-        {visibleConversations.map((conversation) => (
-          <button
-            key={conversation.name}
-            className={
-              selectedConversation?.name === conversation.name ? "active" : ""
-            }
-            onClick={() => {
-              setSelectedName(conversation.name);
-              setMobileChatOpen(true);
-            }}
-          >
-            <Avatar initials={conversation.initials} />
-            <span>
-              <strong>{conversation.name}</strong>
-              <small>{conversation.property}</small>
-              <p>{conversation.preview}</p>
-            </span>
-            <time>{conversation.time}</time>
-            {conversation.unread > 0 && <i>{conversation.unread}</i>}
-          </button>
-        ))}
-        {visibleConversations.length === 0 && (
-          <div className="conversation-empty">No conversations match.</div>
-        )}
-      </aside>
-      {selectedConversation ? (
-        <div className="chat-panel">
-          <header>
-            <button
-              className="mobile-chat-back"
-              onClick={() => setMobileChatOpen(false)}
-              aria-label="Back to conversations"
-            >
-              <ArrowLeft size={18} />
-            </button>
-            <Avatar initials={selectedConversation.initials} />
-            <div>
-              <strong>{selectedConversation.name}</strong>
-              <small>Private Kasa Chat · {selectedConversation.property}</small>
-            </div>
-            <div className="chat-safety-actions">
-              <button
-                onClick={() =>
-                  notify("Conversation reported to Kasa Trust for review.")
-                }
-              >
-                Report
-              </button>
-              <button
-                onClick={() =>
-                  notify(
-                    "Block controls opened. No action was taken in this demo.",
-                  )
-                }
-              >
-                Block
-              </button>
-            </div>
-          </header>
-          <div className="chat-body">
-            <div className="chat-privacy-banner">
-              <LockKeyhole size={16} />
-              <span>
-                <strong>Contact details are not public</strong>
-                <small>
-                  Messages stay in Kasa. Share a phone number or email only if
-                  you choose.
-                </small>
-              </span>
-            </div>
-            <span className="date-divider">Today</span>
-            <div className="message received">
-              <p>
-                Hi Olivia, I made the rent transfer directly to your account
-                this morning.
-              </p>
-              <time>09:36</time>
-            </div>
-            <div className="message received attachment">
-              <FileText size={19} />
-              <div>
-                <strong>August-transfer.pdf</strong>
-                <small>184 KB · PDF</small>
-              </div>
-              <Download size={17} />
-            </div>
-            <div className="message sent">
-              <p>
-                Thanks Inês — I can see the receipt. I’ve marked the August
-                record as confirmed.
-              </p>
-              <time>
-                09:41 <CheckCheck />
-              </time>
-            </div>
-          </div>
-          <div className="message-compose">
-            <button
-              className="icon-button"
-              onClick={() => notify("Document picker opened.")}
-              aria-label="Attach a document"
-            >
-              <Paperclip size={20} />
-            </button>
-            <input
-              placeholder="Write a message…"
-              value={draft}
-              onChange={(event) => setDraft(event.target.value)}
-              onKeyDown={(event) => event.key === "Enter" && send()}
-            />
-            <button
-              className="send-button"
-              onClick={send}
-              aria-label="Send message"
-            >
-              <Send size={18} />
-            </button>
-          </div>
-        </div>
-      ) : (
-        <div className="chat-empty">
-          <MessageCircle size={27} />
-          <strong>No conversation selected</strong>
-          <span>Adjust the filters to see messages.</span>
-        </div>
-      )}
-    </section>
-  );
-}
-
-function CheckCheck() {
-  return <span className="double-check">✓✓</span>;
-}
-
 function Rent({
   role,
   notify,
@@ -4417,10 +4033,14 @@ function Services({
   onOfferServices,
   launchMode = "discover",
   onAreaChange,
+  initialQuery = "",
+  onQueryChange,
 }: {
   notify: (message: string) => void;
   onOfferServices: () => void;
   launchMode?: ServiceLaunchMode;
+  initialQuery?: string;
+  onQueryChange?: (query: string) => void;
   onAreaChange?: (
     area: "discover" | "tasks" | "work",
     workMode: "jobs" | "hire",
@@ -4436,14 +4056,14 @@ function Services({
   const [workMode, setWorkMode] = useState<"jobs" | "hire">(
     launchMode === "hire" ? "hire" : "jobs",
   );
-  const [jobQuery, setJobQuery] = useState("");
+  const [jobQuery, setJobQuery] = useState(initialQuery);
   const [jobType, setJobType] = useState("All opportunities");
   const [hiringOpen, setHiringOpen] = useState(false);
   const [applyingJob, setApplyingJob] = useState<string | null>(null);
   const [booking, setBooking] = useState<(typeof providers)[number] | null>(
     null,
   );
-  const [serviceQuery, setServiceQuery] = useState("");
+  const [serviceQuery, setServiceQuery] = useState(initialQuery);
   const [pricingFilter, setPricingFilter] = useState("Any pricing");
   const [providerKind, setProviderKind] = useState("Any provider");
   const [serviceAvailability, setServiceAvailability] =
@@ -4454,6 +4074,9 @@ function Services({
   useEffect(() => {
     onAreaChange?.(serviceSection, workMode);
   }, [onAreaChange, serviceSection, workMode]);
+  useEffect(() => {
+    onQueryChange?.(serviceSection === "work" ? jobQuery : serviceQuery);
+  }, [onQueryChange, serviceSection, jobQuery, serviceQuery]);
   const categories: [string, LucideIcon][] = [
     ["Cleaning", Sparkles],
     ["Plumbing", Wrench],
@@ -4472,9 +4095,12 @@ function Services({
     .filter(
       (provider) =>
         (selectedCategory === "All" || provider.type === selectedCategory) &&
-        `${provider.name} ${provider.type} ${provider.mode}`
-          .toLowerCase()
-          .includes(serviceQuery.toLowerCase()) &&
+        matchesSearch(
+          serviceQuery,
+          provider.name,
+          provider.type,
+          provider.mode,
+        ) &&
         (pricingFilter === "Any pricing" ||
           provider.pricing === pricingFilter) &&
         (providerKind === "Any provider" ||
@@ -4532,50 +4158,16 @@ function Services({
   const visibleTasks = serviceTasks.filter(
     (task) => task.completed === (taskTab === "Completed"),
   );
-  const workOpportunities = [
-    {
-      title: "Property maintenance assistant",
-      business: "Habitat Norte",
-      location: "Barcelona · On site",
-      type: "Part time",
-      pay: "€14–€17 / hour",
-      skills: ["Basic repairs", "Customer care"],
-      posted: "Today",
-    },
-    {
-      title: "Freelance move-out cleaner",
-      business: "Casa Clara",
-      location: "Barcelona · Multiple areas",
-      type: "Freelance",
-      pay: "€80–€110 / task",
-      skills: ["Cleaning", "Own equipment"],
-      posted: "2 hours ago",
-    },
-    {
-      title: "Electrical technician",
-      business: "Volt & Co.",
-      location: "Barcelona · On site",
-      type: "Full time",
-      pay: "€28,000–€34,000 / year",
-      skills: ["Electrical", "Certification required"],
-      posted: "Yesterday",
-    },
-    {
-      title: "Event setup crew",
-      business: "Poblenou Events",
-      location: "Barcelona · Flexible locations",
-      type: "Project",
-      pay: "€120 / event",
-      skills: ["Event setup", "Evening availability"],
-      posted: "Yesterday",
-    },
-  ];
   const visibleOpportunities = workOpportunities.filter(
     (job) =>
       (jobType === "All opportunities" || job.type === jobType) &&
-      `${job.title} ${job.business} ${job.skills.join(" ")}`
-        .toLowerCase()
-        .includes(jobQuery.toLowerCase()),
+      matchesSearch(
+        jobQuery,
+        job.title,
+        job.business,
+        job.location,
+        ...job.skills,
+      ),
   );
   const talentProfiles = [
     {
@@ -5456,10 +5048,14 @@ function SpacesMarketplace({
   notify,
   onGoBookings,
   onListSpace,
+  initialQuery = "",
+  onQueryChange,
 }: {
   notify: (message: string) => void;
   onGoBookings: () => void;
   onListSpace: () => void;
+  initialQuery?: string;
+  onQueryChange?: (query: string) => void;
 }) {
   const { tr } = useKasaI18n();
   const [catalogVenues, setCatalogVenues] = useState(spaceVenues);
@@ -5472,8 +5068,9 @@ function SpacesMarketplace({
     | "request"
     | "requestSent";
   const [stage, setStage] = useState<SpaceStage>("browse");
-  const [category, setCategory] = useState("Sports");
-  const [query, setQuery] = useState("");
+  const [category, setCategory] = useState(initialQuery ? "All" : "Sports");
+  const [query, setQuery] = useState(initialQuery);
+  useEffect(() => onQueryChange?.(query), [query, onQueryChange]);
   const [sort, setSort] = useState("Recommended");
   const [mapView, setMapView] = useState(false);
   const [activity, setActivity] = useState("Any activity");
@@ -5508,29 +5105,52 @@ function SpacesMarketplace({
     };
   }, []);
   const categories: Array<[string, LucideIcon, string]> = [
+    ["All", Search, tr("space.eyebrow")],
     ["Sports", Zap, tr("space.sportsNote")],
     ["Events", Sparkles, tr("space.eventsNote")],
   ];
   const activityOptions =
-    category === "Sports"
-      ? ["Padel", "Football", "Tennis", "Basketball"]
-      : ["Celebration", "Workshop", "Community event", "Reception"];
+    category === "All"
+      ? [
+          "Padel",
+          "Football",
+          "Tennis",
+          "Basketball",
+          "Celebration",
+          "Workshop",
+          "Community event",
+          "Reception",
+        ]
+      : category === "Sports"
+        ? ["Padel", "Football", "Tennis", "Basketball"]
+        : ["Celebration", "Workshop", "Community event", "Reception"];
   const spaceAmenityOptions =
-    category === "Sports"
+    category === "All"
       ? [
           "Lighting",
           "Changing rooms",
           "Parking",
           "Equipment rental",
           "Accessible entry",
-        ]
-      : [
           "Kitchen",
           "Catering allowed",
-          "Parking",
           "Sound system",
-          "Accessible entry",
-        ];
+        ]
+      : category === "Sports"
+        ? [
+            "Lighting",
+            "Changing rooms",
+            "Parking",
+            "Equipment rental",
+            "Accessible entry",
+          ]
+        : [
+            "Kitchen",
+            "Catering allowed",
+            "Parking",
+            "Sound system",
+            "Accessible entry",
+          ];
   const activityLabel = (item: string) => {
     const key =
       item === "Football"
@@ -5573,10 +5193,15 @@ function SpacesMarketplace({
     );
   const visibleVenues = catalogVenues
     .filter((item) => {
-      const matchQuery =
-        `${item.name} ${item.neighbourhood} ${item.category} ${item.description} ${item.amenities.join(" ")} ${item.spaces.map((unit) => unit.activity).join(" ")}`
-          .toLowerCase()
-          .includes(query.toLowerCase());
+      const matchQuery = matchesSearch(
+        query,
+        item.name,
+        item.neighbourhood,
+        item.category,
+        item.description,
+        ...item.amenities,
+        ...item.spaces.map((unit) => unit.activity),
+      );
       const matchActivity =
         activity === "Any activity" ||
         item.spaces.some((unit) =>
@@ -5596,7 +5221,7 @@ function SpacesMarketplace({
       );
       const matchDrawnZone = isPointInsideZone([item.lat, item.lng], drawnZone);
       return (
-        item.category === category &&
+        (category === "All" || item.category === category) &&
         matchQuery &&
         matchActivity &&
         matchCapacity &&
@@ -6282,10 +5907,11 @@ function SpacesMarketplace({
           <option value="Price: low to high">{tr("common.priceLow")}</option>
         </select>
       </section>
-      <section className="space-category-grid focused">
+      <section className="space-category-grid focused with-all">
         {categories.map(([label, Icon, note]) => (
           <button
             className={category === label ? "active" : ""}
+            aria-pressed={category === label}
             key={label}
             onClick={() => {
               setCategory(label);
@@ -6297,7 +5923,11 @@ function SpacesMarketplace({
               <Icon size={20} />
             </span>
             <strong>
-              {label === "Sports" ? tr("space.sports") : tr("space.events")}
+              {label === "All"
+                ? tr("universalHome.everything")
+                : label === "Sports"
+                  ? tr("space.sports")
+                  : tr("space.events")}
             </strong>
             <small>{note}</small>
           </button>
@@ -6506,190 +6136,6 @@ function SpacesMarketplace({
         <ShieldCheck size={17} />
         <span>{tr("space.scope")}</span>
       </div>
-    </div>
-  );
-}
-
-function SpaceBookingsView({ notify }: { notify: (message: string) => void }) {
-  const [tab, setTab] = useState("Upcoming");
-  const [selected, setSelected] = useState(spaceBookings[0]);
-  const [proposalAccepted, setProposalAccepted] = useState(false);
-  const filtered = spaceBookings.filter(
-    (booking) => tab === "All" || booking.status === tab,
-  );
-  return (
-    <div className="page-stack">
-      <div className="page-actions">
-        <div className="segment">
-          {["All", "Upcoming", "Requested", "Completed", "Cancelled"].map(
-            (item) => (
-              <button
-                key={item}
-                className={tab === item ? "active" : ""}
-                onClick={() => setTab(item)}
-              >
-                {item}
-              </button>
-            ),
-          )}
-        </div>
-        <ActionButton
-          secondary
-          onClick={() => notify("Calendar export created.")}
-        >
-          Export calendar
-        </ActionButton>
-      </div>
-      <div className="space-bookings-layout">
-        <section className="card space-booking-list">
-          {filtered.map((booking) => (
-            <button
-              className={selected.id === booking.id ? "active" : ""}
-              key={booking.id}
-              onClick={() => {
-                setSelected(booking);
-                setProposalAccepted(false);
-              }}
-            >
-              <img src={booking.image} alt="" />
-              <span>
-                <StatusPill
-                  tone={
-                    booking.status === "Upcoming"
-                      ? "mint"
-                      : booking.status === "Requested"
-                        ? "amber"
-                        : "neutral"
-                  }
-                >
-                  {booking.status}
-                </StatusPill>
-                <strong>{booking.venue}</strong>
-                <small>
-                  {booking.space} · {booking.date} · {booking.time}
-                </small>
-              </span>
-              <ChevronRight />
-            </button>
-          ))}
-          {filtered.length === 0 && (
-            <div className="empty-state">
-              <CalendarDays />
-              <h3>No {tab.toLowerCase()} bookings</h3>
-            </div>
-          )}
-        </section>
-        <aside className="card padded booking-detail-panel">
-          <img src={selected.image} alt="" />
-          <div>
-            <StatusPill
-              tone={
-                selected.status === "Upcoming"
-                  ? "mint"
-                  : selected.status === "Requested"
-                    ? "amber"
-                    : "neutral"
-              }
-            >
-              {proposalAccepted ? "New time accepted" : selected.status}
-            </StatusPill>
-            <h2>{selected.venue}</h2>
-            <p>{selected.space}</p>
-          </div>
-          <div className="booking-facts">
-            <span>
-              <small>Date</small>
-              <strong>{selected.date}</strong>
-            </span>
-            <span>
-              <small>Time</small>
-              <strong>
-                {proposalAccepted ? "18:30–20:00" : selected.time}
-              </strong>
-            </span>
-            <span>
-              <small>Price</small>
-              <strong>{formatEuro(selected.price)}</strong>
-            </span>
-          </div>
-          {selected.status === "Requested" && !proposalAccepted && (
-            <div className="time-proposal-card">
-              <span className="eyebrow">OPERATOR PROPOSED A CHANGE</span>
-              <h3>18:30–20:00</h3>
-              <p>
-                Your original request was {selected.time}. The venue suggested a
-                different time; nothing changes until you accept.
-              </p>
-              <div>
-                <ActionButton
-                  onClick={() => {
-                    setProposalAccepted(true);
-                    notify(
-                      "Alternative time accepted. The booking record is now confirmed in this demo.",
-                    );
-                  }}
-                >
-                  Accept new time
-                </ActionButton>
-                <ActionButton
-                  secondary
-                  onClick={() =>
-                    notify(
-                      "Original time kept as requested. The venue has been notified.",
-                    )
-                  }
-                >
-                  Keep original request
-                </ActionButton>
-              </div>
-            </div>
-          )}
-          {selected.status === "Upcoming" && (
-            <div className="qr-card">
-              <div className="qr-pattern">▦</div>
-              <span>
-                <small>Show at the venue</small>
-                <strong>{selected.code}</strong>
-              </span>
-            </div>
-          )}
-          <button
-            className="soft-button"
-            onClick={() => notify("Private venue conversation opened.")}
-          >
-            <MessageCircle size={15} /> Message venue
-          </button>
-          {selected.status === "Completed" && (
-            <ActionButton
-              onClick={() => notify("Review submitted. Thank you.")}
-            >
-              Leave a review
-            </ActionButton>
-          )}
-        </aside>
-      </div>
-      <section className="card padded related-services">
-        <SectionHeading title="Useful for your next booking" />
-        <div>
-          {["Trainer", "Referee", "Sports photography", "Equipment rental"].map(
-            (item) => (
-              <button
-                key={item}
-                onClick={() =>
-                  notify(`${item} providers opened in Kasa Services.`)
-                }
-              >
-                <Wrench size={18} />
-                <span>
-                  <strong>{item}</strong>
-                  <small>Optional · separately supplied</small>
-                </span>
-                <ChevronRight />
-              </button>
-            ),
-          )}
-        </div>
-      </section>
     </div>
   );
 }
@@ -8439,46 +7885,157 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
   const { tr } = useKasaI18n();
   const previewParams = new URLSearchParams(window.location.search);
   const previewDevice = previewParams.get("device");
-  const requestedRole = demoTarget?.role ?? (previewParams.get("role") as Role);
-  const requestedView = demoTarget?.view ?? (previewParams.get("view") as View);
+  const [initialRoute] = useState(() =>
+    readAppRoute(demoTarget ? "" : window.location.search, {
+      role: demoTarget?.role,
+      view: demoTarget?.view,
+      intent: demoTarget?.intent,
+      service: demoTarget?.service,
+    }),
+  );
   const isDevicePreview =
     previewDevice === "ios" || previewDevice === "android";
-  const [role, setRole] = useState<Role>(
-    roleValues.includes(requestedRole) ? requestedRole : "landlord",
-  );
-  const [view, setView] = useState<View>(
-    viewValues.includes(requestedView) ? requestedView : "overview",
-  );
+  const [role, setRole] = useState<Role>(initialRoute.role);
+  const [view, setView] = useState<View>(initialRoute.view);
   const [showOnboarding, setShowOnboarding] = useState(() =>
     demoTarget
       ? Boolean(demoTarget.welcome)
-      : !isDevicePreview &&
-        previewParams.get("simulator") !== "1" &&
-        window.sessionStorage.getItem("kasa-demo-entered") !== "1",
+      : previewParams.get("welcome") === "1",
   );
   const [selectedProperty, setSelectedProperty] = useState<Property>(
-    properties.find(
-      (property) => property.listingType === demoTarget?.intent,
-    ) ?? properties[0],
+    properties.find((property) => property.id === initialRoute.propertyId) ??
+      properties[0],
   );
   const [favourites, setFavourites] = useState<number[]>([2]);
+  const [messageState, setMessageState] = useState(createInitialMessageState);
+  const messageUnread = unreadMessageCount(messageState);
+  const [bookingsState, setBookingsState] = useState(
+    createInitialSpaceBookingsState,
+  );
+  const [applicationState, setApplicationState] = useState(
+    createInitialApplicationState,
+  );
+  const [notificationState, setNotificationState] = useState(
+    createInitialNotificationState,
+  );
   const [mobileOpen, setMobileOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [workspaceMenuOpen, setWorkspaceMenuOpen] = useState(false);
+  const mobileNavigationQuery = "(max-width: 980px)";
+  const isMobileNavigation = useMediaQuery(mobileNavigationQuery);
+  const closeMobileNavigation = () => {
+    setMobileOpen(false);
+    setWorkspaceMenuOpen(false);
+  };
+  const sidebarRef = useDialogFocus<HTMLElement>(closeMobileNavigation, {
+    active: isMobileNavigation && mobileOpen && !showOnboarding,
+    restoreFocus: () => window.matchMedia(mobileNavigationQuery).matches,
+  });
   const [deviceSimulatorOpen, setDeviceSimulatorOpen] = useState(
     () => !isDevicePreview && previewParams.get("simulator") === "1",
   );
   const [toast, setToast] = useState("");
   const [discoveryIntent, setDiscoveryIntent] = useState<"Rent" | "Buy">(
-    demoTarget?.intent ?? "Rent",
+    initialRoute.intent,
+  );
+  const [discoverState, setDiscoverState] = useState(
+    createInitialDiscoverState,
   );
   const [serviceLaunch, setServiceLaunch] = useState<ServiceLaunchMode>(
-    demoTarget?.service ?? "discover",
+    initialRoute.service,
   );
   const [serviceArea, setServiceArea] = useState<"discover" | "tasks" | "work">(
-    demoTarget?.service === "jobs" || demoTarget?.service === "hire"
+    initialRoute.service === "jobs" || initialRoute.service === "hire"
       ? "work"
-      : (demoTarget?.service ?? "discover"),
+      : initialRoute.service,
+  );
+  const [searchQuery, setSearchQuery] = useState(initialRoute.query);
+  const [serviceEntryRevision, setServiceEntryRevision] = useState(0);
+  const [propertyReturnTo, setPropertyReturnTo] = useState<
+    "discover" | "saved"
+  >(initialRoute.returnTo);
+  const [routeRevision, setRouteRevision] = useState(0);
+  const previousRoute = useRef<AppRoute | null>(null);
+  const restoringHistory = useRef(false);
+
+  useEffect(() => {
+    if (demoTarget) return;
+    const route: AppRoute = {
+      role,
+      view,
+      intent: discoveryIntent,
+      propertyId: selectedProperty.id,
+      service: serviceLaunch,
+      query: searchQuery,
+      returnTo: propertyReturnTo,
+    };
+    if (restoringHistory.current) {
+      restoringHistory.current = false;
+      previousRoute.current = route;
+      return;
+    }
+    const url = appRouteUrl(route, window.location.search);
+    const previous = previousRoute.current;
+    const screenChanged =
+      previous &&
+      (previous.role !== role ||
+        previous.view !== view ||
+        (view === "property" && previous.propertyId !== selectedProperty.id) ||
+        (view === "services" && previous.service !== serviceLaunch));
+    if (url !== window.location.search) {
+      if (screenChanged) window.history.pushState(null, "", url);
+      else window.history.replaceState(null, "", url);
+    }
+    previousRoute.current = route;
+  }, [
+    demoTarget,
+    role,
+    view,
+    discoveryIntent,
+    selectedProperty.id,
+    serviceLaunch,
+    searchQuery,
+    propertyReturnTo,
+    routeRevision,
+  ]);
+
+  useEffect(() => {
+    if (demoTarget) return;
+    const restore = () => {
+      const route = readAppRoute(window.location.search);
+      restoringHistory.current = true;
+      setRole(route.role);
+      setView(route.view);
+      setDiscoveryIntent(route.intent);
+      setSelectedProperty(
+        properties.find((property) => property.id === route.propertyId) ??
+          properties[0],
+      );
+      setServiceLaunch(route.service);
+      setServiceArea(
+        route.service === "jobs" || route.service === "hire"
+          ? "work"
+          : route.service,
+      );
+      setSearchQuery(route.query);
+      setPropertyReturnTo(route.returnTo);
+      setShowOnboarding(false);
+      setMobileOpen(false);
+      setNotificationsOpen(false);
+      setWorkspaceMenuOpen(false);
+      setRouteRevision((value) => value + 1);
+      window.scrollTo({ top: 0, behavior: "instant" });
+    };
+    window.addEventListener("popstate", restore);
+    return () => window.removeEventListener("popstate", restore);
+  }, [demoTarget]);
+
+  const updateServiceArea = useCallback(
+    (area: "discover" | "tasks" | "work", mode: "jobs" | "hire") => {
+      setServiceArea(area);
+      setServiceLaunch(area === "work" ? mode : area);
+    },
+    [],
   );
 
   const visibleNav = useMemo(
@@ -8739,22 +8296,33 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
     },
   }[role];
 
-  const go = (next: View) => {
-    setView(next);
-    setMobileOpen(false);
-    setWorkspaceMenuOpen(false);
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  };
-  const openServices = (mode: ServiceLaunchMode) => {
+  const go = useCallback(
+    (next: View, query?: string) => {
+      setView(next);
+      if (query !== undefined) setSearchQuery(query);
+      else if (
+        next !== view &&
+        next !== "property" &&
+        !(view === "property" && (next === "discover" || next === "saved"))
+      )
+        setSearchQuery("");
+      setMobileOpen(false);
+      setWorkspaceMenuOpen(false);
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    },
+    [view],
+  );
+  const openServices = (mode: ServiceLaunchMode, query = "") => {
     setServiceLaunch(mode);
+    setServiceEntryRevision((value) => value + 1);
     setServiceArea(mode === "jobs" || mode === "hire" ? "work" : mode);
-    go("services");
+    go("services", query);
   };
   useEffect(() => {
     const handleKeyboardNavigation = (event: KeyboardEvent) => {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
         event.preventDefault();
-        setView(
+        go(
           role === "provider"
             ? "provider"
             : role === "spaceOperator"
@@ -8763,9 +8331,6 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
                 ? "admin"
                 : "discover",
         );
-        setMobileOpen(false);
-        setWorkspaceMenuOpen(false);
-        window.scrollTo({ top: 0, behavior: "smooth" });
       }
       if (event.key === "Escape") {
         setMobileOpen(false);
@@ -8776,10 +8341,15 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
     window.addEventListener("keydown", handleKeyboardNavigation);
     return () =>
       window.removeEventListener("keydown", handleKeyboardNavigation);
-  }, [role]);
+  }, [role, go]);
   const notify = (message: string) => {
     setToast(message);
     window.setTimeout(() => setToast(""), 3200);
+  };
+  const openNotification = (notification: KasaNotification) => {
+    setNotificationsOpen(false);
+    if (notification.serviceMode) openServices(notification.serviceMode);
+    else go(notification.destination);
   };
   const selectWorkspace = (next: Role) => {
     const labels: Record<Role, string> = {
@@ -8791,6 +8361,7 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
     };
     setRole(next);
     setView("overview");
+    setSearchQuery("");
     setWorkspaceMenuOpen(false);
     setMobileOpen(false);
     setNotificationsOpen(false);
@@ -8810,6 +8381,7 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
   ) => {
     setRole(nextRole);
     setView(nextView);
+    setSearchQuery("");
     if (nextDiscoveryIntent) setDiscoveryIntent(nextDiscoveryIntent);
     setShowOnboarding(false);
     window.sessionStorage.setItem("kasa-demo-entered", "1");
@@ -8825,6 +8397,23 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
             go={go}
             openServices={openServices}
             setDiscoveryIntent={setDiscoveryIntent}
+            initialQuery={searchQuery}
+            onAllSearch={setSearchQuery}
+            onSearch={(scope, query, intent) => {
+              if (scope === "homes") {
+                const nextIntent = intent ?? "Rent";
+                setDiscoveryIntent(nextIntent);
+                setDiscoverState((current) =>
+                  updateDiscoverState(
+                    current,
+                    nextIntent,
+                    resetDiscoverFilters,
+                  ),
+                );
+                go("discover", query);
+              } else if (scope === "spaces") go("spaces", query);
+              else openServices(scope === "work" ? "jobs" : "discover", query);
+            }}
           />
         ) : role === "provider" ? (
           <ProviderDashboard notify={notify} />
@@ -8840,8 +8429,19 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
             toggleFavourite={toggleFavourite}
             notify={notify}
             initialIntent={discoveryIntent}
+            initialQuery={searchQuery}
+            onQueryChange={setSearchQuery}
+            onIntentChange={setDiscoveryIntent}
+            filters={discoverState[discoveryIntent]}
+            onFiltersChange={(update) =>
+              setDiscoverState((current) =>
+                updateDiscoverState(current, discoveryIntent, update),
+              )
+            }
             onOpen={(property) => {
               setSelectedProperty(property);
+              setPropertyReturnTo("discover");
+              setDiscoveryIntent(property.listingType);
               go("property");
             }}
           />
@@ -8854,6 +8454,8 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
             notify={notify}
             onOpen={(property) => {
               setSelectedProperty(property);
+              setPropertyReturnTo("saved");
+              setDiscoveryIntent(property.listingType);
               go("property");
             }}
           />
@@ -8864,8 +8466,13 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
             property={selectedProperty}
             favourite={favourites.includes(selectedProperty.id)}
             onFavourite={() => toggleFavourite(selectedProperty.id)}
-            onBack={() => go("discover")}
-            onMessage={() => go("messages")}
+            onBack={() => go(propertyReturnTo)}
+            onMessage={() => {
+              setMessageState((current) =>
+                openPropertyConversation(current, selectedProperty),
+              );
+              go("messages");
+            }}
             notify={notify}
           />
         );
@@ -8884,11 +8491,35 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
           />
         );
       case "applications":
-        return <Applications role={role} notify={notify} />;
+        return (
+          <Applications
+            role={role}
+            state={applicationState}
+            setState={setApplicationState}
+            onNewApplication={() => {
+              setDiscoveryIntent("Rent");
+              go("discover");
+            }}
+          />
+        );
       case "messages":
-        return <Messages notify={notify} />;
+        return (
+          <Messages
+            state={messageState}
+            setState={setMessageState}
+            notify={notify}
+          />
+        );
       case "notifications":
-        return <NotificationsView notify={notify} />;
+        return (
+          <NotificationsView
+            state={notificationState}
+            setState={setNotificationState}
+            role={role}
+            onNavigate={openNotification}
+            notify={notify}
+          />
+        );
       case "profile":
         return (
           <ProfileView
@@ -8909,9 +8540,12 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
       case "services":
         return (
           <Services
+            key={serviceEntryRevision}
             notify={notify}
             launchMode={serviceLaunch}
-            onAreaChange={setServiceArea}
+            initialQuery={searchQuery}
+            onQueryChange={setSearchQuery}
+            onAreaChange={updateServiceArea}
             onOfferServices={() => {
               setRole("provider");
               go("provider");
@@ -8922,6 +8556,8 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
         return (
           <SpacesMarketplace
             notify={notify}
+            initialQuery={searchQuery}
+            onQueryChange={setSearchQuery}
             onGoBookings={() => go("spaceBookings")}
             onListSpace={() => {
               setRole("spaceOperator");
@@ -8933,6 +8569,8 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
         return (
           <SpacesMarketplace
             notify={notify}
+            initialQuery={searchQuery}
+            onQueryChange={setSearchQuery}
             onGoBookings={() => go("spaceBookings")}
             onListSpace={() => {
               setRole("spaceOperator");
@@ -8941,7 +8579,12 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
           />
         );
       case "spaceBookings":
-        return <SpaceBookingsView notify={notify} />;
+        return (
+          <SpaceBookingsView
+            state={bookingsState}
+            setState={setBookingsState}
+          />
+        );
       case "spaceOperator":
         return <SpaceOperatorDashboard notify={notify} />;
       case "spaceOnboarding":
@@ -8993,7 +8636,17 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
       <a className="skip-link" href="#main-content">
         {tr("shell.skipToContent")}
       </a>
-      <aside className={`sidebar ${mobileOpen ? "is-open" : ""}`}>
+      <aside
+        className={`sidebar ${mobileOpen ? "is-open" : ""}`}
+        id="workspace-navigation"
+        ref={sidebarRef}
+        inert={isMobileNavigation && !mobileOpen}
+        aria-hidden={isMobileNavigation && !mobileOpen ? true : undefined}
+        role={isMobileNavigation && mobileOpen ? "dialog" : undefined}
+        aria-modal={isMobileNavigation && mobileOpen ? true : undefined}
+        aria-label={isMobileNavigation ? tr("shell.mainNavigation") : undefined}
+        tabIndex={isMobileNavigation ? -1 : undefined}
+      >
         <button
           type="button"
           className="brand"
@@ -9007,11 +8660,9 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
         </button>
         <button
           className="mobile-close"
-          onClick={() => {
-            setMobileOpen(false);
-            setWorkspaceMenuOpen(false);
-          }}
+          onClick={closeMobileNavigation}
           aria-label={tr("shell.closeNavigation")}
+          data-dialog-initial-focus
         >
           <X />
         </button>
@@ -9123,9 +8774,13 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
                 ? navigationSection(role, visibleNav[index - 1].id)
                 : null;
             const badge =
-              role === "tenant" && item.id === "applications"
-                ? "1"
-                : item.badge;
+              item.id === "messages"
+                ? messageUnread > 0
+                  ? String(messageUnread)
+                  : undefined
+                : role === "tenant" && item.id === "applications"
+                  ? "1"
+                  : item.badge;
             return (
               <span className="nav-wrap" key={item.id}>
                 {section !== previousSection && (
@@ -9153,7 +8808,12 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
           })}
         </nav>
         <div className="sidebar-footer">
-          <button onClick={() => setShowOnboarding(true)}>
+          <button
+            onClick={() => {
+              closeMobileNavigation();
+              setShowOnboarding(true);
+            }}
+          >
             <Smartphone size={18} /> {tr("nav.appWelcome")}
           </button>
           <button onClick={() => notify(tr("shell.helpOpened"))}>
@@ -9167,14 +8827,12 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
           </div>
         </div>
       </aside>
-      {mobileOpen && (
+      {isMobileNavigation && mobileOpen && (
         <button
           className="sidebar-scrim"
-          aria-label={tr("shell.closeNavigation")}
-          onClick={() => {
-            setMobileOpen(false);
-            setWorkspaceMenuOpen(false);
-          }}
+          aria-hidden="true"
+          tabIndex={-1}
+          onClick={closeMobileNavigation}
         />
       )}
       <main className="main-area" id="main-content" tabIndex={-1}>
@@ -9183,6 +8841,8 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
             className="menu-button"
             onClick={() => setMobileOpen(true)}
             aria-label={tr("shell.openNavigation")}
+            aria-expanded={isMobileNavigation && mobileOpen}
+            aria-controls="workspace-navigation"
           >
             <Menu />
           </button>
@@ -9201,7 +8861,7 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
                 <span>{tr("common.simulator")}</span>
               </button>
             )}
-            <LanguageSwitcher short={isDevicePreview} />
+            <LanguageSwitcher short={isDevicePreview || isMobileNavigation} />
             <button
               className="top-search"
               onClick={() =>
@@ -9218,68 +8878,16 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
               <span>{tr("shell.keyboardSearch")}</span>
               <kbd>⌘ K</kbd>
             </button>
-            <div className="notification-wrap">
-              <button
-                className="notification-button"
-                onClick={() => setNotificationsOpen((value) => !value)}
-                aria-label={tr("common.notifications")}
-                aria-expanded={notificationsOpen}
-              >
-                <Bell size={20} />
-                <i />
-              </button>
-              {notificationsOpen && (
-                <section className="notification-panel">
-                  <header>
-                    <strong>{tr("common.notifications")}</strong>
-                    <button
-                      className="text-button"
-                      onClick={() => notify(tr("shell.notificationsRead"))}
-                    >
-                      {tr("shell.markAllRead")}
-                    </button>
-                  </header>
-                  <button>
-                    <span className="notification-dot" />
-                    <div>
-                      <strong>
-                        {role === "provider"
-                          ? tr("shell.newServiceRequest")
-                          : role === "spaceOperator"
-                            ? tr("shell.newCourtBooking")
-                            : role === "admin"
-                              ? tr("shell.listingFlagged")
-                              : tr("shell.transferConfirmed")}
-                      </strong>
-                      <p>
-                        {role === "provider"
-                          ? "Kitchen tap · Eixample"
-                          : role === "spaceOperator"
-                            ? "Court 1 · Today at 18:00"
-                            : role === "admin"
-                              ? "Duplicate-image signal · High priority"
-                              : "August rent · Sunlit Eixample home"}
-                      </p>
-                      <small>{tr("shell.minutesAgo")}</small>
-                    </div>
-                  </button>
-                  <button>
-                    <span className="notification-dot muted-dot" />
-                    <div>
-                      <strong>
-                        {role === "tenant"
-                          ? tr("shell.viewingAccepted")
-                          : role === "spaceOperator"
-                            ? tr("shell.waitlistJoined")
-                            : tr("shell.documentUpdated")}
-                      </strong>
-                      <p>{tr("shell.workspaceReady")}</p>
-                      <small>{tr("shell.yesterday")}</small>
-                    </div>
-                  </button>
-                </section>
-              )}
-            </div>
+            <NotificationsPopover
+              state={notificationState}
+              setState={setNotificationState}
+              role={role}
+              onNavigate={openNotification}
+              notify={notify}
+              open={notificationsOpen}
+              setOpen={setNotificationsOpen}
+              onViewAll={() => go("notifications")}
+            />
             <button
               className="profile-button"
               onClick={() => {
@@ -9297,7 +8905,9 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
             </button>
           </div>
         </header>
-        <div className="content">{renderView()}</div>
+        <div className="content" key={routeRevision}>
+          {renderView()}
+        </div>
       </main>
       {mobileDockItems.length > 0 && (
         <nav

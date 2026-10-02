@@ -699,3 +699,41 @@ export const spaceBookings: SpaceBooking[] = [
     code: "KSA9-H31C",
   },
 ];
+export const workOpportunities = [
+  {
+    title: "Property maintenance assistant",
+    business: "Habitat Norte",
+    location: "Barcelona · On site",
+    type: "Part time",
+    pay: "€14–€17 / hour",
+    skills: ["Basic repairs", "Customer care"],
+    posted: "Today",
+  },
+  {
+    title: "Freelance move-out cleaner",
+    business: "Casa Clara",
+    location: "Barcelona · Multiple areas",
+    type: "Freelance",
+    pay: "€80–€110 / task",
+    skills: ["Cleaning", "Own equipment"],
+    posted: "2 hours ago",
+  },
+  {
+    title: "Electrical technician",
+    business: "Volt & Co.",
+    location: "Barcelona · On site",
+    type: "Full time",
+    pay: "€28,000–€34,000 / year",
+    skills: ["Electrical", "Certification required"],
+    posted: "Yesterday",
+  },
+  {
+    title: "Event setup crew",
+    business: "Poblenou Events",
+    location: "Barcelona · Flexible locations",
+    type: "Project",
+    pay: "€120 / event",
+    skills: ["Event setup", "Evening availability"],
+    posted: "Yesterday",
+  },
+];

@@ -1,0 +1,423 @@
+.application-local-note {
+  margin: 0;
+  padding: 10px 13px;
+  border-radius: 9px;
+  color: #576c62;
+  background: #f0f5f1;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.application-filters {
+  flex-wrap: wrap;
+}
+.application-filters .filter-search {
+  flex: 1 1 210px;
+}
+.application-results-count {
+  margin: 0;
+  color: #61766c;
+  font-size: 12px;
+}
+.application-record-head,
+.application-record-row {
+  display: grid;
+  grid-template-columns: 1.15fr 1.3fr 0.8fr 0.7fr 1fr 18px;
+  align-items: center;
+  gap: 14px;
+}
+.application-record-head {
+  padding: 15px 18px;
+  border-bottom: 1px solid #e1e9e2;
+  background: #f8faf8;
+  color: #73847b;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.application-record-row {
+  width: 100%;
+  padding: 18px;
+  min-height: 84px;
+  border: 0;
+  border-bottom: 1px solid #e8eee9;
+  background: #fff;
+  color: #53685d;
+  text-align: left;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.application-record-row:last-child {
+  border-bottom: 0;
+}
+.application-record-row:hover {
+  background: #f7faf7;
+}
+.application-record-row .applicant-cell {
+  min-width: 0;
+}
+.application-record-row .applicant-cell > span:last-child {
+  display: grid;
+  gap: 6px;
+}
+.application-record-row small {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  color: #517864;
+  font-size: 10px;
+}
+.application-record-row .avatar {
+  flex-shrink: 0;
+}
+.application-record-list {
+  overflow: hidden;
+}
+.application-record-list .table-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  padding: 44px 20px;
+  text-align: center;
+}
+.application-detail-card {
+  width: min(700px, 100%);
+}
+.application-detail-body {
+  display: grid;
+  gap: 22px;
+}
+.application-detail-property {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 15px;
+}
+.application-detail-property h3 {
+  margin: 0 0 8px;
+  font-size: 20px;
+}
+.application-detail-property p {
+  margin: 0;
+  color: #6b7c73;
+  font-size: 12px;
+}
+.application-detail-section {
+  border-top: 1px solid #e2eae4;
+  padding-top: 20px;
+}
+.application-detail-section h3 {
+  margin: 0 0 12px;
+  font-size: 15px;
+}
+.application-section-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  font-size: 12px;
+}
+.application-section-heading strong {
+  color: #246245;
+}
+.application-detail-section progress {
+  width: 100%;
+  height: 8px;
+  border: 0;
+  border-radius: 20px;
+  overflow: hidden;
+  accent-color: #356a50;
+  background: #e3ece5;
+}
+.application-detail-section progress::-webkit-progress-bar {
+  background: #e3ece5;
+}
+.application-detail-section progress::-webkit-progress-value {
+  background: #356a50;
+}
+.application-detail-section progress::-moz-progress-bar {
+  background: #356a50;
+}
+.application-profile-checklist {
+  list-style: none;
+  padding: 0;
+  margin: 15px 0;
+  display: grid;
+  gap: 10px;
+}
+.application-profile-checklist li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+}
+.application-profile-checklist small {
+  margin-left: auto;
+  color: #7c8b82;
+  font-size: 11px;
+}
+.application-profile-checklist .field-present,
+.application-profile-checklist .field-missing {
+  display: grid;
+  place-items: center;
+  width: 23px;
+  height: 23px;
+  border-radius: 50%;
+  background: #e7f3e9;
+  color: #28733f;
+}
+.application-profile-checklist .field-missing {
+  background: #f4f2ec;
+  color: #8e8361;
+}
+.application-explanation {
+  margin: 8px 0 14px;
+  color: #63766c;
+  font-size: 12px;
+  line-height: 1.6;
+}
+.application-document-list {
+  display: grid;
+  gap: 8px;
+}
+.application-document-list details {
+  border: 1px solid #e0e8e2;
+  border-radius: 10px;
+}
+.application-document-list summary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 48px;
+  padding: 10px 12px;
+  cursor: pointer;
+  list-style: none;
+  font-size: 12px;
+}
+.application-document-list summary::-webkit-details-marker {
+  display: none;
+}
+.application-document-list summary strong {
+  margin-right: auto;
+}
+.application-document-list details[open] summary > svg:last-child {
+  transform: rotate(90deg);
+}
+.application-document-list details p {
+  margin: 0;
+  padding: 0 15px 15px;
+  color: #61766a;
+  font-size: 12px;
+  line-height: 1.6;
+}
+.application-document-status {
+  padding: 4px 6px;
+  border-radius: 5px;
+  color: #486654;
+  background: #eaf3ec;
+  font-size: 10px;
+}
+.application-document-status.requested {
+  color: #8b642a;
+  background: #fbf2df;
+}
+.application-document-status.missing {
+  color: #6a726e;
+  background: #eef1ed;
+}
+.application-request-note,
+.application-approval-confirm {
+  margin-top: 15px;
+  padding: 14px;
+  border-radius: 10px;
+  background: #f4f6ed;
+  font-size: 12px;
+  line-height: 1.6;
+}
+.application-request-note p,
+.application-approval-confirm p {
+  margin: 6px 0 12px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.application-review-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.application-review-actions button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+.application-request-form {
+  display: grid;
+  gap: 15px;
+  margin-top: 16px;
+  padding: 16px;
+  border: 1px solid #dce7df;
+  border-radius: 12px;
+  background: #f8fbf8;
+}
+.application-request-form fieldset {
+  display: grid;
+  gap: 11px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.application-request-form legend {
+  padding: 0 0 12px;
+  font-weight: 700;
+  font-size: 12px;
+}
+.application-request-form label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+.application-request-form > label {
+  display: grid;
+}
+.application-request-form input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  accent-color: #32644a;
+}
+.application-request-form textarea {
+  width: 100%;
+  resize: vertical;
+  padding: 10px;
+  border: 1px solid #c9d7cd;
+  border-radius: 8px;
+  font: inherit;
+  font-size: 14px;
+  box-sizing: border-box;
+}
+.application-action-feedback {
+  margin: 0;
+  color: #2c6944;
+  font-size: 13px;
+  line-height: 1.6;
+}
+.application-action-feedback:empty {
+  display: none;
+}
+.application-approved-note {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px;
+  border-radius: 10px;
+  background: #e9f4ea;
+  color: #356246;
+  font-size: 12px;
+  line-height: 1.6;
+}
+.application-approved-note svg {
+  flex-shrink: 0;
+}
+.application-record-history {
+  display: grid;
+  gap: 13px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.application-record-history li {
+  display: grid;
+  gap: 4px;
+  padding-left: 12px;
+  border-left: 2px solid #d1e0d5;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.application-record-history time {
+  color: #7b8b80;
+  font-size: 11px;
+}
+.application-record-row:focus-visible,
+.application-document-list summary:focus-visible {
+  outline: 3px solid #5d8c68;
+  outline-offset: -3px;
+}
+
+@media (max-width: 1050px) {
+  .application-record-head {
+    display: none;
+  }
+  .application-record-row {
+    grid-template-columns: 1fr auto 18px;
+    gap: 10px;
+  }
+  .application-record-row .applicant-cell {
+    grid-column: 1;
+    grid-row: 1;
+  }
+  .application-row-property {
+    grid-column: 1;
+    grid-row: 2;
+  }
+  .application-row-date {
+    grid-column: 1;
+    grid-row: 3;
+  }
+  .application-row-completeness {
+    grid-column: 2;
+    grid-row: 2;
+  }
+  .application-row-status {
+    grid-column: 2;
+    grid-row: 1;
+  }
+  .application-row-arrow {
+    grid-column: 3;
+    grid-row: 1 / 4;
+  }
+}
+@media (max-width: 560px) {
+  .application-record-row {
+    grid-template-columns: 1fr 18px;
+    padding: 16px;
+  }
+  .application-row-property {
+    grid-row: 2;
+  }
+  .application-row-status {
+    grid-column: 1;
+    grid-row: 3;
+  }
+  .application-row-date {
+    grid-row: 4;
+  }
+  .application-row-completeness {
+    grid-column: 1;
+    grid-row: 5;
+  }
+  .application-row-arrow {
+    grid-column: 2;
+    grid-row: 1 / 6;
+  }
+  .application-detail-property {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .application-detail-body {
+    padding: 18px;
+  }
+  .application-review-actions > button {
+    flex: 1 1 100%;
+  }
+  .application-document-list summary {
+    gap: 7px;
+  }
+  .application-detail-layer {
+    padding: 10px;
+  }
+  .application-detail-card {
+    max-height: calc(100dvh - 20px);
+  }
+}

@@ -1,0 +1,121 @@
+.kasa-notification-count,
+.kasa-notification-scope {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+.notification-page > header {
+  flex-wrap: wrap;
+}
+.notification-page .text-button,
+.kasa-notification-panel .text-button {
+  min-height: 44px;
+}
+.notification-page button:disabled,
+.kasa-notification-panel button:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+.kasa-notification-entry {
+  border-bottom: 1px solid var(--line);
+  background: white;
+}
+.kasa-notification-entry:last-child {
+  border-bottom: 0;
+}
+.kasa-notification-entry.is-unread {
+  background: #f3f8f4;
+}
+.kasa-notification-open {
+  width: 100%;
+  padding: 17px 17px 0;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 13px;
+  align-items: start;
+  border: 0;
+  color: var(--ink);
+  background: transparent;
+  text-align: start;
+  cursor: pointer;
+}
+.kasa-notification-open:hover .kasa-notification-copy strong {
+  text-decoration: underline;
+}
+.kasa-notification-copy {
+  display: grid;
+  gap: 5px;
+  overflow-wrap: anywhere;
+}
+.kasa-notification-copy strong {
+  font-size: 14px;
+  line-height: 1.4;
+}
+.kasa-notification-copy small {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+.kasa-notification-read-action {
+  padding: 0 17px 3px;
+  display: flex;
+  justify-content: flex-end;
+}
+.kasa-notification-read-action button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  text-align: start;
+}
+.kasa-notification-badge {
+  position: absolute;
+  inset-block-start: -5px;
+  inset-inline-end: -5px;
+  min-width: 19px;
+  height: 19px;
+  padding: 1px 4px;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  background: #285c4d;
+  color: white;
+  border: 2px solid white;
+  font-size: 10px;
+  font-weight: 700;
+}
+.notification-panel.kasa-notification-panel {
+  width: min(390px, calc(100vw - 30px));
+  max-height: min(680px, calc(100dvh - var(--presentation-height, 0px) - 92px));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.notification-panel.kasa-notification-panel header {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: white;
+  gap: 10px;
+  padding-block: 8px;
+  flex-wrap: wrap;
+}
+.notification-panel.kasa-notification-panel header strong {
+  font-size: 13px;
+}
+.kasa-notification-panel .kasa-notification-copy small {
+  font-size: 12px;
+}
+.kasa-notification-panel footer {
+  padding: 4px 15px;
+  border-top: 1px solid var(--line);
+}
+.kasa-notification-panel footer button {
+  width: 100%;
+  text-align: center;
+}
+@media (max-width: 720px) {
+  .notification-panel.kasa-notification-panel {
+    top: calc(var(--presentation-height, 0px) + 68px);
+    width: auto;
+  }
+}

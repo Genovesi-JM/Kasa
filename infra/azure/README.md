@@ -19,13 +19,13 @@ moving existing resources is a separate reviewed migration, not a parameter edit
 
 Foundation (`runtime=false`) provisions five resources:
 
-| Resource | Name | Pilot configuration |
-| --- | --- | --- |
-| Container Registry | `acrkaspilot<uniqueString(resourceGroup().id)>` | Basic; admin login and anonymous pull disabled |
-| User-assigned managed identity | `id-kasa-pilot` | Dedicated to this app, not shared with other projects |
-| Role assignment | Deterministic GUID | **AcrPull on this registry only** |
-| Log Analytics workspace | `log-kasa-pilot` | PerGB2018, 30-day retention, 0.1 GB/day ingestion cap |
-| Container Apps environment | `cae-kasa-pilot` | Consumption workload profile only; no dedicated profile or VNet |
+| Resource                       | Name                                            | Pilot configuration                                             |
+| ------------------------------ | ----------------------------------------------- | --------------------------------------------------------------- |
+| Container Registry             | `acrkaspilot<uniqueString(resourceGroup().id)>` | Basic; admin login and anonymous pull disabled                  |
+| User-assigned managed identity | `id-kasa-pilot`                                 | Dedicated to this app, not shared with other projects           |
+| Role assignment                | Deterministic GUID                              | **AcrPull on this registry only**                               |
+| Log Analytics workspace        | `log-kasa-pilot`                                | PerGB2018, 30-day retention, 0.1 GB/day ingestion cap           |
+| Container Apps environment     | `cae-kasa-pilot`                                | Consumption workload profile only; no dedicated profile or VNet |
 
 Runtime (`runtime=true`) adds one resource: `ca-kasa-pilot`, using
 `<own-registry>/kasa-web-api@sha256:<reviewed-manifest-digest>`. It has 0–2 replicas,

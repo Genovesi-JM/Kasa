@@ -1,14 +1,14 @@
 # Kasa
 
-## Interactive presentation prototype
+## Interactive software prototype
 
-**[Open the Kasa prototype](https://genovesi-jm.github.io/Kasa/?present=1)** · **[Presentation guide](./docs/PRESENTATION_GUIDE.md)**
+**[Open Kasa](https://genovesi-jm.github.io/Kasa/)**
 
-Hosted on GitHub Pages and accessible to anyone with the link. No account or sign-in is required.
+Hosted independently on GitHub Pages and accessible to anyone with the link. No account or sign-in is required. The root URL opens the software, with responsive navigation across the customer, property-owner, service-provider, venue-operator and platform workspaces.
 
-Start the product tour or use the searchable navigator to explore every product area. Jump directly into personal, property-owner, service-provider, venue-operator and platform workspaces. Prepared scenes include guidance, shareable links and a reset control, with no account setup required. The prototype uses synthetic data and clearly separates interactive demos from production integrations and Phase 2 concepts.
+The optional [guided tour](https://genovesi-jm.github.io/Kasa/?present=1) is available through `?present=1`; its [presentation guide](./docs/PRESENTATION_GUIDE.md) describes scene navigation and resets. `?app=1` also opens the software directly.
 
-The presentation opens in English and supports phones, tablets and desktop screens. The original app experience remains available at `?app=1`.
+The prototype uses synthetic records. Messages, drafts, application updates, notification read state, booking changes and discovery filters stay in the current open tab while navigating. Reloading the app or resetting a tour scene restores sample state; these changes are not shared between tabs or saved to a production database. Messages and requests are not delivered to other people, and sample status changes do not perform real approvals, reservations or payments.
 
 Kasa is a non-brokerage property-operations platform for landlords and tenants. It helps people discover homes, manage applications and documents, communicate, reconcile direct rent payments, coordinate maintenance, and find service providers.
 
@@ -29,7 +29,7 @@ The web app runs at `http://127.0.0.1:5173` and the versioned API at `http://127
 
 API contract: [docs/openapi.yaml](./docs/openapi.yaml). Start only the API with `npm run dev:api`; verify it with `curl http://127.0.0.1:8787/api/v1/health`.
 
-Run the complete repeatable quality gate with `npm run check`. It verifies formatting, lint, client/server types, the production build and the API guardrails. The honest operational/demo/pending matrix is documented in [docs/FUNCTION_STATUS.md](./docs/FUNCTION_STATUS.md) and is also shown live in **Admin → System status**.
+Run `npm run test:ui-state` for routing, search, messages, applications, notifications, bookings and discovery-state checks. Run the complete repeatable quality gate with `npm run check` for formatting, lint, client/server types, the production build and API guardrails. The operational/demo/pending matrix is documented in [docs/FUNCTION_STATUS.md](./docs/FUNCTION_STATUS.md); **Admin → System status** shows runtime checks and integration status.
 
 For the bounded Azure pilot, [the container guide](./docs/AZURE_PILOT_CONTAINER.md)
 packages the web app and API together. Public deployments remain read-only,
@@ -53,6 +53,17 @@ The market-entry gates, trustworthy-interface requirements and EU/Spain and Ango
 
 ## Implemented product surface
 
+The interface includes the product areas below. Connected production authentication, data storage, delivery and payment services remain separate launch work. Current frontend workflows include:
+
+- Shareable screen/property URLs and browser Back/Forward navigation; scoped search across homes, work, services and spaces.
+- Independent Rent/Buy filters, sort order and map areas retained while navigating; keyboard-accessible property galleries and listing-link sharing.
+- Conversation search, unread state, separate drafts, local message composition and local block/unblock controls.
+- Application details, document summaries, owner-controlled local review/status actions and activity history, with tenant access limited to the tenant's sample records.
+- One notification feed shared by the header and full page, with workspace-specific unread counts, individual/read-all actions and links to relevant screens.
+- Booking filters and details, local acceptance of proposed times, keeping an original request and local cancellation with a reason.
+
+The broader UI and product scope includes:
+
 - Property discovery with Rent/Buy intent, detailed filters, a live interactive map, price pins and draw-your-search-area filtering, saved homes/searches, detailed galleries, viewing requests, private Kasa Chat, and reusable tenant applications; public profiles never expose email or phone details
 - One unified **Advertise property or space** entry branches into long-term rental, property sale, or hourly/session/day sports and event-space publishing; the selected use then opens the correct operational workflow
 - Buy listings include an interactive mortgage estimate with editable down payment, term, interest and purchase-cost assumptions, total-cost breakdown and rate-sensitivity scenarios. It is an illustrative planning calculator only: Kasa does not provide, arrange or approve credit, match users to banks, request financial documents, transmit calculator data to lenders or earn lender-referral commissions in the approved MVP.
@@ -73,7 +84,7 @@ The market-entry gates, trustworthy-interface requirements and EU/Spain and Ango
 - Responsive desktop navigation plus a stable mobile foundation of Search, Kasa Chat, Notifications and Profile with one named contextual destination
 - Interactive iOS and Android device lab that runs the real current Kasa screen at distinct reference sizes—iPhone 15 (393 × 852) and Pixel 8 (412 × 915)—including safe areas, maps and zone drawing
 
-All payment copy and flows preserve the hard rule: rent moves directly from tenant to landlord. Kasa only records proof, reconciles, and stores confirmation status.
+All payment copy and flows preserve the hard rule: rent moves directly from tenant to landlord. The current interface demonstrates proof records, reconciliation and confirmation status using sample data; it does not move money.
 
 ## Market research
 

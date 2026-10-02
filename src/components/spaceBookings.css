@@ -1,0 +1,42 @@
+.space-bookings-page .booking-filter-count {
+  display: inline-block;
+  margin-inline-start: 4px;
+  font-size: 0.85em;
+  opacity: 0.8;
+}
+.space-bookings-page .booking-detail-panel h2 {
+  scroll-margin-top: 130px;
+}
+.booking-cancel-reason {
+  display: grid;
+  gap: 8px;
+  margin-top: 20px;
+  font-size: 14px;
+}
+.booking-cancel-reason textarea {
+  width: 100%;
+  min-height: 90px;
+  resize: vertical;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 12px;
+  font: inherit;
+}
+.booking-cancellation-note {
+  padding: 15px;
+  margin-block: 15px;
+  border-radius: 10px;
+  background: var(--sage);
+  overflow-wrap: anywhere;
+}
+.booking-cancellation-note p {
+  margin-block: 8px;
+}
+.booking-cancellation-note small {
+  color: var(--muted);
+}
+.booking-detail-empty {
+  align-self: start;
+  text-align: center;
+  color: var(--muted);
+}

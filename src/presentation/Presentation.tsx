@@ -52,11 +52,20 @@ export default function Presentation() {
   const [query, setQuery] = useState("");
   const [audience, setAudience] = useState("All journeys");
   const [run, setRun] = useState(0);
-  const [guideOpen, setGuideOpen] = useState(true);
-  const [copyState, setCopyState] = useState("");
+  const [guideOpen, setGuideOpen] = useState(
+    () => !window.matchMedia("(max-height: 600px)").matches,
+  );
+  const [copyState, setCopyState] = useState<{
+    message: string;
+    sequence: number;
+  } | null>(null);
   const [shareUrl, setShareUrl] = useState("");
   const toolbar = useRef<HTMLElement>(null);
   const heading = useRef<HTMLHeadingElement>(null);
+  const searchInput = useRef<HTMLInputElement>(null);
+  const shareInput = useRef<HTMLInputElement>(null);
+  const statusTrigger = useRef<HTMLButtonElement | null>(null);
+  const statusSequence = useRef(0);
   const { journey, step, finished } = location;
   const scene = journey?.scenes[step];
   const active = Boolean(scene && !finished);
@@ -64,7 +73,7 @@ export default function Presentation() {
   useEffect(() => {
     const onPopState = () => {
       setLocation(readPresentationLocation(window.location.search));
-      setCopyState("");
+      setCopyState(null);
       setShareUrl("");
     };
     window.addEventListener("popstate", onPopState);
@@ -93,22 +102,34 @@ export default function Presentation() {
         : "Kasa · Interactive prototype";
     window.scrollTo({ top: 0, behavior: "instant" });
     heading.current?.focus({ preventScroll: true });
-  }, [scene, finished]);
+  }, [scene, finished, location, run]);
+
+  useEffect(() => {
+    if (shareUrl) shareInput.current?.focus();
+  }, [shareUrl]);
+
+  function announce(message: string) {
+    statusSequence.current += 1;
+    setCopyState({ message, sequence: statusSequence.current });
+  }
 
   function navigate(next?: DemoJourney, nextStep = 0, done = false) {
     window.history.pushState(null, "", presentationUrl(next, nextStep, done));
     setLocation(readPresentationLocation(window.location.search));
     setShareUrl("");
-    setCopyState("");
+    setCopyState(null);
   }
 
   async function copyLink() {
     try {
       await navigator.clipboard.writeText(window.location.href);
-      setCopyState("Link copied");
+      setShareUrl("");
+      announce("Link copied. Ready to share.");
     } catch {
       setShareUrl(window.location.href);
-      setCopyState("Select and copy the link below");
+      announce("Copy the selected link below to share this prototype.");
+      shareInput.current?.focus();
+      shareInput.current?.select();
     }
   }
 
@@ -122,6 +143,9 @@ export default function Presentation() {
 
   return (
     <div className={`presentation ${active ? "presentation-active" : ""}`}>
+      <a className="presentation-skip-link" href="#presentation-content">
+        Skip prototype controls
+      </a>
       <header
         className="presentation-toolbar"
         ref={toolbar}
@@ -150,9 +174,11 @@ export default function Presentation() {
             )}
             {active && (
               <button
-                onClick={() => {
+                onClick={(event) => {
+                  statusTrigger.current = event.currentTarget;
                   setRun((value) => value + 1);
-                  setCopyState("Scene reset");
+                  setShareUrl("");
+                  announce("Scene reset to sample data.");
                 }}
                 title="Reset this scene to sample data"
                 aria-label="Reset this scene to sample data"
@@ -162,7 +188,10 @@ export default function Presentation() {
               </button>
             )}
             <button
-              onClick={() => void copyLink()}
+              onClick={(event) => {
+                statusTrigger.current = event.currentTarget;
+                void copyLink();
+              }}
               aria-label="Copy prototype link"
             >
               <Copy size={17} />
@@ -183,27 +212,47 @@ export default function Presentation() {
           <>
             <div className="presentation-scene-bar">
               <div className="presentation-scene-title">
-                <span className="presentation-count">
+                <span className="presentation-count" aria-hidden="true">
                   {step + 1}
                   <span> / {journey.scenes.length}</span>
                 </span>
                 <div>
                   <small>{journey.title}</small>
-                  <h1 tabIndex={-1} ref={heading}>
+                  <h1
+                    tabIndex={-1}
+                    ref={heading}
+                    aria-describedby="presentation-scene-context"
+                  >
                     {scene.title}
                   </h1>
+                  <span
+                    id="presentation-scene-context"
+                    className="presentation-sr-only"
+                  >
+                    Scene {step + 1} of {journey.scenes.length} in{" "}
+                    {journey.title}.
+                  </span>
                 </div>
               </div>
               <div className="presentation-step-controls">
                 <button
                   disabled={step === 0}
                   onClick={() => navigate(journey, step - 1)}
-                  aria-label="Previous scene"
+                  aria-label={
+                    step > 0
+                      ? `Previous scene: ${journey.scenes[step - 1].title}`
+                      : "Previous scene"
+                  }
                 >
                   <ArrowLeft size={18} />
                 </button>
                 <button
                   className="presentation-next"
+                  aria-label={
+                    step < journey.scenes.length - 1
+                      ? `Next scene: ${journey.scenes[step + 1].title}`
+                      : "Finish this journey"
+                  }
                   onClick={() =>
                     step < journey.scenes.length - 1
                       ? navigate(journey, step + 1)
@@ -231,15 +280,17 @@ export default function Presentation() {
                 </button>
               </div>
             </div>
-            {guideOpen && (
-              <div className="presentation-guide" id="presentation-guide">
-                <p>
-                  <strong>Try it</strong>
-                  {scene.tryIt}
-                </p>
-                <span>{roleLabels[scene.target.role]} · Sample data</span>
-              </div>
-            )}
+            <div
+              className="presentation-guide"
+              id="presentation-guide"
+              hidden={!guideOpen}
+            >
+              <p>
+                <strong>Try it</strong>
+                {scene.tryIt}
+              </p>
+              <span>{roleLabels[scene.target.role]} · Sample data</span>
+            </div>
             <div
               className="presentation-progress"
               role="progressbar"
@@ -247,6 +298,7 @@ export default function Presentation() {
               aria-valuemin={1}
               aria-valuemax={journey.scenes.length}
               aria-valuenow={step + 1}
+              aria-valuetext={`Scene ${step + 1} of ${journey.scenes.length}: ${scene.title}`}
             >
               <span
                 style={{
@@ -256,23 +308,33 @@ export default function Presentation() {
             </div>
           </>
         )}
-        {copyState && (
-          <div className="presentation-copy-status" role="status">
-            {copyState}
+        <div
+          className={
+            copyState ? "presentation-copy-status" : "presentation-sr-only"
+          }
+        >
+          <span role="status" aria-live="polite" aria-atomic="true">
+            {copyState && (
+              <span key={copyState.sequence}>{copyState.message}</span>
+            )}
+          </span>
+          {copyState && (
             <button
               onClick={() => {
-                setCopyState("");
+                setCopyState(null);
                 setShareUrl("");
+                statusTrigger.current?.focus();
               }}
-              aria-label="Dismiss link status"
+              aria-label="Dismiss status message"
             >
               ×
             </button>
-          </div>
-        )}
+          )}
+        </div>
         {shareUrl && (
           <input
             className="presentation-share-input"
+            ref={shareInput}
             aria-label="Prototype link"
             readOnly
             value={shareUrl}
@@ -282,14 +344,24 @@ export default function Presentation() {
       </header>
 
       {active && scene ? (
-        <div className="presentation-stage">
+        <div
+          className="presentation-stage"
+          id="presentation-content"
+          tabIndex={-1}
+          role="region"
+          aria-label="Interactive prototype"
+        >
           <App
             key={`${journey!.id}-${scene.id}-${run}`}
             demoTarget={scene.target}
           />
         </div>
       ) : finished && journey ? (
-        <main className="presentation-complete">
+        <main
+          className="presentation-complete"
+          id="presentation-content"
+          tabIndex={-1}
+        >
           <span className="presentation-complete-icon">
             <Check size={28} />
           </span>
@@ -332,7 +404,11 @@ export default function Presentation() {
           </div>
         </main>
       ) : (
-        <main className="presentation-hub">
+        <main
+          className="presentation-hub"
+          id="presentation-content"
+          tabIndex={-1}
+        >
           <section className="presentation-intro">
             <div>
               <p className="presentation-eyebrow">
@@ -397,6 +473,7 @@ export default function Presentation() {
                 <Search size={18} />
                 <input
                   type="search"
+                  ref={searchInput}
                   value={query}
                   onChange={(event) => setQuery(event.target.value)}
                   placeholder="Find a feature or workflow"
@@ -406,6 +483,7 @@ export default function Presentation() {
             </div>
             <div
               className="presentation-filters"
+              role="group"
               aria-label="Filter journeys by audience"
             >
               {["All journeys", "Personal", "Professional", "Platform"].map(
@@ -420,6 +498,16 @@ export default function Presentation() {
                 ),
               )}
             </div>
+            <p
+              className="presentation-results-count"
+              role="status"
+              aria-live="polite"
+              aria-atomic="true"
+            >
+              {visible.length} {visible.length === 1 ? "journey" : "journeys"}
+              {audience !== "All journeys" && ` for ${audience.toLowerCase()}`}
+              {query.trim() && ` matching “${query.trim()}”`}
+            </p>
             <div className="presentation-grid">
               {visible.map((item) => {
                 const Icon = icons[item.icon];
@@ -438,6 +526,7 @@ export default function Presentation() {
                     )}
                     <button
                       className="presentation-card-start"
+                      aria-label={`Explore journey: ${item.title}, ${item.scenes.length} ${item.scenes.length === 1 ? "stop" : "stops"}`}
                       onClick={() => navigate(item)}
                     >
                       Explore journey{" "}
@@ -448,11 +537,20 @@ export default function Presentation() {
                       </span>
                     </button>
                     <details>
-                      <summary>Jump to a screen</summary>
+                      <summary>
+                        Jump to a screen
+                        <span className="presentation-sr-only">
+                          {" "}
+                          in {item.title}
+                        </span>
+                      </summary>
                       <ol>
                         {item.scenes.map((entry, index) => (
                           <li key={entry.id}>
-                            <button onClick={() => navigate(item, index)}>
+                            <button
+                              onClick={() => navigate(item, index)}
+                              aria-label={`${entry.title}, scene ${index + 1} of ${item.scenes.length} in ${item.title}`}
+                            >
                               {entry.title}
                               <ArrowRight size={15} />
                             </button>
@@ -474,6 +572,7 @@ export default function Presentation() {
                   onClick={() => {
                     setQuery("");
                     setAudience("All journeys");
+                    searchInput.current?.focus();
                   }}
                 >
                   Show all journeys

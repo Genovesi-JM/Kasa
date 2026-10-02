@@ -1,8 +1,10 @@
 # Kasa function status
 
-This matrix prevents visual prototypes from being mistaken for production integrations. The live version is available inside the Admin workspace under **System status**.
+This matrix distinguishes working frontend behaviour from production integrations. **Admin → System status** shows runtime checks and integration status.
 
-Last engineering audit: 28 August 2026.
+Frontend workflow update: 2 October 2026. Production-integration requirements remain unchanged.
+
+The public [GitHub Pages URL](https://genovesi-jm.github.io/Kasa/) opens the software directly, without an account. The guided presentation is optional at [`?present=1`](https://genovesi-jm.github.io/Kasa/?present=1). GitHub Pages serves the frontend; it does not host the local API or provide authentication, message delivery or a database.
 
 ## Operational in the current local environment
 
@@ -17,13 +19,24 @@ Last engineering audit: 28 August 2026.
 | Portuguese-first localisation                | Portuguese, English, Spanish, French, Arabic RTL and Simplified Chinese                   |
 | Safe fallback catalogue                      | The UI falls back to typed demo data if the local API is unavailable                      |
 
+Screen/property links preserve the GitHub Pages path and support browser Back/Forward navigation. Scoped search filters the sample home, service, work and Spaces catalogues. Rent and Buy retain separate discovery filters, map areas and sort choices while navigating.
+
 ## Working as an interactive demo
 
-These flows can be reviewed end to end in the UI, but their records are not yet persisted in production services:
+The following frontend workflows update shared state in the current open tab:
 
-- Property applications, landlord review and tenant status tracking.
+- Messages: conversation search, unread state, separate drafts, local composition and block/unblock controls. Composed messages are not delivered.
+- Applications: record details, sample document summaries, owner-controlled local review/status changes and activity history. Tenants see only their sample records; no real approval or document request is issued.
+- Notifications: header and full-page feed share per-workspace unread counts. Individual/read-all actions update both surfaces; opening an update marks it read and opens the relevant screen.
+- Bookings: status filters, details, local acceptance of proposed times, keeping the original request and local cancellation reasons. No venue is contacted, reservation made or refund processed.
+- Property details: accessible gallery navigation and shareable listing links.
+
+These changes survive navigation within that app instance. Reloading or closing the tab, or resetting a presentation scene, restores sample data; separate tabs do not share the changes. No production database or authenticated account owns these records.
+
+Other product areas remain illustrative UI flows, including:
+
 - Direct tenant-to-landlord rent instructions, proof upload and reconciliation records.
-- Private Kasa chat, maintenance, provider jobs, venue reservations and operator calendars.
+- Maintenance, provider jobs and operator calendars.
 - Kasa Work job and freelance discovery, private applications, hiring posts and candidate conversations.
 - Admin moderation, verification queues, feature switches and analytics.
 
@@ -56,5 +69,13 @@ npm run check
 ```
 
 It checks formatting, lint, client and server TypeScript, the production build, API security headers, request validation, not-found behaviour, property/Spaces filters, OpenAPI availability, write authentication, idempotent reservations, direct-to-venue settlement metadata and direct tenant-to-landlord rent records.
+
+Run the frontend state checks directly:
+
+```bash
+npm run test:ui-state
+```
+
+They cover URL routing and validation, scoped search, message state, application transitions, notification counts and workspace isolation, booking changes, and independent Rent/Buy discovery filters. These checks validate local behaviour, not production delivery or payment integrations.
 
 The product boundaries remain locked: Kasa is non-brokerage, does not represent or negotiate for property parties, does not hold rent or deposits, does not enable overnight accommodation in Kasa Spaces, and does not provide mortgage advice or intermediation.
