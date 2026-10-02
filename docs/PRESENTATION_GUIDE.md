@@ -1,6 +1,8 @@
 # Presenting Kasa
 
-**[Open the interactive prototype](https://kasa-mobile-preview.genovesy12.chatgpt.site/?present=1)**
+**[Open the interactive prototype](https://genovesi-jm.github.io/Kasa/?present=1)**
+
+Anyone can open the GitHub Pages link in a browser. No account or sign-in is required.
 
 The prototype opens on a navigator. Start the product tour for a short introduction, or choose a journey and explore the app freely. It works on a phone, tablet or computer. The presentation guide is in English; the existing app's language selector remains available inside each workspace.
 

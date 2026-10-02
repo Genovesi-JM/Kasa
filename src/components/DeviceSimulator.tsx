@@ -33,7 +33,7 @@ function DeviceFrame({
   view: View;
 }) {
   const profile = deviceProfiles[platform];
-  const source = `/?device=${platform}&role=${role}&view=${view}`;
+  const source = `?device=${platform}&role=${role}&view=${view}`;
   return (
     <article className={`device-preview ${platform}`}>
       <header>

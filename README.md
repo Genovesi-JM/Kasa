@@ -2,7 +2,9 @@
 
 ## Interactive presentation prototype
 
-**[Open the Kasa prototype](https://kasa-mobile-preview.genovesy12.chatgpt.site/?present=1)** · **[Presentation guide](./docs/PRESENTATION_GUIDE.md)**
+**[Open the Kasa prototype](https://genovesi-jm.github.io/Kasa/?present=1)** · **[Presentation guide](./docs/PRESENTATION_GUIDE.md)**
+
+Hosted on GitHub Pages and accessible to anyone with the link. No account or sign-in is required.
 
 Start the product tour or use the searchable navigator to explore every product area. Jump directly into personal, property-owner, service-provider, venue-operator and platform workspaces. Prepared scenes include guidance, shareable links and a reset control, with no account setup required. The prototype uses synthetic data and clearly separates interactive demos from production integrations and Phase 2 concepts.
 

@@ -2,6 +2,8 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 
 export default defineConfig({
+  // Keep the static prototype portable between localhost and repository subpaths.
+  base: "./",
   plugins: [react()],
   build: {
     rolldownOptions: {
