@@ -1,4 +1,5 @@
 import { properties, providers, spaceVenues, workOpportunities } from "./data";
+import type { WorkOpportunitySeed } from "./types";
 
 export type SearchScope = "all" | "homes" | "work" | "services" | "spaces";
 
@@ -18,7 +19,10 @@ export function matchesSearch(query: string, ...fields: string[]) {
     .every((word) => text.includes(word));
 }
 
-export function marketplaceMatches(query: string) {
+export function marketplaceMatches(
+  query: string,
+  workCatalogue: readonly WorkOpportunitySeed[] = workOpportunities,
+) {
   const homes = properties.filter((property) =>
     matchesSearch(
       query,
@@ -36,12 +40,14 @@ export function marketplaceMatches(query: string) {
     services: providers.filter((provider) =>
       matchesSearch(query, provider.name, provider.type, provider.mode),
     ),
-    work: workOpportunities.filter((job) =>
+    work: workCatalogue.filter((job) =>
       matchesSearch(
         query,
         job.title,
         job.business,
         job.location,
+        job.type,
+        job.description,
         ...job.skills,
       ),
     ),

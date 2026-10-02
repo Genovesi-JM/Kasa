@@ -10746,3 +10746,17 @@ select:focus-visible,
   transition-duration: 0.01ms !important;
   scroll-behavior: auto !important;
 }
+
+/* Work area navigation stays readable outside the former hero banner. */
+.service-section-switch.work-section-switch {
+  width: 100%;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.service-section-switch.work-section-switch button {
+  min-height: 48px;
+  min-width: 0;
+  padding: 10px 12px;
+  font-size: 12px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}

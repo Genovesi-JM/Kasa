@@ -19,7 +19,7 @@ The public [GitHub Pages URL](https://genovesi-jm.github.io/Kasa/) opens the sof
 | Portuguese-first localisation                | Portuguese, English, Spanish, French, Arabic RTL and Simplified Chinese                   |
 | Safe fallback catalogue                      | The UI falls back to typed demo data if the local API is unavailable                      |
 
-Screen/property links preserve the GitHub Pages path and support browser Back/Forward navigation. Scoped search filters the sample home, service, work and Spaces catalogues. Rent and Buy retain separate discovery filters, map areas and sort choices while navigating.
+Screen/property links preserve the GitHub Pages path and support browser Back/Forward navigation. Scoped search filters the home, service and Spaces catalogues and the current open Work opportunities, including posts published locally in this tab. Rent and Buy retain separate discovery filters, map areas and sort choices while navigating.
 
 ## Working as an interactive demo
 
@@ -31,6 +31,7 @@ The following frontend workflows update shared state in the current open tab:
 - Property drafts: owners can enter rent/sale details, retain edits across steps and navigation, select local photos and a cover, review the actual values, mark a valid draft ready, resume it, or remove/restore it. Drafts are separate from the public catalogue and are never reported as published or submitted to moderation. The property portfolio keeps record counts, rent status and repair actions available on phones.
 - Saved searches and homes: separate collections per workspace, exact search/filter snapshots, reopening, rename, delete and undo. Saved searches do not generate notifications.
 - Applications: validated rental submissions retain move-in date, household size and introduction and prevent duplicate tenant/property records. Owners can request follow-up documents; tenant drafts privately retain actual local files and notes until explicit submission. Partial and note-only replies, safe previews, separate owner acknowledgment/closure, request revisions and response history preserve the application decision, including approved records. Scope follows applicant identity and property ownership. Files remain unverified and in memory; no real approval, external document request or upload is issued.
+- Work: opportunity and business IDs connect discovery, private tenant application drafts and the provider’s hiring workspace. Post drafts retain all inputs, validate required fields and require review before explicit publication into the current tab’s catalogue. Submitted applications preserve the candidate’s introduction, actual availability date and the opportunity details at submission; duplicate submissions are blocked and withdrawal retains history. Volt & Co. sees only its own posts and their submitted applications, can record a review and close posts to new applications. Local posts appear in universal search; closed posts leave the open catalogue while existing records remain accessible. Filters and selections survive navigation. No CV upload, private candidate chat, external application delivery, moderation submission or employment decision is claimed.
 - Notifications: header and full-page feed share per-workspace unread counts. Individual/read-all actions update both surfaces; opening an update marks it read and opens the relevant screen.
 - Spaces requests: customer forms retain the actual venue/unit, date, times, participant count and notes. The selected venue operator can review scoped requests and propose complete terms; customer acceptance is explicit. Original requests, proposal versions and decisions remain in history. Saved venues are isolated by workspace and can be filtered in discovery. No venue is contacted, real reservation guaranteed, payment collected or refund processed.
 - Property details: accessible galleries, shareable links and direct access to the viewing inbox. Tenant viewing drafts retain dates, times and notes privately until saved. Owners see only requests for their properties and can accept, decline or propose a new time. Tenants explicitly accept or decline each proposal; original requests, proposal versions, agreed times and decisions remain in history. A pending reschedule preserves the existing appointment. Both home screens show future agreed visits and pending decisions; each workspace retains its inbox filter and selection. Cancellation permits a later request with a new record ID. Dates and times are validated, and all decisions remain local to the current tab; no external appointment or message is sent.
@@ -47,7 +48,7 @@ Other product areas remain illustrative UI flows, including:
 - External bank verification and persistent proof storage.
 - Property moderation and public listing publication.
 - Provider commercial analytics, team management and editable operator availability calendars.
-- Kasa Work job and freelance discovery, private applications, hiring posts and candidate conversations.
+- Connected Work publication, application delivery and private candidate conversations.
 - Admin moderation, verification queues, feature switches and analytics.
 
 ## Production integrations still required
@@ -88,7 +89,7 @@ Run the frontend state checks directly:
 npm run test:ui-state
 ```
 
-They cover URL routing and validation, scoped search, workspace-isolated messages, saved collections and documents, application submissions/transitions, viewing drafts, ownership, proposal decisions, agreed appointments and history, maintenance ownership, visit no-ops and status changes, service request/quote revisions and explicit decisions, rent validation/review and CSV escaping, live property summaries and date rollover, document translation coverage, notification counts, booking changes, independent Rent/Buy discovery filters, and unavailable browser preference storage. These checks validate local behaviour, not production delivery or payment integrations.
+They cover URL routing and validation, scoped search, workspace-isolated messages, saved collections and documents, application submissions/transitions, viewing drafts, ownership, proposal decisions, agreed appointments and history, Work post review/publication, application snapshots, withdrawal and business scope, maintenance ownership, visit no-ops and status changes, service request/quote revisions and explicit decisions, rent validation/review and CSV escaping, live property summaries and date rollover, document translation coverage, notification counts, booking changes, independent Rent/Buy discovery filters, and unavailable browser preference storage. These checks validate local behaviour, not production delivery or payment integrations.
 
 The Pages staging check preserves prior content-hashed screens, rejects changed bytes under an existing asset name and validates the destination checkout and entry references before replacing the public index.
 

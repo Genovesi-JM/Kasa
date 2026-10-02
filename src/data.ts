@@ -4,6 +4,7 @@ import type {
   Property,
   SpaceBooking,
   SpaceVenue,
+  WorkOpportunitySeed,
 } from "./types.js";
 
 export const properties: Property[] = [
@@ -699,41 +700,57 @@ export const spaceBookings: SpaceBooking[] = [
     code: "KSA9-H31C",
   },
 ];
-export const workOpportunities = [
+export const workOpportunities: WorkOpportunitySeed[] = [
   {
+    id: "work-habitat-maintenance",
+    businessId: "habitat-norte",
     title: "Property maintenance assistant",
     business: "Habitat Norte",
     location: "Barcelona · On site",
     type: "Part time",
     pay: "€14–€17 / hour",
     skills: ["Basic repairs", "Customer care"],
+    description:
+      "Sample opportunity for basic property repairs and customer support. The business would need to agree the schedule, responsibilities and contract directly with a candidate. No placement or employment is represented by this example.",
     posted: "Today",
   },
   {
+    id: "work-casa-cleaning",
+    businessId: "casa-clara",
     title: "Freelance move-out cleaner",
     business: "Casa Clara",
     location: "Barcelona · Multiple areas",
     type: "Freelance",
     pay: "€80–€110 / task",
     skills: ["Cleaning", "Own equipment"],
+    description:
+      "Sample freelance cleaning opportunity across Barcelona. The listed equipment and budget are illustrative. The candidate and business would agree each task and the working terms directly.",
     posted: "2 hours ago",
   },
   {
+    id: "work-volt-electrical",
+    businessId: "volt-co",
     title: "Electrical technician",
     business: "Volt & Co.",
     location: "Barcelona · On site",
     type: "Full time",
     pay: "€28,000–€34,000 / year",
     skills: ["Electrical", "Certification required"],
+    description:
+      "Sample electrical technician opportunity from Volt & Co. The business would explain the duties and any qualification requirements directly. This record does not verify a candidate's qualifications or create an employment agreement.",
     posted: "Yesterday",
   },
   {
+    id: "work-poblenou-events",
+    businessId: "poblenou-events",
     title: "Event setup crew",
     business: "Poblenou Events",
     location: "Barcelona · Flexible locations",
     type: "Project",
     pay: "€120 / event",
     skills: ["Event setup", "Evening availability"],
+    description:
+      "Sample project opportunity supporting event setup at flexible Barcelona locations. The business and candidate would agree the dates, responsibilities and project terms directly. No event assignment has been made.",
     posted: "Yesterday",
   },
 ];

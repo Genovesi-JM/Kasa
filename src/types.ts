@@ -129,3 +129,28 @@ export interface SpaceBooking {
   image: string;
   code: string;
 }
+
+export type WorkArrangement =
+  "Freelance" | "Project" | "Part time" | "Full time";
+
+export interface WorkOpportunity {
+  id: string;
+  businessId: string;
+  title: string;
+  business: string;
+  location: string;
+  type: WorkArrangement;
+  pay: string;
+  skills: string[];
+  description: string;
+  posted: string;
+  source: "sample" | "local";
+  status: "Open" | "Closed";
+  createdAt: string;
+  closedAt?: string;
+}
+
+export type WorkOpportunitySeed = Omit<
+  WorkOpportunity,
+  "source" | "status" | "createdAt" | "closedAt"
+>;

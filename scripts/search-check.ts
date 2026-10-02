@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { workOpportunities } from "../src/data";
 import {
   marketplaceMatches,
   matchesSearch,
@@ -19,6 +20,31 @@ assert.ok(
     (items) => items.length === 0,
   ),
 );
+// The caller controls the published catalogue; an empty live catalogue must
+// never silently restore sample jobs, and supplied local posts remain searchable.
+assert.deepEqual(marketplaceMatches("", []).work, []);
+const localOpportunity = {
+  ...workOpportunities[0],
+  id: "local-search-example",
+  businessId: "sample-search-business",
+  title: "Assistente de operações",
+  business: "Empresa de exemplo",
+  description: "Organizar o inventário da oficina",
+  skills: ["Organização"],
+};
+assert.deepEqual(
+  marketplaceMatches("operacoes organizacao", [localOpportunity]).work,
+  [localOpportunity],
+);
+assert.deepEqual(marketplaceMatches("inventario", [localOpportunity]).work, [
+  localOpportunity,
+]);
+assert.equal(
+  marketplaceMatches("electrical", [localOpportunity]).work.length,
+  0,
+);
+assert.ok(marketplaceMatches("electrical", []).services.length > 0);
+assert.ok(marketplaceMatches("full time").work.length > 0);
 console.log(
   "Marketplace search passed: accents, token order, categories and empty results.",
 );

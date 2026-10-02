@@ -58,7 +58,7 @@ import {
   Zap,
   type LucideIcon,
 } from "lucide-react";
-import { properties, providers, spaceVenues, workOpportunities } from "./data";
+import { properties, providers, spaceVenues } from "./data";
 import { marketplaceMatches, matchesSearch, type SearchScope } from "./search";
 import {
   appRouteUrl,
@@ -118,6 +118,11 @@ import {
   setViewingFilter,
   viewingCounts,
 } from "./components/propertyRequestState";
+import {
+  createInitialWorkState,
+  openWorkOpportunities,
+  type WorkState,
+} from "./components/workState";
 import { SaveSearchButton, SavedSearches } from "./components/SavedSearches";
 import {
   copySavedSearchFilters,
@@ -223,6 +228,16 @@ const PropertyListingWorkspace = lazy(() =>
 const PropertyInsights = lazy(() =>
   import("./components/PropertyInsightsView").then((module) => ({
     default: module.PropertyInsights,
+  })),
+);
+const WorkMarketplace = lazy(() =>
+  import("./components/WorkMarketplace").then((module) => ({
+    default: module.WorkMarketplace,
+  })),
+);
+const WorkHiringWorkspace = lazy(() =>
+  import("./components/WorkHiringWorkspace").then((module) => ({
+    default: module.WorkHiringWorkspace,
   })),
 );
 const Applications = lazy(() =>
@@ -402,7 +417,7 @@ const navItems: NavItem[] = [
     id: "services",
     label: "Kasa Services",
     icon: Store,
-    roles: ["landlord", "tenant"],
+    roles: ["landlord", "tenant", "provider"],
   },
   {
     id: "spaces",
@@ -1224,6 +1239,7 @@ function UniversalHome({
   onAllSearch,
   summary,
   viewingPanel,
+  workCatalogue,
 }: {
   go: (view: View) => void;
   openServices: (mode: ServiceLaunchMode) => void;
@@ -1237,6 +1253,7 @@ function UniversalHome({
   onAllSearch: (query: string) => void;
   summary: PropertyOperationsSummary;
   viewingPanel?: React.ReactNode;
+  workCatalogue: ReturnType<typeof openWorkOpportunities>;
 }) {
   const { tr, language } = useKasaI18n();
   const [chooserOpen, setChooserOpen] = useState(false);
@@ -1248,7 +1265,9 @@ function UniversalHome({
     initialQuery || null,
   );
   const results =
-    submittedQuery === null ? null : marketplaceMatches(submittedQuery);
+    submittedQuery === null
+      ? null
+      : marketplaceMatches(submittedQuery, workCatalogue);
 
   const launchSearch = () => {
     if (scope === "all") {
@@ -2459,6 +2478,8 @@ function Services({
   role,
   serviceState,
   setServiceState,
+  workState,
+  setWorkState,
   notify,
   onOfferServices,
   launchMode = "discover",
@@ -2469,6 +2490,8 @@ function Services({
   role: Role;
   serviceState: ServiceRequestState;
   setServiceState: React.Dispatch<React.SetStateAction<ServiceRequestState>>;
+  workState: WorkState;
+  setWorkState: React.Dispatch<React.SetStateAction<WorkState>>;
   notify: (message: string) => void;
   onOfferServices: () => void;
   launchMode?: ServiceLaunchMode;
@@ -2544,9 +2567,6 @@ function Services({
     launchMode === "hire" ? "hire" : "jobs",
   );
   const [jobQuery, setJobQuery] = useState(initialQuery);
-  const [jobType, setJobType] = useState("All opportunities");
-  const [hiringOpen, setHiringOpen] = useState(false);
-  const [applyingJob, setApplyingJob] = useState<string | null>(null);
   const [booking, setBooking] = useState<(typeof providers)[number] | null>(
     null,
   );
@@ -2618,76 +2638,47 @@ function Services({
     Number(providerKind !== "Any provider") +
     Number(serviceAvailability !== "Any availability") +
     Number(minimumRating !== "Any rating");
-  const visibleOpportunities = workOpportunities.filter(
-    (job) =>
-      (jobType === "All opportunities" || job.type === jobType) &&
-      matchesSearch(
-        jobQuery,
-        job.title,
-        job.business,
-        job.location,
-        ...job.skills,
-      ),
-  );
-  const talentProfiles = [
-    {
-      initials: "LM",
-      name: "Lucía M.",
-      role: "Electrical technician",
-      availability: "Available from September",
-      skills: ["Electrical", "Maintenance", "Spanish"],
-    },
-    {
-      initials: "BR",
-      name: "Bruno R.",
-      role: "Property services assistant",
-      availability: "Available part time",
-      skills: ["Handyman", "Cleaning", "Portuguese"],
-    },
-    {
-      initials: "NA",
-      name: "Nadia A.",
-      role: "Event and customer support",
-      availability: "Freelance projects",
-      skills: ["Events", "Customer care", "French"],
-    },
-  ];
   return (
     <div className="page-stack services-page">
-      <section className="services-hero">
-        <div>
-          <span className="eyebrow light">
-            {copy("HOME & PROPERTY SERVICES", "SERVIÇOS PARA O LAR E IMÓVEIS")}
-          </span>
-          <h2>
-            {copy(
-              "Keep service requests and quotes together.",
-              "Pedidos de serviço e orçamentos no mesmo lugar.",
-            )}
-          </h2>
-          <p>
-            {copy(
-              "Explore sample profiles, choose a provider and record your request. Review the proposed work, date and price before explicitly accepting a quote.",
-              "Explore perfis de exemplo, escolha um prestador e registe o seu pedido. Reveja o trabalho proposto, a data e o preço antes de aceitar explicitamente um orçamento.",
-            )}
-          </p>
-        </div>
-        <div className="service-proof">
-          <Store size={22} aria-hidden="true" />
-          <strong>
-            {copy(
-              "Sample provider catalogue",
-              "Catálogo de prestadores de exemplo",
-            )}
-          </strong>
-          <span>
-            {copy(
-              "Illustrative profiles; verification has not been performed.",
-              "Perfis ilustrativos; não foi efetuada verificação.",
-            )}
-          </span>
-        </div>
-      </section>
+      {serviceSection !== "work" && (
+        <section className="services-hero">
+          <div>
+            <span className="eyebrow light">
+              {copy(
+                "HOME & PROPERTY SERVICES",
+                "SERVIÇOS PARA O LAR E IMÓVEIS",
+              )}
+            </span>
+            <h2>
+              {copy(
+                "Keep service requests and quotes together.",
+                "Pedidos de serviço e orçamentos no mesmo lugar.",
+              )}
+            </h2>
+            <p>
+              {copy(
+                "Explore sample profiles, choose a provider and record your request. Review the proposed work, date and price before explicitly accepting a quote.",
+                "Explore perfis de exemplo, escolha um prestador e registe o seu pedido. Reveja o trabalho proposto, a data e o preço antes de aceitar explicitamente um orçamento.",
+              )}
+            </p>
+          </div>
+          <div className="service-proof">
+            <Store size={22} aria-hidden="true" />
+            <strong>
+              {copy(
+                "Sample provider catalogue",
+                "Catálogo de prestadores de exemplo",
+              )}
+            </strong>
+            <span>
+              {copy(
+                "Illustrative profiles; verification has not been performed.",
+                "Perfis ilustrativos; não foi efetuada verificação.",
+              )}
+            </span>
+          </div>
+        </section>
+      )}
       <section
         className="service-section-switch"
         aria-label={copy("Services view", "Área de serviços")}
@@ -2743,161 +2734,48 @@ function Services({
         />
       ) : serviceSection === "work" ? (
         <section className="kasa-work-page">
-          <header className="kasa-work-hero">
-            <div>
-              <span className="eyebrow light">DIRECT OPPORTUNITIES</span>
-              <h2>Kasa Work</h2>
-              <p>
-                Find flexible work or publish an opportunity. People and
-                businesses communicate and decide directly through Kasa.
-              </p>
-            </div>
-            <div className="work-mode-switch">
-              <button
-                className={workMode === "jobs" ? "active" : ""}
-                onClick={() => setWorkMode("jobs")}
-              >
-                Get a job
-              </button>
-              <button
-                className={workMode === "hire" ? "active" : ""}
-                onClick={() => setWorkMode("hire")}
-              >
-                Hire staff
-              </button>
-            </div>
-          </header>
-          {workMode === "jobs" ? (
-            <>
-              <section className="work-search-card">
-                <label>
-                  <Search size={18} />
-                  <input
-                    aria-label="Search work opportunities"
-                    placeholder="Role, skill or business"
-                    value={jobQuery}
-                    onChange={(event) => setJobQuery(event.target.value)}
-                  />
-                </label>
-                <select
-                  aria-label="Opportunity type"
-                  value={jobType}
-                  onChange={(event) => setJobType(event.target.value)}
-                >
-                  <option>All opportunities</option>
-                  <option>Freelance</option>
-                  <option>Project</option>
-                  <option>Part time</option>
-                  <option>Full time</option>
-                </select>
-                <span>
-                  <MapPin size={15} /> Barcelona
-                </span>
-              </section>
-              <div className="work-results-heading">
-                <div>
-                  <span className="eyebrow">OPPORTUNITIES NEAR YOU</span>
-                  <h2>{visibleOpportunities.length} direct opportunities</h2>
-                </div>
-                <StatusPill tone="mint">Freelance + employment</StatusPill>
-              </div>
-              <section className="work-opportunity-list">
-                {visibleOpportunities.map((job) => (
-                  <article className="work-opportunity-card" key={job.title}>
-                    <div className="work-business-mark">
-                      {job.business
-                        .split(" ")
-                        .map((word) => word[0])
-                        .join("")
-                        .slice(0, 2)}
-                    </div>
-                    <div className="work-opportunity-main">
-                      <div>
-                        <h3>{job.title}</h3>
-                        <p>
-                          {job.business} · {job.location}
-                        </p>
-                      </div>
-                      <div className="work-tags">
-                        <span>{job.type}</span>
-                        {job.skills.map((skill) => (
-                          <span key={skill}>{skill}</span>
-                        ))}
-                      </div>
-                    </div>
-                    <div className="work-opportunity-side">
-                      <small>{job.posted}</small>
-                      <strong>{job.pay}</strong>
-                      <button
-                        className="soft-button"
-                        onClick={() => setApplyingJob(job.title)}
-                      >
-                        View & apply <ChevronRight size={14} />
-                      </button>
-                    </div>
-                  </article>
-                ))}
-              </section>
-              {visibleOpportunities.length === 0 && (
-                <div className="empty-state">
-                  <BriefcaseBusiness size={28} />
-                  <h3>No opportunities match</h3>
-                  <p>Try another role, skill or work arrangement.</p>
-                </div>
+          <div
+            className="service-section-switch work-section-switch"
+            role="group"
+            aria-label={copy("Work area", "Área de trabalho")}
+          >
+            <button
+              type="button"
+              className={workMode === "jobs" ? "active" : ""}
+              aria-pressed={workMode === "jobs"}
+              onClick={() => setWorkMode("jobs")}
+            >
+              {copy(
+                "Opportunities & applications",
+                "Oportunidades e candidaturas",
               )}
-            </>
-          ) : (
-            <>
-              <section className="hire-staff-banner">
-                <div>
-                  <span className="eyebrow light">FOR BUSINESSES</span>
-                  <h2>Find people without losing the human connection.</h2>
-                  <p>
-                    Publish the work, review expressions of interest and speak
-                    directly with candidates in private Kasa Chat.
-                  </p>
-                </div>
-                <ActionButton onClick={() => setHiringOpen(true)}>
-                  Post an opportunity
-                </ActionButton>
-              </section>
-              <SectionHeading title="People open to opportunities" />
-              <section className="talent-grid">
-                {talentProfiles.map((talent) => (
-                  <article className="talent-card" key={talent.name}>
-                    <Avatar initials={talent.initials} />
-                    <div>
-                      <h3>{talent.name}</h3>
-                      <p>{talent.role}</p>
-                    </div>
-                    <StatusPill tone="mint">{talent.availability}</StatusPill>
-                    <div className="work-tags">
-                      {talent.skills.map((skill) => (
-                        <span key={skill}>{skill}</span>
-                      ))}
-                    </div>
-                    <button
-                      className="soft-button"
-                      onClick={() =>
-                        notify(`Private Kasa Chat with ${talent.name} opened.`)
-                      }
-                    >
-                      Message privately <MessageCircle size={14} />
-                    </button>
-                  </article>
-                ))}
-              </section>
-            </>
-          )}
-          <div className="scope-note">
-            <ShieldCheck size={17} />
-            <span>
-              Kasa provides a neutral job board, applications and private
-              communication. Businesses and candidates decide directly. Kasa is
-              not the employer, does not represent either side and does not
-              determine employment status, payroll, visas or legal eligibility.
-            </span>
+            </button>
+            <button
+              type="button"
+              className={workMode === "hire" ? "active" : ""}
+              aria-pressed={workMode === "hire"}
+              onClick={() => setWorkMode("hire")}
+            >
+              {copy("Hiring workspace", "Área da empresa")}
+            </button>
           </div>
+          {workMode === "jobs" ? (
+            <WorkMarketplace
+              role={role}
+              state={workState}
+              setState={setWorkState}
+              query={jobQuery || undefined}
+              onQueryChange={setJobQuery}
+              onOpenHiring={() => setWorkMode("hire")}
+            />
+          ) : (
+            <WorkHiringWorkspace
+              role={role}
+              state={workState}
+              setState={setWorkState}
+              onBrowseOpportunities={() => setWorkMode("jobs")}
+            />
+          )}
         </section>
       ) : (
         <>
@@ -3299,118 +3177,6 @@ function Services({
                   "Uma identidade Kasa pode utilizar várias áreas, mantendo os registos de prestadores e empresas separados por função e permissão.",
                 )}
               </span>
-            </div>
-          </div>
-        </Modal>
-      )}
-      {hiringOpen && (
-        <Modal title="Post an opportunity" onClose={() => setHiringOpen(false)}>
-          <div className="modal-body">
-            <div className="form-grid">
-              <label>
-                Opportunity title
-                <input placeholder="e.g. Freelance maintenance assistant" />
-              </label>
-              <label>
-                Work arrangement
-                <select>
-                  <option>Freelance</option>
-                  <option>Project</option>
-                  <option>Part time</option>
-                  <option>Full time</option>
-                </select>
-              </label>
-              <label>
-                Location
-                <input defaultValue="Barcelona" />
-              </label>
-              <label>
-                Pay or budget
-                <input placeholder="Show a clear range" />
-              </label>
-              <label className="full">
-                Responsibilities and requirements
-                <textarea placeholder="Describe the work, schedule, required skills and who will contract the person…" />
-              </label>
-              <label className="full check-label">
-                <input type="checkbox" /> I confirm that my business is
-                responsible for lawful hiring, contracts, worker classification,
-                payroll, tax, insurance and right-to-work checks where
-                applicable.
-              </label>
-            </div>
-            <div className="modal-actions">
-              <button
-                className="button button-secondary"
-                onClick={() => setHiringOpen(false)}
-              >
-                Cancel
-              </button>
-              <button
-                className="button"
-                onClick={() => {
-                  setHiringOpen(false);
-                  notify("Opportunity saved and submitted for moderation.");
-                }}
-              >
-                Review opportunity
-              </button>
-            </div>
-          </div>
-        </Modal>
-      )}
-      {applyingJob && (
-        <Modal
-          title={`Apply · ${applyingJob}`}
-          onClose={() => setApplyingJob(null)}
-        >
-          <div className="modal-body">
-            <div className="application-privacy-card">
-              <LockKeyhole size={22} />
-              <div>
-                <strong>Apply with a private Kasa profile</strong>
-                <p>
-                  Choose which experience and documents to share. Your phone
-                  number and email are not displayed publicly.
-                </p>
-              </div>
-            </div>
-            <div className="form-grid">
-              <label className="full">
-                Short introduction
-                <textarea placeholder="Explain your relevant experience and availability…" />
-              </label>
-              <label>
-                Availability
-                <select>
-                  <option>Immediately</option>
-                  <option>Within 2 weeks</option>
-                  <option>Choose a date</option>
-                </select>
-              </label>
-              <label>
-                Profile to share
-                <select>
-                  <option>Work profile · Basic</option>
-                </select>
-              </label>
-            </div>
-            <div className="modal-actions">
-              <button
-                className="button button-secondary"
-                onClick={() => setApplyingJob(null)}
-              >
-                Cancel
-              </button>
-              <button
-                className="button"
-                onClick={() => {
-                  setApplyingJob(null);
-                  notify("Application sent directly to the business.");
-                }}
-              >
-                Send application
-              </button>
             </div>
           </div>
         </Modal>
@@ -5463,6 +5229,8 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
     applicationState,
     role,
   ).length;
+  const [workState, setWorkState] = useState(createInitialWorkState);
+  const workCatalogue = openWorkOpportunities(workState);
   const [propertyRequestState, setPropertyRequestState] = useState(
     createInitialPropertyRequestState,
   );
@@ -5788,6 +5556,11 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
                   icon: BriefcaseBusiness,
                 },
                 {
+                  id: "services",
+                  label: tr("universalHome.work"),
+                  icon: Users,
+                },
+                {
                   id: "messages",
                   label: tr("common.messages"),
                   icon: MessageCircle,
@@ -5823,7 +5596,7 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
     rent: "nav.rentRecords",
     maintenance: "common.maintenance",
     documents: "common.documents",
-    services: "nav.kasaServices",
+    services: role === "provider" ? "universalHome.work" : "nav.kasaServices",
     spaces: "nav.kasaSpaces",
     spaceBookings: "nav.myBookings",
     spaceOperator: "nav.venueDashboard",
@@ -5846,17 +5619,19 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
             : role === "admin"
               ? tr("shell.trustControls")
               : tr("shell.goodMorningOwner")
-      : view === "discover"
-        ? tr("discover.title")
-        : view === "spaces"
-          ? tr("space.title")
-          : view === "property"
-            ? tr("common.properties")
-            : view === "spaceVenue"
-              ? tr("common.spaces")
-              : navKeyByView[view]
-                ? tr(navKeyByView[view]!)
-                : tr("common.overview");
+      : view === "services" && serviceArea === "work"
+        ? tr("universalHome.work")
+        : view === "discover"
+          ? tr("discover.title")
+          : view === "spaces"
+            ? tr("space.title")
+            : view === "property"
+              ? tr("common.properties")
+              : view === "spaceVenue"
+                ? tr("common.spaces")
+                : navKeyByView[view]
+                  ? tr(navKeyByView[view]!)
+                  : tr("common.overview");
   const localizedEyebrow =
     view === "discover"
       ? tr("discover.eyebrow")
@@ -6054,6 +5829,7 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
         ) : role === "tenant" ? (
           <UniversalHome
             summary={operationsSummary!}
+            workCatalogue={workCatalogue}
             viewingPanel={viewingPanel}
             go={go}
             openServices={openServices}
@@ -6354,6 +6130,8 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
             role={role}
             serviceState={serviceRequestState}
             setServiceState={setServiceRequestState}
+            workState={workState}
+            setWorkState={setWorkState}
             notify={notify}
             launchMode={serviceLaunch}
             initialQuery={searchQuery}
@@ -6665,7 +6443,11 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
                 <button
                   className={active ? "active" : ""}
                   aria-current={active ? "page" : undefined}
-                  onClick={() => go(item.id)}
+                  onClick={() =>
+                    role === "provider" && item.id === "services"
+                      ? openServices("hire")
+                      : go(item.id)
+                  }
                 >
                   <Icon size={18} />
                   <span>{label}</span>
@@ -6811,7 +6593,11 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
                 key={item.id}
                 className={active ? "active" : ""}
                 aria-current={active ? "page" : undefined}
-                onClick={() => go(item.id)}
+                onClick={() =>
+                  role === "provider" && item.id === "services"
+                    ? openServices("hire")
+                    : go(item.id)
+                }
               >
                 <Icon />
                 <span>{item.label}</span>
