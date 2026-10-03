@@ -1,0 +1,335 @@
+.space-operator-schedule {
+  min-width: 0;
+  padding: 22px;
+  margin-block: 0 24px;
+}
+
+.space-schedule-heading {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 20px;
+}
+
+.space-schedule-heading > div {
+  min-width: 0;
+}
+
+.space-schedule-heading > svg {
+  color: #375f47;
+  flex-shrink: 0;
+  margin-top: 6px;
+}
+
+.space-schedule-heading h3 {
+  margin: 7px 0;
+  font-size: 21px;
+  line-height: 1.4;
+}
+
+.space-schedule-heading p,
+.space-schedule-muted,
+.space-schedule-summary {
+  color: #61716a;
+  font-size: 13px;
+  line-height: 1.6;
+  margin: 0;
+}
+
+.space-schedule-selection {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+  gap: 16px;
+  margin-bottom: 22px;
+}
+
+.space-schedule-selection label,
+.space-schedule-fields label {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  min-width: 0;
+  color: #355340;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.space-operator-schedule :is(input, select, textarea) {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+  min-height: 44px;
+  padding: 10px 11px;
+  border: 1px solid #c8d4cb;
+  border-radius: 9px;
+  background: #fff;
+  color: #274836;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 400;
+}
+
+.space-operator-schedule textarea {
+  resize: vertical;
+}
+
+.space-schedule-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 22px;
+  align-items: start;
+}
+
+.space-schedule-day,
+.space-schedule-form {
+  min-width: 0;
+}
+
+.space-schedule-layout h4 {
+  margin: 0 0 8px;
+  color: #2c523d;
+  font-size: 16px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.space-schedule-entries {
+  display: grid;
+  gap: 10px;
+  list-style: none;
+  margin: 15px 0;
+  padding: 0;
+}
+
+.space-schedule-entry {
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid #d8e2d4;
+  border-radius: 11px;
+  background: #f5f8f0;
+  overflow-wrap: anywhere;
+}
+
+.space-schedule-entry.block {
+  background: #faf5ea;
+  border-color: #e5dac3;
+}
+
+.space-schedule-time {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: #254f3a;
+  font-size: 15px;
+  margin-bottom: 8px;
+}
+
+.space-schedule-badge {
+  display: inline-block;
+  color: #4e644f;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.space-schedule-entry p,
+.space-schedule-entry small {
+  color: #61716a;
+  font-size: 13px;
+  line-height: 1.6;
+  margin: 7px 0 0;
+}
+
+.space-schedule-entry .space-schedule-private {
+  white-space: pre-wrap;
+}
+
+.space-schedule-remove {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 44px;
+  color: #6c513a;
+  margin-top: 6px;
+}
+
+.space-schedule-empty {
+  padding: 18px;
+  border: 1px dashed #c9d7c8;
+  border-radius: 11px;
+  margin-block: 14px;
+  color: #536a57;
+}
+
+.space-schedule-empty p {
+  margin: 8px 0 0;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.space-schedule-form {
+  background: #fafbf7;
+  border: 1px solid #dce3d7;
+  border-radius: 12px;
+  padding: 18px;
+}
+
+.space-schedule-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 13px;
+  margin-top: 17px;
+}
+
+.space-schedule-full {
+  grid-column: 1 / -1;
+}
+
+.space-schedule-fields [aria-invalid="true"] {
+  border-color: #a96643;
+}
+
+.space-schedule-errors {
+  margin-top: 15px;
+  padding: 13px;
+  background: #fff3e9;
+  border: 1px solid #e7cdb9;
+  border-radius: 10px;
+  color: #844e32;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.space-schedule-errors ul {
+  margin: 7px 0 0;
+  padding-inline-start: 20px;
+}
+
+.space-schedule-errors p {
+  margin: 7px 0 0;
+}
+
+.space-schedule-field-error {
+  color: #844e32;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.5;
+}
+
+.space-schedule-date-hint {
+  display: flex;
+  flex-direction: column;
+  align-items: start;
+  gap: 2px;
+  font-size: 12px;
+  color: #61716a;
+  line-height: 1.5;
+}
+
+.space-schedule-date-hint button {
+  min-height: 44px;
+  max-width: 100%;
+  white-space: normal;
+  text-align: start;
+}
+
+.space-schedule-form-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: end;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.space-schedule-form-actions .button {
+  min-height: 44px;
+  white-space: normal;
+}
+
+.space-schedule-feedback {
+  color: #285b42;
+  font-size: 13px;
+  line-height: 1.6;
+  margin: 14px 0 0;
+}
+
+.space-schedule-feedback:empty {
+  display: none;
+}
+
+.space-schedule-undo {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin-top: 16px;
+  padding: 15px;
+  background: #eef3e7;
+  border: 1px solid #d6e1cb;
+  border-radius: 11px;
+}
+
+.space-schedule-undo > div {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.space-schedule-undo span {
+  display: block;
+  color: #61716a;
+}
+
+.space-schedule-undo > .button {
+  flex-shrink: 0;
+  min-height: 44px;
+}
+
+.space-operator-schedule
+  :is(button, input, select, textarea, [tabindex]):focus-visible {
+  outline: 3px solid #829954;
+  outline-offset: 3px;
+}
+
+@media (max-width: 1080px) {
+  .space-schedule-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 620px) {
+  .space-operator-schedule {
+    padding: 16px;
+  }
+
+  .space-schedule-selection {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .space-schedule-heading > svg {
+    display: none;
+  }
+
+  .space-schedule-form {
+    padding: 13px;
+  }
+
+  .space-schedule-form-actions,
+  .space-schedule-undo {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .space-schedule-form-actions .button,
+  .space-schedule-undo > .button {
+    width: 100%;
+  }
+}
+
+@media (max-width: 390px) {
+  .space-schedule-fields {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

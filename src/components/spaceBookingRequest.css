@@ -69,6 +69,40 @@
 .space-request-errors a {
   color: inherit;
 }
+.space-request-unavailable {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+}
+.space-request-unavailable h3 {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.5;
+}
+.space-request-unavailable > div {
+  display: grid;
+  gap: 8px;
+}
+.space-request-unavailable ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+.space-request-unavailable li {
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
 .space-request-price {
   padding: 12px;
   border: 1px solid var(--line);

@@ -16,6 +16,7 @@ import {
   spaceBookingDraft,
   spaceBookingDrafts,
   spaceBookingRequestTerms,
+  spaceBookingUnavailablePeriods,
   spaceBookingUnit,
   spaceBookingVenue,
   updateSpaceBookingDraft,
@@ -23,6 +24,7 @@ import {
 } from "./spaceBookingsState";
 import {
   spaceBookingMoney,
+  spaceBookingDate,
   spaceBookingIssueText,
   useSpaceBookingCopy,
 } from "./spaceBookingCopy";
@@ -146,6 +148,22 @@ function SpaceBookingRequestForm({
 
   const preview =
     venue && space ? spaceBookingRequestTerms(venueId, spaceId, draft) : null;
+  const unavailablePeriods =
+    allowed && venue && space
+      ? spaceBookingUnavailablePeriods(state, venueId, spaceId, draft.date)
+      : [];
+  const unavailableCopy = locale.startsWith("pt")
+    ? {
+        title: "Bloqueios do operador registados neste separador",
+        empty: "Não há bloqueios do operador registados para esta data.",
+        chooseDate:
+          "Escolha uma data para ver os bloqueios do operador registados.",
+      }
+    : {
+        title: "Operator blocks recorded in this tab",
+        empty: "No operator blocks recorded for this date.",
+        chooseDate: "Choose a date to see recorded operator blocks.",
+      };
 
   return createPortal(
     <div
@@ -301,6 +319,40 @@ function SpaceBookingRequestForm({
                 {fieldError("notes")}
               </label>
             </div>
+            <section
+              className="space-request-unavailable"
+              aria-labelledby={`${id}-unavailable-title`}
+            >
+              <h3 id={`${id}-unavailable-title`}>{unavailableCopy.title}</h3>
+              <div aria-live="polite" aria-atomic="true">
+                {draft.date ? (
+                  <>
+                    <p className="space-request-notice">
+                      {copy.date}: {spaceBookingDate(draft.date, locale)}
+                    </p>
+                    {unavailablePeriods.length ? (
+                      <ul>
+                        {unavailablePeriods.map((period) => (
+                          <li key={period.id}>
+                            <time dateTime={period.start}>{period.start}</time>
+                            {" – "}
+                            <time dateTime={period.end}>{period.end}</time>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="space-request-notice">
+                        {unavailableCopy.empty}
+                      </p>
+                    )}
+                  </>
+                ) : (
+                  <p className="space-request-notice">
+                    {unavailableCopy.chooseDate}
+                  </p>
+                )}
+              </div>
+            </section>
             <div className="space-request-price">
               <strong>{copy.estimate}</strong>
               {preview && (

@@ -83,6 +83,48 @@ export interface SpaceBookingView {
   filter: SpaceBookingFilter;
   selectedId: string | null;
 }
+export interface SpaceTimeBlockDraft {
+  date: string;
+  start: string;
+  end: string;
+  note: string;
+}
+export interface SpaceTimeBlock extends SpaceTimeBlockDraft {
+  id: string;
+  venueId: number;
+  spaceId: number;
+  createdAt: string;
+  updatedAt: string;
+  removedAt?: string;
+  history: Array<{
+    action: "created" | "removed" | "restored";
+    at: string;
+  }>;
+}
+export interface SpaceScheduleView {
+  venueId: number | null;
+  spaceId: number | null;
+  date: string;
+}
+type SpaceBookingRangeIssue =
+  "date" | "start" | "end" | "range" | "openingHours";
+export type SpaceTimeBlockIssue =
+  | SpaceBookingRangeIssue
+  | "unavailable"
+  | "note"
+  | "blockConflict"
+  | "bookingConflict"
+  | "status";
+export type SpaceTimeBlockErrors = Partial<
+  Record<keyof SpaceTimeBlockDraft, SpaceTimeBlockIssue>
+>;
+export type SpaceScheduleEntry =
+  | { kind: "block"; block: SpaceTimeBlock }
+  | {
+      kind: "booking";
+      booking: ManagedSpaceBooking;
+      terms: PricedSpaceBookingTerms;
+    };
 export interface SpaceBookingsState {
   bookings: ManagedSpaceBooking[];
   /** Legacy tenant view; new callers use spaceBookingView with an explicit role. */
@@ -95,6 +137,11 @@ export interface SpaceBookingsState {
   >;
   actionDrafts: Record<Role, Record<string, SpaceBookingActionDraft>>;
   nextId: number;
+  timeBlocks: SpaceTimeBlock[];
+  timeBlockDrafts: Record<string, SpaceTimeBlockDraft>;
+  scheduleView: SpaceScheduleView;
+  removedTimeBlockId: string | null;
+  nextTimeBlockId: number;
 }
 export type SpaceBookingIssue =
   | "unavailable"
@@ -113,6 +160,7 @@ export type SpaceBookingIssue =
   | "deposit"
   | "note"
   | "conflict"
+  | "blocked"
   | "duplicate"
   | "status"
   | "staleProposal"
@@ -155,10 +203,13 @@ export function operatorSpaceVenues(role: Role) {
     : [];
 }
 function operatorOwns(booking: ManagedSpaceBooking, role: Role) {
+  return operatorOwnsUnit(role, booking.venueId, booking.spaceId);
+}
+function operatorOwnsUnit(role: Role, venueId: number, spaceId: number) {
   return (
     role === "spaceOperator" &&
-    workspaceOperatorVenueIds.has(booking.venueId) &&
-    Boolean(spaceBookingUnit(booking.venueId, booking.spaceId))
+    workspaceOperatorVenueIds.has(venueId) &&
+    Boolean(spaceBookingUnit(venueId, spaceId))
   );
 }
 function customerOwns(booking: ManagedSpaceBooking, role: Role) {
@@ -237,8 +288,10 @@ function rangeErrors(
   venueId: number,
   terms: Pick<SpaceBookingTerms, "date" | "start" | "end">,
   now: Date,
-): Pick<SpaceBookingRequestErrors, "date" | "start" | "end"> {
-  const errors: Pick<SpaceBookingRequestErrors, "date" | "start" | "end"> = {};
+): Partial<Record<"date" | "start" | "end", SpaceBookingRangeIssue>> {
+  const errors: Partial<
+    Record<"date" | "start" | "end", SpaceBookingRangeIssue>
+  > = {};
   if (!validDate(terms.date) || terms.date < spaceBookingDateValue(now))
     errors.date = "date";
   const start = minute(terms.start);
@@ -296,6 +349,342 @@ export function spaceBookingConflicts(
 }
 function draftKey(venueId: number, spaceId: number) {
   return `${venueId}:${spaceId}`;
+}
+function copyTimeBlock(block: SpaceTimeBlock): SpaceTimeBlock {
+  return { ...block, history: block.history.map((event) => ({ ...event })) };
+}
+export function spaceScheduleView(
+  state: SpaceBookingsState,
+  role: Role,
+): SpaceScheduleView {
+  return role === "spaceOperator"
+    ? { ...state.scheduleView }
+    : { venueId: null, spaceId: null, date: "" };
+}
+export function updateSpaceScheduleView(
+  state: SpaceBookingsState,
+  role: Role,
+  patch: Partial<SpaceScheduleView>,
+): SpaceBookingsState {
+  if (role !== "spaceOperator") return state;
+  const next = { ...state.scheduleView };
+  if (patch.venueId !== undefined) {
+    const venue = operatorSpaceVenues(role).find(
+      (item) => item.id === patch.venueId,
+    );
+    if (!venue) return state;
+    if (venue.id !== next.venueId) {
+      next.venueId = venue.id;
+      next.spaceId = venue.spaces[0]?.id ?? null;
+    }
+  }
+  if (patch.spaceId !== undefined) {
+    if (
+      next.venueId === null ||
+      patch.spaceId === null ||
+      !operatorOwnsUnit(role, next.venueId, patch.spaceId)
+    )
+      return state;
+    next.spaceId = patch.spaceId;
+  }
+  if (patch.date !== undefined) {
+    if (typeof patch.date !== "string" || !validDate(patch.date)) return state;
+    next.date = patch.date;
+  }
+  return next.venueId === state.scheduleView.venueId &&
+    next.spaceId === state.scheduleView.spaceId &&
+    next.date === state.scheduleView.date
+    ? state
+    : { ...state, scheduleView: next };
+}
+export function spaceTimeBlockDraft(
+  state: SpaceBookingsState,
+  role: Role,
+  venueId: number,
+  spaceId: number,
+): SpaceTimeBlockDraft | null {
+  if (!operatorOwnsUnit(role, venueId, spaceId)) return null;
+  return {
+    ...(state.timeBlockDrafts[draftKey(venueId, spaceId)] ?? {
+      date: state.scheduleView.date,
+      start: "",
+      end: "",
+      note: "",
+    }),
+  };
+}
+export function updateSpaceTimeBlockDraft(
+  state: SpaceBookingsState,
+  role: Role,
+  venueId: number,
+  spaceId: number,
+  patch: Partial<SpaceTimeBlockDraft>,
+): SpaceBookingsState {
+  const draft = spaceTimeBlockDraft(state, role, venueId, spaceId);
+  if (!draft) return state;
+  const next = { ...draft };
+  let changed = false;
+  for (const field of Object.keys(draft) as Array<keyof SpaceTimeBlockDraft>) {
+    const value = patch[field];
+    if (typeof value === "string" && value !== draft[field]) {
+      next[field] = value;
+      changed = true;
+    }
+  }
+  return changed
+    ? {
+        ...state,
+        timeBlockDrafts: {
+          ...state.timeBlockDrafts,
+          [draftKey(venueId, spaceId)]: next,
+        },
+      }
+    : state;
+}
+export function discardSpaceTimeBlockDraft(
+  state: SpaceBookingsState,
+  role: Role,
+  venueId: number,
+  spaceId: number,
+): SpaceBookingsState {
+  if (
+    !operatorOwnsUnit(role, venueId, spaceId) ||
+    !Object.hasOwn(state.timeBlockDrafts, draftKey(venueId, spaceId))
+  )
+    return state;
+  const drafts = { ...state.timeBlockDrafts };
+  delete drafts[draftKey(venueId, spaceId)];
+  return { ...state, timeBlockDrafts: drafts };
+}
+/** Public projection: private notes, history and operator metadata never leave this selector. */
+export function spaceBookingUnavailablePeriods(
+  state: SpaceBookingsState,
+  venueId: number,
+  spaceId: number,
+  date: string,
+): Array<{ id: string; start: string; end: string }> {
+  if (!operatorOwnsUnit("spaceOperator", venueId, spaceId) || !validDate(date))
+    return [];
+  return state.timeBlocks
+    .filter(
+      (block) =>
+        !block.removedAt &&
+        block.venueId === venueId &&
+        block.spaceId === spaceId &&
+        block.date === date,
+    )
+    .map(({ id, start, end }) => ({ id, start, end }))
+    .sort(
+      (left, right) =>
+        left.start.localeCompare(right.start) ||
+        left.id.localeCompare(right.id),
+    );
+}
+export function spaceTimeBlockConflicts(
+  state: SpaceBookingsState,
+  venueId: number,
+  spaceId: number,
+  terms: Pick<SpaceBookingTerms, "date" | "start" | "end">,
+  excludeId?: string,
+): boolean {
+  const start = minute(terms.start);
+  const end = minute(terms.end);
+  if (start === null || end === null || end <= start) return false;
+  return spaceBookingUnavailablePeriods(
+    state,
+    venueId,
+    spaceId,
+    terms.date,
+  ).some((block) => {
+    const otherStart = minute(block.start);
+    const otherEnd = minute(block.end);
+    return (
+      block.id !== excludeId &&
+      otherStart !== null &&
+      otherEnd !== null &&
+      start < otherEnd &&
+      end > otherStart
+    );
+  });
+}
+export function validateSpaceTimeBlock(
+  state: SpaceBookingsState,
+  role: Role,
+  venueId: number,
+  spaceId: number,
+  draft: SpaceTimeBlockDraft,
+  now = new Date(),
+): { errors: SpaceTimeBlockErrors; issue?: SpaceTimeBlockIssue } {
+  if (!operatorOwnsUnit(role, venueId, spaceId))
+    return { errors: {}, issue: "unavailable" };
+  const errors: SpaceTimeBlockErrors = rangeErrors(venueId, draft, now);
+  if (draft.note.trim().length > 500) errors.note = "note";
+  if (Object.keys(errors).length) return { errors };
+  if (spaceTimeBlockConflicts(state, venueId, spaceId, draft))
+    return { errors, issue: "blockConflict" };
+  if (spaceBookingConflicts(state, venueId, spaceId, draft))
+    return { errors, issue: "bookingConflict" };
+  return { errors };
+}
+export function createSpaceTimeBlock(
+  state: SpaceBookingsState,
+  role: Role,
+  venueId: number,
+  spaceId: number,
+  now = new Date(),
+): {
+  state: SpaceBookingsState;
+  blockId: string | null;
+  errors: SpaceTimeBlockErrors;
+  issue?: SpaceTimeBlockIssue;
+} {
+  const draft = spaceTimeBlockDraft(state, role, venueId, spaceId);
+  if (!draft) return { state, blockId: null, errors: {}, issue: "unavailable" };
+  const validation = validateSpaceTimeBlock(
+    state,
+    role,
+    venueId,
+    spaceId,
+    draft,
+    now,
+  );
+  if (validation.issue || Object.keys(validation.errors).length)
+    return { state, blockId: null, ...validation };
+  const at = now.toISOString();
+  const block: SpaceTimeBlock = {
+    ...draft,
+    note: draft.note.trim(),
+    id: `space-block-${state.nextTimeBlockId}`,
+    venueId,
+    spaceId,
+    createdAt: at,
+    updatedAt: at,
+    history: [{ action: "created", at }],
+  };
+  const next = discardSpaceTimeBlockDraft(state, role, venueId, spaceId);
+  return {
+    state: {
+      ...next,
+      timeBlocks: [...state.timeBlocks, block],
+      nextTimeBlockId: state.nextTimeBlockId + 1,
+      scheduleView: { venueId, spaceId, date: draft.date },
+    },
+    blockId: block.id,
+    errors: {},
+  };
+}
+export function removedSpaceTimeBlock(
+  state: SpaceBookingsState,
+  role: Role,
+): SpaceTimeBlock | null {
+  const block = state.timeBlocks.find(
+    (item) => item.id === state.removedTimeBlockId,
+  );
+  return block?.removedAt &&
+    operatorOwnsUnit(role, block.venueId, block.spaceId)
+    ? copyTimeBlock(block)
+    : null;
+}
+export function removeSpaceTimeBlock(
+  state: SpaceBookingsState,
+  role: Role,
+  id: string,
+  now = new Date(),
+): { state: SpaceBookingsState; issue?: SpaceTimeBlockIssue } {
+  const block = state.timeBlocks.find((item) => item.id === id);
+  if (!block || !operatorOwnsUnit(role, block.venueId, block.spaceId))
+    return { state, issue: "unavailable" };
+  if (block.removedAt) return { state, issue: "status" };
+  const at = now.toISOString();
+  return {
+    state: {
+      ...state,
+      removedTimeBlockId: id,
+      timeBlocks: state.timeBlocks.map((item) =>
+        item.id === id
+          ? {
+              ...item,
+              removedAt: at,
+              updatedAt: at,
+              history: [...item.history, { action: "removed", at }],
+            }
+          : item,
+      ),
+    },
+  };
+}
+export function restoreSpaceTimeBlock(
+  state: SpaceBookingsState,
+  role: Role,
+  id: string,
+  now = new Date(),
+): { state: SpaceBookingsState; issue?: SpaceTimeBlockIssue } {
+  const block = state.timeBlocks.find((item) => item.id === id);
+  if (!block || !operatorOwnsUnit(role, block.venueId, block.spaceId))
+    return { state, issue: "unavailable" };
+  if (!block.removedAt) return { state, issue: "status" };
+  const validation = validateSpaceTimeBlock(
+    state,
+    role,
+    block.venueId,
+    block.spaceId,
+    block,
+    now,
+  );
+  const issue = validation.issue ?? Object.values(validation.errors)[0];
+  if (issue) return { state, issue };
+  const at = now.toISOString();
+  return {
+    state: {
+      ...state,
+      removedTimeBlockId:
+        state.removedTimeBlockId === id ? null : state.removedTimeBlockId,
+      timeBlocks: state.timeBlocks.map((item) => {
+        if (item.id !== id) return item;
+        const restored = { ...item };
+        delete restored.removedAt;
+        return {
+          ...restored,
+          updatedAt: at,
+          history: [...item.history, { action: "restored" as const, at }],
+        };
+      }),
+    },
+  };
+}
+export function spaceScheduleEntries(
+  state: SpaceBookingsState,
+  role: Role,
+  venueId: number,
+  spaceId: number,
+  date: string,
+): SpaceScheduleEntry[] {
+  if (!operatorOwnsUnit(role, venueId, spaceId) || !validDate(date)) return [];
+  const entries: SpaceScheduleEntry[] = state.timeBlocks
+    .filter(
+      (block) =>
+        !block.removedAt &&
+        block.venueId === venueId &&
+        block.spaceId === spaceId &&
+        block.date === date,
+    )
+    .map((block) => ({ kind: "block", block: copyTimeBlock(block) }));
+  for (const booking of scopedSpaceBookings(state, role)) {
+    if (
+      booking.venueId === venueId &&
+      booking.spaceId === spaceId &&
+      booking.agreedTerms?.date === date &&
+      !["Cancelled", "Declined"].includes(booking.phase)
+    )
+      entries.push({
+        kind: "booking",
+        booking,
+        terms: { ...booking.agreedTerms },
+      });
+  }
+  const start = (entry: SpaceScheduleEntry) =>
+    entry.kind === "block" ? entry.block.start : entry.terms.start;
+  return entries.sort((left, right) => start(left).localeCompare(start(right)));
 }
 export function spaceBookingDraft(
   state: SpaceBookingsState,
@@ -412,6 +801,11 @@ export function validateSpaceBookingRequest(
     )
   )
     return { errors, issue: "duplicate" };
+  if (
+    !Object.keys(errors).length &&
+    spaceTimeBlockConflicts(state, venueId, spaceId, draft)
+  )
+    return { errors, issue: "blocked" };
   if (
     !Object.keys(errors).length &&
     spaceBookingConflicts(state, venueId, spaceId, draft)
@@ -778,6 +1172,8 @@ export function validateSpaceBookingProposal(
     sameTerms(terms, booking.proposal.proposedTerms)
   )
     return { errors, issue: "noChange" };
+  if (spaceTimeBlockConflicts(state, booking.venueId, booking.spaceId, terms))
+    return { errors, issue: "blocked" };
   if (spaceBookingConflicts(state, booking.venueId, booking.spaceId, terms, id))
     return { errors, issue: "conflict" };
   return { errors };
@@ -852,6 +1248,8 @@ function confirmedTermsIssue(
   const first = Object.values(ranges)[0];
   if (first) return first;
   if (bookingTermsTotalCents(terms) === null) return "priceRequired";
+  if (spaceTimeBlockConflicts(state, booking.venueId, booking.spaceId, terms))
+    return "blocked";
   if (
     spaceBookingConflicts(
       state,
@@ -1169,5 +1567,14 @@ export function createInitialSpaceBookingsState(
       admin: {},
     },
     nextId: 1,
+    timeBlocks: [],
+    timeBlockDrafts: {},
+    scheduleView: {
+      venueId: 1,
+      spaceId: 11,
+      date: spaceBookingDateValue(now),
+    },
+    removedTimeBlockId: null,
+    nextTimeBlockId: 1,
   };
 }

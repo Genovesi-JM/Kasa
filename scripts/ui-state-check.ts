@@ -4,6 +4,7 @@ import "./messages-check";
 import "./application-state-check";
 import "./notification-check";
 import "./bookings-check";
+import "./space-schedule-check";
 import "./discover-state-check";
 import "./discover-history-check";
 import "./spaces-discovery-state-check";

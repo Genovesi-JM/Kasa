@@ -32,6 +32,7 @@ import {
   useSpaceBookingCopy,
 } from "./spaceBookingCopy";
 import "./spaceOperatorInbox.css";
+import { SpaceOperatorSchedule } from "./SpaceOperatorSchedule";
 
 interface SpaceOperatorInboxProps {
   role: Role;
@@ -137,6 +138,10 @@ function issueText(issue: string, copy: Copy) {
     conflict: copy(
       "This space already has an agreed local reservation at that time. Choose another time.",
       "Este espaço já tem uma reserva local acordada nesse horário. Escolha outro horário.",
+    ),
+    blocked: copy(
+      "This time is marked unavailable in the local schedule. Choose another time or review the block.",
+      "Este horário está marcado como indisponível no calendário local. Escolha outro horário ou reveja o bloqueio.",
     ),
     status: copy(
       "This action is no longer available. Review the current record.",
@@ -722,6 +727,7 @@ function OperatorInbox({
           <dd>{counts.completed + counts.cancelled + counts.declined}</dd>
         </div>
       </dl>
+      <SpaceOperatorSchedule role={role} state={state} setState={setState} />
       <div className="space-operator-toolbar">
         <label className="space-operator-search">
           <Search size={18} aria-hidden="true" />

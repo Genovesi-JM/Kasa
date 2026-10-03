@@ -87,6 +87,8 @@ const en = {
     "An active request for this space and time already exists. Open your reservations to inspect it.",
   conflict:
     "This space already has an accepted local reservation at that time. Choose a different time.",
+  blocked:
+    "The operator has marked this time unavailable in this tab. Choose a different time.",
   invalidDate: "Choose a valid current or future date.",
   past: "Choose a start time in the future.",
   invalidStart: "Choose a valid start time.",
@@ -208,6 +210,8 @@ const pt: Record<keyof typeof en, string> = {
     "Já existe um pedido ativo para este espaço e horário. Abra as suas reservas para o consultar.",
   conflict:
     "Este espaço já tem uma reserva local aceite nesse horário. Escolha outro horário.",
+  blocked:
+    "O operador marcou este horário como indisponível neste separador. Escolha outro horário.",
   invalidDate: "Escolha uma data válida, de hoje ou futura.",
   past: "Escolha uma hora de início futura.",
   invalidStart: "Escolha uma hora de início válida.",
@@ -346,6 +350,7 @@ export function spaceBookingIssueText(issue: string, copy: SpaceBookingCopy) {
     deposit: copy.invalidPrice,
     note: copy.invalidNote,
     conflict: copy.conflict,
+    blocked: copy.blocked,
     duplicate: copy.duplicate,
     status: copy.staleAction,
     staleProposal: copy.staleAction,
