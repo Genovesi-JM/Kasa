@@ -51,6 +51,7 @@ interface ConversationSeed {
   name: string;
   property: string;
   category: ConversationCategory;
+  propertyContext?: ChatConversation["propertyContext"];
   initials: string;
   unread: number;
   messages: SeedMessage[];
@@ -62,6 +63,7 @@ const inboxSeeds: Record<Role, ConversationSeed[]> = {
       name: "Olivia Martín",
       property: "Sunlit Eixample home",
       category: "Property",
+      propertyContext: { propertyId: 1, landlord: "Olivia Martín" },
       initials: "OM",
       unread: 1,
       messages: [
@@ -81,6 +83,7 @@ const inboxSeeds: Record<Role, ConversationSeed[]> = {
       name: "Nuno Silva",
       property: "Quiet Gràcia loft",
       category: "Property",
+      propertyContext: { propertyId: 2, landlord: "Nuno Silva" },
       initials: "NS",
       unread: 0,
       messages: [
@@ -368,6 +371,9 @@ export function createInitialMessageState(
     conversationOpen: false,
     conversations: seeds.map((conversation, index) => ({
       ...conversation,
+      ...(conversation.propertyContext
+        ? { propertyContext: { ...conversation.propertyContext } }
+        : {}),
       id: `${role}:conversation-${index + 1}`,
       time: index === 0 ? conversation.messages.at(-1)![2] : "Yesterday",
       lastActivity: seeds.length - index,

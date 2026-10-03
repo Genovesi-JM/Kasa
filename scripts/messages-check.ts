@@ -13,11 +13,21 @@ import {
   unreadMessageCount,
   updateConversation,
   updateWorkspaceMessageState,
+  type MessageState,
 } from "../src/components/messageState";
 import type { Role } from "../src/types";
 import { matchesSearch } from "../src/search";
 
 const initial = createInitialMessageState("tenant");
+const initialJson = JSON.stringify(initial);
+const catalogueJson = JSON.stringify(properties);
+const selectedConversation = (inbox: MessageState) => {
+  const conversation = inbox.conversations.find(
+    (item) => item.id === inbox.selectedId,
+  );
+  assert.ok(conversation);
+  return conversation;
+};
 assert.equal(
   new Set(
     initial.conversations.map((conversation) =>
@@ -31,8 +41,11 @@ const initialUnread = unreadMessageCount(initial);
 const listing = properties[0];
 const otherListing = { ...listing, id: 987, title: "A different home" };
 const differentOwner = { ...listing, landlord: "A different owner" };
+const seededThread = initial.conversations[0];
+const unrelatedId = initial.conversations[2].id;
+const unreadOutsideThread = initialUnread - seededThread.unread;
 
-let state = updateConversation(initial, initial.selectedId, (conversation) => ({
+let state = updateConversation(initial, unrelatedId, (conversation) => ({
   ...conversation,
   draft: "Existing inbox draft",
 }));
@@ -56,17 +69,18 @@ assert.deepEqual(thread.propertyContext, {
   propertyId: listing.id,
   landlord: listing.landlord,
 });
-assert.deepEqual(
+assert.equal(threadId, "tenant:conversation-1");
+assert.equal(state.conversations.length, initial.conversations.length);
+assert.equal(
   thread.messages,
-  [],
-  "Opening a property must not fabricate an owner reply",
+  seededThread.messages,
+  "Opening the seeded property retains its existing messages without adding a reply",
 );
 assert.equal(thread.unread, 0);
-assert.equal(unreadMessageCount(state), initialUnread);
+assert.equal(unreadMessageCount(state), unreadOutsideThread);
 assert.equal(
-  state.conversations.find(
-    (conversation) => conversation.id === initial.selectedId,
-  )?.draft,
+  state.conversations.find((conversation) => conversation.id === unrelatedId)
+    ?.draft,
   "Existing inbox draft",
 );
 
@@ -131,22 +145,23 @@ const sent = appendLocalMessage(
 const sentThread = sent.conversations.find(
   (conversation) => conversation.id === threadId,
 )!;
-assert.equal(sentThread.messages.length, 1);
-assert.equal(sentThread.messages[0].direction, "sent");
-assert.equal(sentThread.messages[0].localOnly, true);
-assert.equal(sentThread.messages[0].text, "Is this home still available?");
+const sentCount = seededThread.messages.length + 1;
+assert.equal(sentThread.messages.length, sentCount);
+assert.deepEqual(sentThread.messages.slice(0, -1), seededThread.messages);
+assert.equal(sentThread.messages.at(-1)?.direction, "sent");
+assert.equal(sentThread.messages.at(-1)?.localOnly, true);
+assert.equal(sentThread.messages.at(-1)?.text, "Is this home still available?");
 assert.equal(sentThread.draft, "");
 assert.equal(
-  sent.conversations.find(
-    (conversation) => conversation.id === initial.selectedId,
-  )?.draft,
+  sent.conversations.find((conversation) => conversation.id === unrelatedId)
+    ?.draft,
   "Existing inbox draft",
 );
 assert.equal(
   openPropertyConversation(sent, listing).conversations.find(
     (conversation) => conversation.id === threadId,
   )?.messages.length,
-  1,
+  sentCount,
 );
 
 const whitespace = updateConversation(sent, threadId, (conversation) => ({
@@ -157,7 +172,7 @@ assert.equal(
   appendLocalMessage(whitespace, threadId).conversations.find(
     (conversation) => conversation.id === threadId,
   )?.messages.length,
-  1,
+  sentCount,
 );
 const blocked = updateConversation(sent, threadId, (conversation) => ({
   ...conversation,
@@ -168,7 +183,7 @@ assert.equal(
   appendLocalMessage(blocked, threadId).conversations.find(
     (conversation) => conversation.id === threadId,
   )?.messages.length,
-  1,
+  sentCount,
 );
 assert.equal(
   openPropertyConversation(blocked, listing).conversations.find(
@@ -186,10 +201,10 @@ const unreadThread = updateConversation(sent, threadId, (conversation) => ({
   ...conversation,
   unread: 3,
 }));
-assert.equal(unreadMessageCount(unreadThread), initialUnread + 3);
+assert.equal(unreadMessageCount(unreadThread), unreadOutsideThread + 3);
 assert.equal(
   unreadMessageCount(openPropertyConversation(unreadThread, listing)),
-  initialUnread,
+  unreadOutsideThread,
   "Opening the contextual thread clears only its own unread count",
 );
 assert.equal(
@@ -197,6 +212,116 @@ assert.equal(
   3,
   "All changes leave the original seeds untouched",
 );
+
+for (const [index, property] of properties.slice(0, 2).entries()) {
+  const seed = initial.conversations[index];
+  assert.equal(seed.id, `tenant:conversation-${index + 1}`);
+  assert.deepEqual(seed.propertyContext, {
+    propertyId: property.id,
+    landlord: property.landlord,
+  });
+  const privateState = updateConversation(initial, seed.id, (conversation) => ({
+    ...conversation,
+    draft: `Unsent question for ${property.landlord}`,
+    blocked: true,
+    unread: 4,
+  }));
+  const privateJson = JSON.stringify(privateState);
+  const opened = openPropertyConversation(privateState, property);
+  const selected = selectedConversation(opened);
+  assert.equal(opened.selectedId, seed.id);
+  assert.equal(opened.conversationOpen, true);
+  assert.equal(opened.conversations.length, privateState.conversations.length);
+  assert.equal(selected.messages, seed.messages);
+  assert.equal(selected.draft, `Unsent question for ${property.landlord}`);
+  assert.equal(selected.blocked, true);
+  assert.equal(selected.unread, 0);
+  assert.equal(
+    unreadMessageCount(opened),
+    unreadMessageCount(privateState) - 4,
+  );
+  for (const other of privateState.conversations.filter(
+    (item) => item.id !== seed.id,
+  )) {
+    assert.equal(
+      opened.conversations.find((item) => item.id === other.id),
+      other,
+    );
+  }
+  const retitled = openPropertyConversation(opened, {
+    ...property,
+    title: `Edited title ${index + 1}`,
+  });
+  assert.equal(retitled.selectedId, seed.id);
+  assert.equal(retitled.conversations.length, opened.conversations.length);
+  assert.equal(
+    selectedConversation(retitled).property,
+    `Edited title ${index + 1}`,
+  );
+  assert.equal(selectedConversation(retitled).messages, seed.messages);
+  assert.equal(selectedConversation(retitled).draft, selected.draft);
+  assert.equal(selectedConversation(retitled).blocked, true);
+  assert.equal(JSON.stringify(privateState), privateJson);
+}
+
+const unseenListing = properties[2];
+assert.ok(
+  initial.conversations.every(
+    (conversation) =>
+      conversation.propertyContext?.propertyId !== unseenListing.id,
+  ),
+);
+const unseenInbox = openPropertyConversation(initial, unseenListing);
+const unseenThread = selectedConversation(unseenInbox);
+assert.equal(
+  unseenInbox.conversations.length,
+  initial.conversations.length + 1,
+);
+assert.deepEqual(unseenThread.propertyContext, {
+  propertyId: unseenListing.id,
+  landlord: unseenListing.landlord,
+});
+assert.equal(unseenThread.name, unseenListing.landlord);
+assert.deepEqual(
+  unseenThread.messages,
+  [],
+  "A genuinely unseen property starts empty without a fabricated reply",
+);
+assert.equal(unseenThread.draft, "");
+assert.equal(unseenThread.unread, 0);
+assert.equal(unreadMessageCount(unseenInbox), initialUnread);
+for (const seed of initial.conversations)
+  assert.ok(unseenInbox.conversations.includes(seed));
+const unseenSent = appendLocalMessage(
+  updateConversation(unseenInbox, unseenThread.id, (conversation) => ({
+    ...conversation,
+    draft: "First local question",
+  })),
+  unseenThread.id,
+);
+assert.equal(selectedConversation(unseenSent).messages.length, 1);
+assert.equal(selectedConversation(unseenSent).messages[0].localOnly, true);
+assert.equal(
+  selectedConversation(openPropertyConversation(unseenSent, unseenListing))
+    .messages,
+  selectedConversation(unseenSent).messages,
+);
+
+const freshTenant = createInitialMessageState("tenant");
+for (const index of [0, 1]) {
+  const context = freshTenant.conversations[index].propertyContext!;
+  assert.notEqual(context, initial.conversations[index].propertyContext);
+  assert.deepEqual(context, initial.conversations[index].propertyContext);
+  context.propertyId = 999;
+  context.landlord = "Changed in a separate session";
+}
+assert.equal(
+  JSON.stringify(createInitialMessageState("tenant")),
+  initialJson,
+  "Fresh context objects cannot mutate the source seeds",
+);
+assert.equal(JSON.stringify(initial), initialJson);
+assert.equal(JSON.stringify(properties), catalogueJson);
 
 const workspaces = createInitialWorkspaceMessageState();
 const roles: Role[] = [
@@ -350,7 +475,7 @@ for (const role of ["landlord", "spaceOperator"] as const) {
     foreignListing,
   );
   assert.equal(
-    foreignInbox.conversations.at(-1)?.name,
+    selectedConversation(foreignInbox).name,
     foreignListing.landlord,
   );
   assert.equal(foreignInbox.conversationOpen, true);
@@ -421,15 +546,25 @@ assert.notEqual(
 );
 assert.equal(providerProperty.tenant, tenantProperty.tenant);
 assert.equal(
-  providerProperty.provider.conversations.at(-1)?.name,
+  selectedConversation(providerProperty.provider).name,
   listing.landlord,
 );
 assert.equal(
-  providerProperty.tenant.conversations.at(-1)?.name,
+  selectedConversation(providerProperty.tenant).name,
   listing.landlord,
 );
 assert.equal(providerProperty.provider.conversationOpen, true);
 assert.equal(providerProperty.tenant.conversationOpen, true);
+assert.equal(tenantPropertyId, tenantId);
+assert.equal(
+  tenantProperty.tenant.conversations.length,
+  landlordEdited.tenant.conversations.length,
+);
+assert.equal(
+  selectedConversation(tenantProperty.tenant).draft,
+  "Tenant-only draft",
+);
+assert.equal(selectedConversation(tenantProperty.tenant).blocked, true);
 const tenantReply = updateWorkspaceMessageState(
   providerProperty,
   "tenant",
@@ -437,13 +572,21 @@ const tenantReply = updateWorkspaceMessageState(
     appendLocalMessage(
       updateConversation(inbox, tenantPropertyId, (conversation) => ({
         ...conversation,
+        blocked: false,
         draft: "My property question",
       })),
       tenantPropertyId,
     ),
 );
-assert.equal(tenantReply.tenant.conversations.at(-1)?.messages.length, 1);
-assert.equal(tenantReply.provider.conversations.at(-1)?.messages.length, 0);
+assert.equal(
+  selectedConversation(tenantReply.tenant).messages.length,
+  selectedConversation(tenantProperty.tenant).messages.length + 1,
+);
+assert.equal(
+  selectedConversation(tenantReply.tenant).messages.at(-1)?.text,
+  "My property question",
+);
+assert.equal(selectedConversation(tenantReply.provider).messages.length, 0);
 assert.equal(tenantReply.landlord.conversations.length, 3);
 assert.equal(
   workspaces.tenant.conversations.length,
@@ -455,7 +598,15 @@ assert.notEqual(
   workspaces.tenant.conversations[0],
   "A new session receives fresh objects",
 );
+for (const index of [0, 1]) {
+  assert.notEqual(
+    createInitialWorkspaceMessageState().tenant.conversations[index]
+      .propertyContext,
+    workspaces.tenant.conversations[index].propertyContext,
+  );
+}
+assert.equal(JSON.stringify(initial), initialJson);
 
 console.log(
-  "Messages checks passed: all five workspace counterparts, isolated drafts/unread/block state, contextual recipient/listing identity, self-conversation guard, foreign owner conversations, empty new threads, mobile entry, reuse, retained messages and blocked/blank send guards.",
+  "Messages checks passed: all five workspace counterparts, isolated drafts/unread/block state, exact property seed reuse, detached contexts, self-conversation guard, foreign owner conversations, empty unseen threads, mobile entry, retained messages and blocked/blank send guards.",
 );
