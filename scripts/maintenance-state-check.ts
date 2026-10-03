@@ -4,12 +4,17 @@ import {
   changeMaintenanceStatus,
   createInitialMaintenanceState,
   createMaintenanceFilters,
+  discardMaintenanceReportDraft,
   filterMaintenanceRecords,
   maintenanceHomesForRole,
+  hasMaintenanceReportDraft,
+  maintenanceReportDraft,
   maintenanceReportIssues,
   maintenanceScheduleIssues,
   maintenanceNoteIssue,
   scheduleMaintenanceVisit,
+  submitMaintenanceReport,
+  updateMaintenanceReportDraft,
   validateMaintenanceReport,
   validateMaintenanceSchedule,
   visibleMaintenanceRecords,
@@ -377,6 +382,222 @@ assert.equal(
 assert.equal(maintenanceNoteIssue(" short "), "note");
 assert.equal(maintenanceNoteIssue("x".repeat(1001)), "note");
 assert.equal(maintenanceNoteIssue("Valid repair description."), null);
+
+// Report drafts retain incomplete input privately until an explicit successful submit.
+const blankDraft = {
+  propertyId: "1",
+  title: "",
+  description: "",
+  category: "General repair",
+  priority: "Medium",
+  accessNotes: "",
+};
+assert.deepEqual(initial.reportDrafts, {});
+for (const role of ["tenant", "landlord"] as const) {
+  assert.equal(hasMaintenanceReportDraft(initial, role), false);
+  assert.deepEqual(maintenanceReportDraft(initial, role), blankDraft);
+  const detached = maintenanceReportDraft(initial, role)!;
+  detached.title = "Cannot mutate defaults";
+  assert.deepEqual(maintenanceReportDraft(initial, role), blankDraft);
+  assert.equal(submitMaintenanceReport(initial, role, now).state, initial);
+  assert.equal(submitMaintenanceReport(initial, role, now).recordId, null);
+}
+const rawInput = {
+  propertyId: "",
+  title: "  a  ",
+  description: "",
+  category: "",
+  priority: "",
+  accessNotes: " \n ",
+};
+const incomplete = updateMaintenanceReportDraft(initial, "tenant", rawInput);
+assert.deepEqual(maintenanceReportDraft(incomplete, "tenant"), rawInput);
+assert.equal(hasMaintenanceReportDraft(incomplete, "tenant"), true);
+assert.equal(hasMaintenanceReportDraft(incomplete, "landlord"), false);
+assert.deepEqual(maintenanceReportDraft(incomplete, "landlord"), blankDraft);
+assert.equal(
+  updateMaintenanceReportDraft(incomplete, "tenant", { ...rawInput }),
+  incomplete,
+);
+assert.equal(
+  updateMaintenanceReportDraft(incomplete, "tenant", {
+    title: 42,
+    extra: "unknown",
+  } as unknown as Partial<MaintenanceReportDraft>),
+  incomplete,
+);
+const detachedRetained = maintenanceReportDraft(incomplete, "tenant")!;
+detachedRetained.accessNotes = "Cannot mutate retained data";
+assert.equal(
+  maintenanceReportDraft(incomplete, "tenant")!.accessNotes,
+  rawInput.accessNotes,
+);
+assert.equal(incomplete.records, initial.records);
+assert.equal(incomplete.nextId, initial.nextId);
+assert.deepEqual(
+  visibleMaintenanceRecords(incomplete, "tenant"),
+  visibleMaintenanceRecords(initial, "tenant"),
+);
+assert.deepEqual(
+  visibleMaintenanceRecords(incomplete, "landlord"),
+  visibleMaintenanceRecords(initial, "landlord"),
+);
+assert.equal(
+  JSON.stringify(incomplete.records).includes(rawInput.title),
+  false,
+);
+assert.equal(
+  submitMaintenanceReport(incomplete, "tenant", now).state,
+  incomplete,
+);
+assert.deepEqual(
+  submitMaintenanceReport(incomplete, "tenant", now).issues,
+  maintenanceReportIssues(rawInput, "tenant"),
+);
+for (const role of ["provider", "spaceOperator", "admin"] as const) {
+  assert.equal(maintenanceReportDraft(incomplete, role), null);
+  assert.equal(hasMaintenanceReportDraft(incomplete, role), false);
+  assert.equal(
+    updateMaintenanceReportDraft(incomplete, role, report),
+    incomplete,
+  );
+  assert.equal(discardMaintenanceReportDraft(incomplete, role), incomplete);
+  assert.equal(
+    submitMaintenanceReport(incomplete, role, now).state,
+    incomplete,
+  );
+  assert.equal(submitMaintenanceReport(incomplete, role, now).recordId, null);
+}
+for (const role of ["tenant", "landlord"] as const) {
+  const foreignHome = updateMaintenanceReportDraft(incomplete, role, {
+    ...report,
+    propertyId: "2",
+  });
+  assert.equal(
+    maintenanceReportDraft(foreignHome, role)!.propertyId,
+    "2",
+    "Retain raw invalid input so the user can correct it",
+  );
+  const rejected = submitMaintenanceReport(foreignHome, role, now);
+  assert.equal(rejected.state, foreignHome);
+  assert.equal(rejected.recordId, null);
+  assert.equal(rejected.issues.propertyId, "propertyId");
+}
+const ownerPrivate = {
+  ...report,
+  title: "Owner's private report",
+  description: "Owner's unsent description with sufficient detail.",
+};
+const bothDrafts = updateMaintenanceReportDraft(
+  updateMaintenanceReportDraft(incomplete, "tenant", report),
+  "landlord",
+  ownerPrivate,
+);
+assert.deepEqual(maintenanceReportDraft(bothDrafts, "tenant"), report);
+assert.deepEqual(maintenanceReportDraft(bothDrafts, "landlord"), ownerPrivate);
+assert.equal(bothDrafts.records, initial.records);
+const discardedDraft = discardMaintenanceReportDraft(bothDrafts, "tenant");
+assert.equal(hasMaintenanceReportDraft(discardedDraft, "tenant"), false);
+assert.equal(
+  discardedDraft.reportDrafts.landlord,
+  bothDrafts.reportDrafts.landlord,
+);
+assert.equal(discardedDraft.records, bothDrafts.records);
+assert.equal(
+  discardMaintenanceReportDraft(discardedDraft, "tenant"),
+  discardedDraft,
+);
+assert.equal(hasMaintenanceReportDraft(bothDrafts, "tenant"), true);
+
+const submittedDraft = submitMaintenanceReport(bothDrafts, "tenant", now);
+assert.deepEqual(submittedDraft.issues, {});
+assert.equal(submittedDraft.recordId, bothDrafts.nextId);
+assert.equal(
+  submittedDraft.state.records.length,
+  bothDrafts.records.length + 1,
+);
+assert.equal(submittedDraft.state.nextId, bothDrafts.nextId + 1);
+const submittedRecord = submittedDraft.state.records.find(
+  (item) => item.id === submittedDraft.recordId,
+)!;
+assert.equal(submittedRecord.propertyId, Number(report.propertyId));
+assert.equal(submittedRecord.title, report.title.trim());
+assert.equal(submittedRecord.description, report.description.trim());
+assert.equal(submittedRecord.accessNotes, report.accessNotes.trim());
+assert.equal(submittedRecord.category, report.category);
+assert.equal(submittedRecord.priority, report.priority);
+assert.equal(submittedRecord.status, "New");
+assert.equal(submittedRecord.reportedAt, now.toISOString());
+assert.equal(submittedRecord.history.length, 1);
+assert.equal(submittedRecord.history[0].actor, "Inês Duarte");
+assert.equal(hasMaintenanceReportDraft(submittedDraft.state, "tenant"), false);
+assert.equal(
+  submittedDraft.state.reportDrafts.landlord,
+  bothDrafts.reportDrafts.landlord,
+);
+assert.equal(
+  submitMaintenanceReport(submittedDraft.state, "tenant", now).state,
+  submittedDraft.state,
+);
+assert.equal(
+  submitMaintenanceReport(submittedDraft.state, "tenant", now).recordId,
+  null,
+);
+for (const existing of bothDrafts.records)
+  assert.equal(
+    submittedDraft.state.records.find((item) => item.id === existing.id),
+    existing,
+  );
+const submittedOwner = submitMaintenanceReport(
+  submittedDraft.state,
+  "landlord",
+  now,
+);
+assert.equal(submittedOwner.recordId, submittedDraft.state.nextId);
+assert.equal(
+  submittedOwner.state.records[0].history[0].actor,
+  "Property owner",
+);
+assert.equal(submittedOwner.state.records[0].title, ownerPrivate.title);
+assert.equal(
+  hasMaintenanceReportDraft(submittedOwner.state, "landlord"),
+  false,
+);
+assert.equal(
+  submittedOwner.state.records.find((item) => item.id === submittedRecord.id),
+  submittedRecord,
+);
+
+// Existing record actions must not consume or overwrite unrelated report drafts.
+const legacyAdd = addMaintenanceReport(bothDrafts, "tenant", report, now);
+assert.equal(legacyAdd.reportDrafts, bothDrafts.reportDrafts);
+const draftScheduled = scheduleMaintenanceVisit(
+  legacyAdd,
+  "landlord",
+  legacyAdd.records[0].id,
+  futureVisit,
+  now,
+);
+const draftStarted = changeMaintenanceStatus(
+  draftScheduled,
+  "landlord",
+  legacyAdd.records[0].id,
+  { type: "start" },
+  now,
+);
+const draftResolved = changeMaintenanceStatus(
+  draftStarted,
+  "landlord",
+  legacyAdd.records[0].id,
+  { type: "resolve", note: "The door was adjusted and checked." },
+  now,
+);
+for (const state of [draftScheduled, draftStarted, draftResolved]) {
+  assert.equal(state.reportDrafts, bothDrafts.reportDrafts);
+  assert.deepEqual(maintenanceReportDraft(state, "tenant"), report);
+  assert.deepEqual(maintenanceReportDraft(state, "landlord"), ownerPrivate);
+}
+assert.deepEqual(createInitialMaintenanceState().reportDrafts, {});
 console.log(
-  "Maintenance checks passed: report/schedule validation, structured issues, property/tenant scope, work-preserving visit updates, duplicate no-ops, explicit transitions, history and chronological filters.",
+  "Maintenance checks passed: private retained report drafts, guarded submission, report/schedule validation, structured issues, property/tenant scope, work-preserving visit updates, duplicate no-ops, explicit transitions, history and chronological filters.",
 );

@@ -7,7 +7,16 @@ export const maintenanceZh = {
   maintenance_addRequest: "添加请求",
   maintenance_addMaintenance: "添加维护请求",
   maintenance_reportScope:
-    "此操作仅为本次会话创建本地记录。不会发送维修预约、消息或文件。",
+    "选择保存请求之前，草稿仅保留在此工作区和此标签页中。关闭会保留草稿，重新加载会清除草稿。不会发送维修预约、消息或文件。",
+  maintenance_resumeReport: "继续填写报修",
+  maintenance_unfinishedReport: "未完成的报修",
+  maintenance_draftScope:
+    "此草稿仅保留在此工作区和此标签页中。重新加载会将其清除。",
+  maintenance_keepDraftAndClose: "关闭并保留草稿",
+  maintenance_discardDraft: "丢弃报修草稿",
+  maintenance_draftDiscarded: "已从此工作区丢弃报修草稿。",
+  maintenance_draftKept: "报修草稿已保留在此标签页中，可稍后继续填写。",
+  maintenance_reportNotSaved: "报修未记录，草稿仍然可用。",
   maintenance_checkFields: "保存前请检查标出的字段。",
   maintenance_property: "房产",
   maintenance_chooseProperty: "选择房产",

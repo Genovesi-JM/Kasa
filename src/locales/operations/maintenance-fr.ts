@@ -7,7 +7,18 @@ export const maintenanceFr = {
   maintenance_addRequest: "Ajouter une demande",
   maintenance_addMaintenance: "Ajouter une demande d’entretien",
   maintenance_reportScope:
-    "Cette action crée un registre local pour cette session. Aucune réservation de réparation, aucun message ni fichier n’est envoyé.",
+    "Votre brouillon reste privé dans cet espace de travail et cet onglet jusqu’à l’enregistrement de la demande. Fermer le conserve ; recharger l’efface. Aucune réservation de réparation, aucun message ni fichier n’est envoyé.",
+  maintenance_resumeReport: "Reprendre le signalement",
+  maintenance_unfinishedReport: "Signalement inachevé",
+  maintenance_draftScope:
+    "Ce brouillon est privé dans cet espace de travail et cet onglet. Le rechargement l’efface.",
+  maintenance_keepDraftAndClose: "Fermer et conserver le brouillon",
+  maintenance_discardDraft: "Supprimer le brouillon",
+  maintenance_draftDiscarded: "Brouillon supprimé de cet espace de travail.",
+  maintenance_draftKept:
+    "Brouillon conservé dans cet onglet. Vous pouvez le reprendre plus tard.",
+  maintenance_reportNotSaved:
+    "Le signalement n’a pas été enregistré. Votre brouillon reste disponible.",
   maintenance_checkFields: "Vérifiez les champs signalés avant d’enregistrer.",
   maintenance_property: "Bien immobilier",
   maintenance_chooseProperty: "Choisissez un bien",

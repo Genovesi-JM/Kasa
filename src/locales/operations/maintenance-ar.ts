@@ -7,7 +7,17 @@ export const maintenanceAr = {
   maintenance_addRequest: "إضافة طلب",
   maintenance_addMaintenance: "إضافة طلب صيانة",
   maintenance_reportScope:
-    "ينشئ هذا الإجراء سجلًا محليًا لهذه الجلسة. لا يُرسل حجز إصلاح أو رسالة أو ملف.",
+    "تبقى مسودتك خاصة بمساحة العمل هذه وفي علامة التبويب هذه حتى تختار حفظ الطلب. الإغلاق يحتفظ بها وإعادة التحميل تحذفها. لا يُرسل حجز إصلاح أو رسالة أو ملف.",
+  maintenance_resumeReport: "متابعة البلاغ",
+  maintenance_unfinishedReport: "بلاغ غير مكتمل",
+  maintenance_draftScope:
+    "هذه المسودة خاصة بمساحة العمل هذه وفي علامة التبويب هذه. تُحذف عند إعادة التحميل.",
+  maintenance_keepDraftAndClose: "إغلاق مع الاحتفاظ بالمسودة",
+  maintenance_discardDraft: "حذف مسودة البلاغ",
+  maintenance_draftDiscarded: "حُذفت مسودة البلاغ من مساحة العمل هذه.",
+  maintenance_draftKept:
+    "تم الاحتفاظ بمسودة البلاغ في علامة التبويب هذه. يمكنك متابعتها لاحقًا.",
+  maintenance_reportNotSaved: "لم يُسجل البلاغ. لا تزال مسودتك متاحة.",
   maintenance_checkFields: "تحقق من الحقول المحددة قبل الحفظ.",
   maintenance_property: "العقار",
   maintenance_chooseProperty: "اختر عقارًا",

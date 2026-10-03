@@ -5,7 +5,17 @@ export const maintenanceEn = {
   maintenance_addRequest: "Add request",
   maintenance_addMaintenance: "Add maintenance request",
   maintenance_reportScope:
-    "This creates a local record for this session. No repair booking, message or file is sent.",
+    "Your draft is private to this workspace in this tab until you choose Save request. Closing keeps it; reloading clears it. No repair booking, message or file is sent.",
+  maintenance_resumeReport: "Resume report",
+  maintenance_unfinishedReport: "Unfinished report",
+  maintenance_draftScope:
+    "This draft is private to this workspace in this tab. Reloading clears it.",
+  maintenance_keepDraftAndClose: "Close and keep draft",
+  maintenance_discardDraft: "Discard report draft",
+  maintenance_draftDiscarded: "Report draft discarded from this workspace.",
+  maintenance_draftKept: "Report draft kept in this tab. Resume it when ready.",
+  maintenance_reportNotSaved:
+    "The report was not recorded. Your draft is still available.",
   maintenance_checkFields: "Check the highlighted fields before saving.",
   maintenance_property: "Property",
   maintenance_chooseProperty: "Choose a property",

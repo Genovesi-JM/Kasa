@@ -20,19 +20,22 @@ import {
 } from "lucide-react";
 import type { Role } from "../types";
 import {
-  addMaintenanceReport,
   changeMaintenanceStatus,
   createMaintenanceFilters,
+  discardMaintenanceReportDraft,
   filterMaintenanceRecords,
+  hasMaintenanceReportDraft,
   maintenanceCategories,
   maintenanceDateValue,
   maintenanceHomesForRole,
   maintenancePriorities,
   maintenanceStatuses,
   scheduleMaintenanceVisit,
-  maintenanceReportIssues,
+  maintenanceReportDraft,
   maintenanceScheduleIssues,
   maintenanceNoteIssue,
+  submitMaintenanceReport,
+  updateMaintenanceReportDraft,
   visibleMaintenanceRecords,
   type MaintenanceAction,
   type MaintenanceFilters,
@@ -65,10 +68,12 @@ function MaintenanceDialog({
   title,
   children,
   onClose,
+  closeLabel,
 }: {
   title: string;
   children: ReactNode;
   onClose: () => void;
+  closeLabel?: string;
 }) {
   const { tr } = useOperationsI18n();
   const titleId = useId();
@@ -99,7 +104,7 @@ function MaintenanceDialog({
             type="button"
             className="icon-button"
             onClick={onClose}
-            aria-label={tr("maintenance_closeDialog")}
+            aria-label={closeLabel ?? tr("maintenance_closeDialog")}
             data-dialog-initial-focus
           >
             <X size={20} />
@@ -126,31 +131,69 @@ function FieldError({
   ) : null;
 }
 
+function reportFormValues(form: HTMLFormElement): MaintenanceReportDraft {
+  const fields = new FormData(form);
+  return {
+    propertyId: String(fields.get("propertyId") ?? ""),
+    title: String(fields.get("title") ?? ""),
+    description: String(fields.get("description") ?? ""),
+    category: String(fields.get("category") ?? ""),
+    priority: String(fields.get("priority") ?? ""),
+    accessNotes: String(fields.get("accessNotes") ?? ""),
+  };
+}
+
 function ReportForm({
   role,
+  state,
+  setState,
   onClose,
   onCreate,
 }: {
   role: Role;
-  onClose: () => void;
-  onCreate: (draft: MaintenanceReportDraft) => void;
+  state: MaintenanceState;
+  setState: Dispatch<SetStateAction<MaintenanceState>>;
+  onClose: (keptDraft: boolean) => void;
+  onCreate: (recordId: number) => void;
 }) {
   const { tr } = useOperationsI18n();
   const homes = maintenanceHomesForRole(role);
-  const [draft, setDraft] = useState<MaintenanceReportDraft>({
-    propertyId: homes.length === 1 ? String(homes[0].id) : "",
-    title: "",
-    description: "",
-    category: "General repair",
-    priority: "Medium",
-    accessNotes: "",
-  });
+  const draft = maintenanceReportDraft(state, role);
   const [errors, setErrors] = useState<ReportIssues>({});
+  const [saveFailed, setSaveFailed] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
+  const closedExplicitly = useRef(false);
+  useLayoutEffect(() => {
+    const form = formRef.current;
+    return () => {
+      if (closedExplicitly.current || !form) return;
+      const captured = reportFormValues(form);
+      setState((current) =>
+        updateMaintenanceReportDraft(current, role, captured),
+      );
+    };
+  }, [role, setState]);
   const update = (key: keyof MaintenanceReportDraft, value: string) => {
-    setDraft((current) => ({ ...current, [key]: value }));
+    const captured = formRef.current ? reportFormValues(formRef.current) : {};
+    setState((current) =>
+      updateMaintenanceReportDraft(current, role, {
+        ...captured,
+        [key]: value,
+      }),
+    );
     setErrors((current) => ({ ...current, [key]: undefined }));
+    setSaveFailed(false);
   };
+  const keepDraftAndClose = () => {
+    const captured = formRef.current ? reportFormValues(formRef.current) : {};
+    const prepared = updateMaintenanceReportDraft(state, role, captured);
+    closedExplicitly.current = true;
+    setState((current) =>
+      updateMaintenanceReportDraft(current, role, captured),
+    );
+    onClose(hasMaintenanceReportDraft(prepared, role));
+  };
+  if (!draft) return null;
   return (
     <MaintenanceDialog
       title={tr(
@@ -158,7 +201,8 @@ function ReportForm({
           ? "maintenance_reportIssue"
           : "maintenance_addMaintenance",
       )}
-      onClose={onClose}
+      onClose={keepDraftAndClose}
+      closeLabel={tr("maintenance_keepDraftAndClose")}
     >
       <p className="maintenance-local-note">{tr("maintenance_reportScope")}</p>
       <form
@@ -167,32 +211,36 @@ function ReportForm({
         noValidate
         onSubmit={(event) => {
           event.preventDefault();
-          const fields = new FormData(event.currentTarget);
-          const submitted: MaintenanceReportDraft = {
-            propertyId: String(fields.get("propertyId") ?? ""),
-            title: String(fields.get("title") ?? ""),
-            description: String(fields.get("description") ?? ""),
-            category: String(fields.get("category") ?? ""),
-            priority: String(fields.get("priority") ?? ""),
-            accessNotes: String(fields.get("accessNotes") ?? ""),
-          };
-          setDraft(submitted);
-          const nextErrors = maintenanceReportIssues(submitted, role);
-          setErrors(nextErrors);
-          if (Object.keys(nextErrors).length) {
-            requestAnimationFrame(() =>
-              formRef.current
-                ?.querySelector<HTMLElement>('[aria-invalid="true"]')
-                ?.focus(),
-            );
+          const prepared = updateMaintenanceReportDraft(
+            state,
+            role,
+            reportFormValues(event.currentTarget),
+          );
+          const result = submitMaintenanceReport(prepared, role);
+          setState(result.state);
+          setErrors(result.issues);
+          setSaveFailed(result.recordId === null);
+          if (result.recordId === null) {
+            requestAnimationFrame(() => {
+              const form = formRef.current;
+              const target =
+                form?.querySelector<HTMLElement>('[aria-invalid="true"]') ??
+                form?.querySelector<HTMLElement>(".maintenance-error-summary");
+              target?.focus();
+            });
             return;
           }
-          onCreate(submitted);
+          closedExplicitly.current = true;
+          onCreate(result.recordId);
         }}
       >
-        {Object.values(errors).some(Boolean) && (
-          <p className="maintenance-error-summary" role="alert">
-            {tr("maintenance_checkFields")}
+        {(Object.values(errors).some(Boolean) || saveFailed) && (
+          <p className="maintenance-error-summary" role="alert" tabIndex={-1}>
+            {tr(
+              Object.values(errors).some(Boolean)
+                ? "maintenance_checkFields"
+                : "maintenance_reportNotSaved",
+            )}
           </p>
         )}
         <label>
@@ -201,6 +249,7 @@ function ReportForm({
             name="propertyId"
             aria-label={tr("maintenance_property")}
             value={draft.propertyId}
+            onInput={(event) => update("propertyId", event.currentTarget.value)}
             onChange={(event) => update("propertyId", event.target.value)}
             required
             aria-invalid={Boolean(errors.propertyId)}
@@ -226,6 +275,7 @@ function ReportForm({
             name="title"
             aria-label={tr("maintenance_issueTitle")}
             value={draft.title}
+            onInput={(event) => update("title", event.currentTarget.value)}
             onChange={(event) => update("title", event.target.value)}
             placeholder={tr("maintenance_titlePlaceholder")}
             maxLength={120}
@@ -243,6 +293,9 @@ function ReportForm({
             name="description"
             aria-label={tr("maintenance_description")}
             value={draft.description}
+            onInput={(event) =>
+              update("description", event.currentTarget.value)
+            }
             onChange={(event) => update("description", event.target.value)}
             rows={4}
             maxLength={2000}
@@ -265,6 +318,7 @@ function ReportForm({
               name="category"
               aria-label={tr("maintenance_category")}
               value={draft.category}
+              onInput={(event) => update("category", event.currentTarget.value)}
               onChange={(event) => update("category", event.target.value)}
               aria-invalid={Boolean(errors.category)}
               aria-describedby={
@@ -288,6 +342,7 @@ function ReportForm({
               name="priority"
               aria-label={tr("maintenance_priority")}
               value={draft.priority}
+              onInput={(event) => update("priority", event.currentTarget.value)}
               onChange={(event) => update("priority", event.target.value)}
               aria-invalid={Boolean(errors.priority)}
               aria-describedby={
@@ -315,6 +370,9 @@ function ReportForm({
             name="accessNotes"
             aria-label={tr("maintenance_accessNotes")}
             value={draft.accessNotes}
+            onInput={(event) =>
+              update("accessNotes", event.currentTarget.value)
+            }
             onChange={(event) => update("accessNotes", event.target.value)}
             rows={2}
             maxLength={1000}
@@ -333,9 +391,9 @@ function ReportForm({
           <button
             type="button"
             className="button button-secondary"
-            onClick={onClose}
+            onClick={keepDraftAndClose}
           >
-            {tr("maintenance_cancel")}
+            {tr("maintenance_keepDraftAndClose")}
           </button>
           <button type="submit" className="button">
             <Plus size={16} />
@@ -823,6 +881,8 @@ export function Maintenance({
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [feedback, setFeedback] = useState<OperationsKey | null>(null);
   const base = visibleMaintenanceRecords(state, role);
+  const reportActionRef = useRef<HTMLButtonElement>(null);
+  const hasReportDraft = hasMaintenanceReportDraft(state, role);
   const visible = filterMaintenanceRecords(base, filters, (record) =>
     [
       tr(maintenanceCategoryKeys[record.category]),
@@ -897,20 +957,50 @@ export function Maintenance({
         </div>
         {homes.length > 0 && (
           <button
+            ref={reportActionRef}
             type="button"
-            className="button"
-            onClick={() => setReporting(true)}
+            className="button maintenance-report-launch"
+            onClick={() => {
+              setFeedback(null);
+              setReporting(true);
+            }}
           >
-            <Plus size={17} />
+            {hasReportDraft ? <Wrench size={17} /> : <Plus size={17} />}
             {tr(
-              role === "tenant"
-                ? "maintenance_reportIssue"
-                : "maintenance_addRequest",
+              hasReportDraft
+                ? "maintenance_resumeReport"
+                : role === "tenant"
+                  ? "maintenance_reportIssue"
+                  : "maintenance_addRequest",
             )}
           </button>
         )}
       </div>
       <p className="maintenance-local-note">{tr("maintenance_sessionScope")}</p>
+      {hasReportDraft && (
+        <section
+          className="maintenance-report-draft"
+          aria-label={tr("maintenance_unfinishedReport")}
+        >
+          <div>
+            <strong>{tr("maintenance_unfinishedReport")}</strong>
+            <p>{tr("maintenance_draftScope")}</p>
+          </div>
+          <button
+            type="button"
+            className="button button-secondary"
+            onClick={() => {
+              setState((current) =>
+                discardMaintenanceReportDraft(current, role),
+              );
+              setFeedback("maintenance_draftDiscarded");
+              requestAnimationFrame(() => reportActionRef.current?.focus());
+            }}
+          >
+            {tr("maintenance_discardDraft")}
+          </button>
+        </section>
+      )}
       <div className="maintenance-summary-grid">
         <div>
           <Wrench size={19} aria-hidden="true" />
@@ -1137,11 +1227,16 @@ export function Maintenance({
         <ReportForm
           key={role}
           role={role}
-          onClose={() => setReporting(false)}
-          onCreate={(draft) => {
-            setState((current) => addMaintenanceReport(current, role, draft));
+          state={state}
+          setState={setState}
+          onClose={(keptDraft) => {
+            setReporting(false);
+            setFeedback(keptDraft ? "maintenance_draftKept" : null);
+          }}
+          onCreate={(recordId) => {
             setReporting(false);
             setFilters(createMaintenanceFilters());
+            setSelectedId(recordId);
             setFeedback("maintenance_recorded");
           }}
         />

@@ -68,7 +68,11 @@ export interface MaintenanceRecord {
 export interface MaintenanceState {
   records: MaintenanceRecord[];
   nextId: number;
+  reportDrafts: Partial<
+    Record<MaintenanceReporterRole, MaintenanceReportDraft>
+  >;
 }
+type MaintenanceReporterRole = "tenant" | "landlord";
 export interface MaintenanceReportDraft {
   propertyId: string;
   title: string;
@@ -132,6 +136,86 @@ export function maintenanceHomesForRole(role: Role): MaintenanceHome[] {
   return [];
 }
 
+function canRetainMaintenanceReport(
+  role: Role,
+): role is MaintenanceReporterRole {
+  return (
+    (role === "tenant" || role === "landlord") &&
+    maintenanceHomesForRole(role).length > 0
+  );
+}
+
+/** Unsubmitted reports belong only to the composing workspace, even for the same home. */
+export function maintenanceReportDraft(
+  state: MaintenanceState,
+  role: Role,
+): MaintenanceReportDraft | null {
+  if (!canRetainMaintenanceReport(role)) return null;
+  const saved = state.reportDrafts[role];
+  if (saved)
+    return {
+      propertyId: saved.propertyId,
+      title: saved.title,
+      description: saved.description,
+      category: saved.category,
+      priority: saved.priority,
+      accessNotes: saved.accessNotes,
+    };
+  const allowedHomes = maintenanceHomesForRole(role);
+  return {
+    propertyId: allowedHomes.length === 1 ? String(allowedHomes[0].id) : "",
+    title: "",
+    description: "",
+    category: "General repair",
+    priority: "Medium",
+    accessNotes: "",
+  };
+}
+
+export function hasMaintenanceReportDraft(
+  state: MaintenanceState,
+  role: Role,
+): boolean {
+  return canRetainMaintenanceReport(role) && Boolean(state.reportDrafts[role]);
+}
+
+export function updateMaintenanceReportDraft(
+  state: MaintenanceState,
+  role: Role,
+  patch: Partial<MaintenanceReportDraft>,
+): MaintenanceState {
+  if (!canRetainMaintenanceReport(role) || !patch || typeof patch !== "object")
+    return state;
+  const current = maintenanceReportDraft(state, role)!;
+  const next = { ...current };
+  let changed = false;
+  for (const field of Object.keys(current) as Array<
+    keyof MaintenanceReportDraft
+  >) {
+    const value = patch[field];
+    if (typeof value !== "string" || value === current[field]) continue;
+    next[field] = value;
+    changed = true;
+  }
+  return changed
+    ? { ...state, reportDrafts: { ...state.reportDrafts, [role]: next } }
+    : state;
+}
+
+export function discardMaintenanceReportDraft(
+  state: MaintenanceState,
+  role: Role,
+): MaintenanceState {
+  if (
+    !canRetainMaintenanceReport(role) ||
+    !hasMaintenanceReportDraft(state, role)
+  )
+    return state;
+  const reportDrafts = { ...state.reportDrafts };
+  delete reportDrafts[role];
+  return { ...state, reportDrafts };
+}
+
 export function visibleMaintenanceRecords(
   state: MaintenanceState,
   role: Role,
@@ -167,6 +251,7 @@ export function createInitialMaintenanceState(): MaintenanceState {
   ];
   return {
     nextId: Math.max(...maintenance.map((request) => request.id)) + 1,
+    reportDrafts: {},
     records: maintenance.map((request, index) => {
       const home = homes.find((item) => item.title === request.property)!;
       const visit = request.provider
@@ -283,7 +368,40 @@ export function addMaintenanceReport(
       },
     ],
   };
-  return { records: [record, ...state.records], nextId: state.nextId + 1 };
+  return {
+    ...state,
+    records: [record, ...state.records],
+    nextId: state.nextId + 1,
+  };
+}
+
+/** Only an explicit submission consumes a retained draft and creates a shared record. */
+export function submitMaintenanceReport(
+  state: MaintenanceState,
+  role: Role,
+  now = new Date(),
+): {
+  state: MaintenanceState;
+  recordId: number | null;
+  issues: ReportIssues;
+} {
+  const draft = maintenanceReportDraft(state, role);
+  const issues: ReportIssues = draft
+    ? maintenanceReportIssues(draft, role)
+    : { propertyId: "propertyId" };
+  if (
+    !draft ||
+    !hasMaintenanceReportDraft(state, role) ||
+    Object.keys(issues).length
+  )
+    return { state, recordId: null, issues };
+  const next = addMaintenanceReport(state, role, draft, now);
+  if (next === state) return { state, recordId: null, issues };
+  return {
+    state: discardMaintenanceReportDraft(next, role),
+    recordId: state.nextId,
+    issues: {},
+  };
 }
 
 export function maintenanceDateValue(now = new Date()) {

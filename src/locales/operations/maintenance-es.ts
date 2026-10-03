@@ -7,7 +7,18 @@ export const maintenanceEs = {
   maintenance_addRequest: "Añadir solicitud",
   maintenance_addMaintenance: "Añadir solicitud de mantenimiento",
   maintenance_reportScope:
-    "Se crea un registro local para esta sesión. No se envía ninguna reserva de reparación, mensaje ni archivo.",
+    "El borrador es privado en este espacio de trabajo y esta pestaña hasta que elija Guardar solicitud. Al cerrar se conserva; al recargar se borra. No se envía ninguna reserva de reparación, mensaje ni archivo.",
+  maintenance_resumeReport: "Continuar informe",
+  maintenance_unfinishedReport: "Informe sin terminar",
+  maintenance_draftScope:
+    "Este borrador es privado en este espacio de trabajo y esta pestaña. Se borra al recargar.",
+  maintenance_keepDraftAndClose: "Cerrar y conservar borrador",
+  maintenance_discardDraft: "Descartar borrador",
+  maintenance_draftDiscarded: "Borrador descartado de este espacio de trabajo.",
+  maintenance_draftKept:
+    "Borrador conservado en esta pestaña. Puede continuarlo después.",
+  maintenance_reportNotSaved:
+    "El informe no se ha registrado. El borrador sigue disponible.",
   maintenance_checkFields: "Revise los campos señalados antes de guardar.",
   maintenance_property: "Inmueble",
   maintenance_chooseProperty: "Elija un inmueble",

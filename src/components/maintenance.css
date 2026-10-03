@@ -7,6 +7,40 @@
   font-size: 12px;
   line-height: 1.6;
 }
+.maintenance-report-draft {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 16px;
+  border: 1px solid #d7e4cf;
+  border-radius: 12px;
+  background: #fcfbf7;
+}
+.maintenance-report-draft > div {
+  flex: 1 1 200px;
+  min-width: 0;
+}
+.maintenance-report-draft strong {
+  color: #244b32;
+  font-size: 14px;
+}
+.maintenance-report-draft p {
+  margin: 7px 0 0;
+  color: #61765f;
+  font-size: 12px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+.maintenance-report-launch,
+.maintenance-report-draft > .button,
+.maintenance-report-form .maintenance-form-actions > .button {
+  min-width: 0;
+  max-width: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
 .maintenance-summary-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));

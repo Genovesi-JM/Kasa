@@ -7,7 +7,18 @@ export const maintenancePt = {
   maintenance_addRequest: "Adicionar pedido",
   maintenance_addMaintenance: "Adicionar pedido de manutenção",
   maintenance_reportScope:
-    "É criado um registo local para esta sessão. Não é enviada nenhuma marcação de reparação, mensagem ou ficheiro.",
+    "O rascunho é privado nesta área de trabalho e neste separador até escolher Guardar pedido. Fechar mantém-no; recarregar apaga-o. Não é enviada nenhuma marcação de reparação, mensagem ou ficheiro.",
+  maintenance_resumeReport: "Retomar comunicação",
+  maintenance_unfinishedReport: "Comunicação por concluir",
+  maintenance_draftScope:
+    "Este rascunho é privado nesta área de trabalho e neste separador. Recarregar apaga-o.",
+  maintenance_keepDraftAndClose: "Fechar e manter rascunho",
+  maintenance_discardDraft: "Descartar rascunho",
+  maintenance_draftDiscarded: "Rascunho descartado desta área de trabalho.",
+  maintenance_draftKept:
+    "Rascunho mantido neste separador. Pode retomá-lo depois.",
+  maintenance_reportNotSaved:
+    "A comunicação não foi registada. O rascunho continua disponível.",
   maintenance_checkFields: "Verifique os campos assinalados antes de guardar.",
   maintenance_property: "Imóvel",
   maintenance_chooseProperty: "Escolha um imóvel",
