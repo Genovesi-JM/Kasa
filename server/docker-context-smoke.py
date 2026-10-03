@@ -8,28 +8,20 @@ fixture to a disposable local directory; no application image is modified.
 """
 
 from pathlib import Path
+import os
 import subprocess
 import tempfile
 
 
 ROOT = Path(__file__).resolve().parents[1]
-SOURCE_FILES = {
-    "src/vite-env.d.ts",
-    "src/types.ts",
-    "src/i18n.ts",
-    "src/styles.css",
-    "src/main.tsx",
-    "src/App.tsx",
-    "src/data.ts",
-    "src/ErrorBoundary.tsx",
-    "src/components/KasaMap.tsx",
-    "src/components/DeviceSimulator.tsx",
-    "src/components/mapGeometry.ts",
-    "src/components/MortgageEstimator.tsx",
-    "src/platform/catalog.ts",
-    "src/platform/config.ts",
-    "src/platform/api.ts",
-    "src/platform/api-transport.ts",
+SOURCE_EXTENSIONS = {
+    "src": {".ts", ".tsx", ".css"},
+    "server": {".ts"},
+    "scripts": {".ts"},
+}
+EXCLUDED_DIRECTORIES = {
+    "node_modules", ".git", "dist", "build", "build-api", "coverage",
+    ".cache", ".vite", "generated", "work", "outputs",
 }
 OTHER_ALLOWED_FILES = {
     "Dockerfile",
@@ -44,68 +36,93 @@ OTHER_ALLOWED_FILES = {
     "index.html",
     "eslint.config.js",
     ".prettierignore",
-    "server/index.ts",
-    "server/config.ts",
-    "server/schemas.ts",
     "server/tsconfig.json",
-    "server/smoke.ts",
-    "server/deployment-smoke.ts",
-    "server/api-client-smoke.ts",
     "docs/openapi.yaml",
 }
-EXCLUDED_FIXTURES = {
-    ".env",
-    ".git/config",
-    "customer.db",
-    "src/customer.db",
-    "src/components/nested/customer.db",
-    "src/components/nested/customer.sqlite",
-    "src/components/nested/customer.sqlite3",
-    "src/components/nested/debug.log",
-    "src/components/nested/credentials.txt",
-    "src/components/nested/.env",
-    "src/components/nested/.env.production",
-    "src/components/nested/secret.json",
-    "src/components/nested/service-account.json",
-    "src/components/nested/serviceAccount.json",
-    "src/components/nested/private.pem",
-    "src/components/nested/private.key",
-    "src/components/nested/export.csv",
-    "src/components/nested/dump.sql",
-    "src/platform/.env",
-    "src/platform/credentials.txt",
-    "src/platform/secret.json",
-    "server/nested/customer.db",
-    "server/nested/debug.log",
-    "server/nested/credentials.txt",
-    "server/nested/.env",
-    "server/nested/secret.json",
-    "docs/nested/customer.db",
-    "docs/nested/debug.log",
-    "docs/nested/credentials.txt",
-    "docs/nested/.env",
-    "docs/nested/secret.json",
+# Independent probes ensure newly nested legitimate code is not omitted again.
+FUTURE_CODE_FIXTURES = {
+    "src/context-fixture/deeper/module.ts",
+    "src/context-fixture/deeper/Screen.tsx",
+    "src/context-fixture/deeper/styles.css",
+    "server/context-fixture/deeper/check.ts",
+    "scripts/context-fixture/deeper/check.ts",
 }
+PRIVATE_FIXTURE_NAMES = {
+    ".env.file-fixture", ".env.production", ".env.local.ts", "customer.db",
+    "customer.sqlite", "customer.sqlite3", "debug.log", "credentials.txt",
+    "credentials.json", "secret.json", "service-account.json",
+    "serviceAccount.json", "private.pem", "private.key", "private.p12",
+    "private.pfx", "private.jks", "private.keystore", "export.csv",
+    "dump.sql", "cache.tsbuildinfo", "source.ts.map",
+}
+# A denied filename must also deny an identically named directory's contents.
+# Keep .env itself available as a directory; .env.file-fixture tests a file.
+PRIVATE_DIRECTORY_FIXTURE_NAMES = {
+    ".env", ".env.local", "example.pem", "example.key",
+    "example-credentials.json", "example-service-account.json",
+    "example-serviceAccount.json", "example.p12", "example.pfx",
+    "example.jks", "example.keystore",
+}
+EXCLUDED_FIXTURES = {
+    (Path(parent) / name).as_posix()
+    for parent in ("", "src/components/nested", "src/platform", "server/nested", "scripts/nested", "docs/nested")
+    for name in PRIVATE_FIXTURE_NAMES
+} | {
+    (Path(parent) / directory / "nested" / name).as_posix()
+    for parent in ("", "src", "src/components", "server", "scripts")
+    for directory in EXCLUDED_DIRECTORIES
+    for name in ("unexpected.ts", "unexpected.tsx", "unexpected.css")
+} | {
+    (Path(parent) / directory / "deeper" / "unexpected.ts").as_posix()
+    for parent in ("", "src", "server", "scripts")
+    for directory in PRIVATE_DIRECTORY_FIXTURE_NAMES
+} | {
+    ".git/config",
+    "docs/not-allowed.ts",
+    "server/not-allowed.py",
+    "scripts/not-allowed.json",
+    "tsconfig.private.json",
+}
+
+
+def required_sources(root):
+    """Inspect filenames only; expected inputs never come from .dockerignore."""
+    sources = set()
+    for directory, extensions in SOURCE_EXTENSIONS.items():
+        base = root / directory
+        if base.is_symlink() or not base.is_dir():
+            raise AssertionError(f"Source directory must be real: {directory}")
+        for current, directories, filenames in os.walk(base, followlinks=False):
+            for name in directories[:]:
+                path = Path(current) / name
+                if name in EXCLUDED_DIRECTORIES:
+                    directories.remove(name)
+                elif path.is_symlink():
+                    raise AssertionError(f"Source directory must not be a symbolic link: {path.relative_to(root)}")
+            for name in filenames:
+                path = Path(current) / name
+                if path.suffix not in extensions:
+                    continue
+                if path.is_symlink() or not path.is_file():
+                    raise AssertionError(f"Source inputs must be regular files: {path.relative_to(root)}")
+                sources.add(path.relative_to(root).as_posix())
+    return sources
 
 
 def main():
-    # Compare filenames only, never read additional repository source artifacts.
-    actual_sources = {
-        path.relative_to(ROOT).as_posix()
-        for path in (ROOT / "src").rglob("*")
-        if path.is_file()
-    }
-    if actual_sources != SOURCE_FILES:
-        raise AssertionError("The source file inventory changed; review the exact allowlist.")
-    if any((ROOT / name).is_symlink() for name in SOURCE_FILES):
-        raise AssertionError("Source inputs must be regular files, not symbolic links.")
-
-    expected = SOURCE_FILES | OTHER_ALLOWED_FILES
+    sources = required_sources(ROOT)
+    for name in OTHER_ALLOWED_FILES:
+        path = ROOT / name
+        if not path.is_file() or any(part.is_symlink() for part in (path, *path.parents) if part != ROOT):
+            raise AssertionError(f"Required configuration must be a regular file: {name}")
+    expected = sources | OTHER_ALLOWED_FILES | FUTURE_CODE_FIXTURES
+    if expected & EXCLUDED_FIXTURES:
+        raise AssertionError("Required inputs overlap forbidden fixture paths.")
     with tempfile.TemporaryDirectory(prefix="kasa-context-check-") as temporary:
         fixture = Path(temporary) / "fixture"
         exported = Path(temporary) / "exported"
         fixture.mkdir()
-        for relative in expected | EXCLUDED_FIXTURES:
+        for relative in sorted(expected | EXCLUDED_FIXTURES):
             path = fixture / relative
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text("SYNTHETIC CONTEXT TEST ONLY\n", encoding="utf-8")
@@ -135,7 +152,8 @@ def main():
                 + "; unexpected=" + repr(sorted(actual - expected))
             )
         print(
-            f"PASS: all {len(SOURCE_FILES)} reviewed source files and required build inputs included; "
+            f"PASS: all {len(sources)} current code files, {len(OTHER_ALLOWED_FILES)} required configs "
+            + f"and {len(FUTURE_CODE_FIXTURES)} future nested code probes included; "
             + str(len(EXCLUDED_FIXTURES))
             + " invented private/nested artifacts excluded by Docker."
         )

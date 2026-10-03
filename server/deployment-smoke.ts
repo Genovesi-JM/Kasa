@@ -207,13 +207,104 @@ try {
   const ignore = await readFile(resolve(root, ".dockerignore"), "utf8");
   assert.match(dockerfile, /FROM node:24-bookworm-slim@sha256:[a-f0-9]{64}/);
   assert.match(dockerfile, /USER node/);
-  assert.match(dockerfile, /npm ci --omit=dev --ignore-scripts/);
   assert.match(dockerfile, /CMD \["node", "build-api\/server\/index.js"\]/);
   assert.match(ignore, /^\*\*$/m);
   assert.match(ignore, /^\*\*\/\.env\*$/m);
   assert.doesNotMatch(dockerfile, /COPY\s+\.\s+\./);
+  const stages = new Map<string, { from: string; instructions: string[] }>();
+  let currentStage: { from: string; instructions: string[] } | undefined;
+  for (const line of dockerfile.replace(/\\\r?\n/g, " ").split(/\r?\n/)) {
+    const instruction = line.trim();
+    if (!instruction || instruction.startsWith("#")) continue;
+    const from = instruction.match(/^FROM\s+(\S+)\s+AS\s+(\S+)$/i);
+    if (from) {
+      assert.ok(!stages.has(from[2]), "Docker stage names must be unique");
+      currentStage = { from: from[1], instructions: [] };
+      stages.set(from[2], currentStage);
+    } else {
+      assert.ok(currentStage, "Every instruction must belong to a named stage");
+      currentStage.instructions.push(instruction);
+    }
+  }
+  assert.deepEqual([...stages.keys()], ["build", "verification", "runtime"]);
+  const build = stages.get("build")!;
+  const verification = stages.get("verification")!;
+  const runtime = stages.get("runtime")!;
+  assert.equal(verification.from, "build");
+  assert.match(runtime.from, /^node:24-bookworm-slim@sha256:[a-f0-9]{64}$/);
+  for (const instruction of [
+    /^COPY\s+src\/?\s+\.\/src\/?$/,
+    /^COPY\s+server\/?\s+\.\/server\/?$/,
+    /^RUN\s+npm ci --include=dev --ignore-scripts$/,
+    /^RUN\s+npm run build:pilot$/,
+  ])
+    assert.ok(build.instructions.some((line) => instruction.test(line)));
+  const scriptsCopy = verification.instructions.findIndex((line) =>
+    /^COPY\s+scripts\/?\s+\.\/scripts\/?$/.test(line),
+  );
+  const checkRun = verification.instructions.findIndex((line) =>
+    /^RUN\s+npm run check$/.test(line),
+  );
+  const gitInstall = verification.instructions.findIndex((line) =>
+    /^RUN\s+.*apt-get install\b.*\bgit\b/.test(line),
+  );
+  assert.ok(
+    scriptsCopy >= 0 && scriptsCopy < checkRun,
+    "Verification must receive actual test scripts before running the gate",
+  );
+  assert.ok(
+    gitInstall >= 0 && gitInstall < checkRun,
+    "The Pages regression needs Git in the verification stage",
+  );
+  assert.match(
+    verification.instructions[gitInstall],
+    /--no-install-recommends/,
+  );
+  assert.match(
+    verification.instructions[gitInstall],
+    /rm -rf \/var\/lib\/apt\/lists\/\*/,
+  );
+  for (const stage of [build, runtime])
+    assert.ok(
+      stage.instructions.every(
+        (line) => !/^RUN\s+.*apt-get install\b.*\bgit\b/.test(line),
+      ),
+      "Verification-only Git must not be installed in build or runtime",
+    );
+  const runtimeCopies = runtime.instructions.filter((line) =>
+    /^COPY\s/.test(line),
+  );
+  assert.equal(runtimeCopies.length, 4);
+  assert.ok(runtimeCopies.includes("COPY package.json package-lock.json ./"));
+  for (const artifact of ["dist", "build-api"])
+    assert.ok(
+      runtimeCopies.some((line) =>
+        new RegExp(
+          `^COPY --from=verification --chown=node:node /app/${artifact} \\./${artifact}$`,
+        ).test(line),
+      ),
+      `Runtime ${artifact} must come from the successful verification stage`,
+    );
+  assert.ok(
+    runtimeCopies.includes(
+      "COPY --chown=node:node docs/openapi.yaml ./docs/openapi.yaml",
+    ),
+  );
+  const runtimeInstall = runtime.instructions.find((line) =>
+    /^RUN\s+npm ci\b/.test(line),
+  );
+  assert.ok(runtimeInstall, "Runtime must install locked dependencies");
+  const runtimeInstallArgs = runtimeInstall.split("&&", 1)[0].split(/\s+/);
+  for (const flag of ["--omit=dev", "--omit=optional", "--ignore-scripts"])
+    assert.ok(
+      runtimeInstallArgs.includes(flag),
+      `Runtime npm ci must include ${flag}`,
+    );
   passed(
     "image uses pinned Node, locked dependencies, non-root user and allowlisted inputs",
+  );
+  passed(
+    "verification receives scripts and Git while runtime copies only gated artifacts and production dependencies",
   );
   console.log(`\n${checks.length} deployment checks passed.`);
 } finally {

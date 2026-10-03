@@ -2,7 +2,7 @@
 
 This packages the existing Kasa web experience and catalogue API for a limited
 Azure pilot. It does **not** implement production identity, PostgreSQL persistence,
-private uploads, payments, verification, messaging or notifications. Use only
+private uploads, payments, verification, remote messaging or notification delivery. Use only
 synthetic examples; do not enter real customer, tenant, identity or financial data.
 Interactive browser flows remain demonstrations. The two API write routes are
 disabled, and `NODE_ENV=production` refuses to start if demo writes are enabled.
@@ -22,13 +22,18 @@ regulatory readiness or make the illustrative Barcelona catalogue real listings.
   when Azure assigns a hostname or a custom domain is added.
 - TypeScript is compiled before release; the runtime does not need `tsx`, Vite,
   TypeScript or other development dependencies.
+- The runtime installation omits development and optional dependencies. This
+  excludes TypeScript even when a translation library declares it as an optional
+  peer; the build and verification stages retain their complete tooling.
 - The official Node 24 base is pinned by digest. `npm ci` uses the existing
-  lockfile; no dependency was added. Review and update the base digest regularly.
+  lockfile. Review and update the base digest regularly.
 - The final process runs as the unprivileged `node` user. The build-context
   allowlist excludes local environments, keys, databases, uploads and Git data.
   No real provider credential is required or baked into this demo image.
-  The `src` allowlist names the 15 reviewed source files individually; adding a
-  new legitimate source file requires explicitly reviewing that list.
+  Source inputs are limited to TypeScript and CSS in `src`, the server TypeScript
+  and configuration, and TypeScript verification scripts. Nested dependencies,
+  generated output, local work files and secrets remain excluded. New asset or
+  configuration formats require an explicit allowlist review.
 
 ## Local verification
 
@@ -51,8 +56,11 @@ Use a distinct local port/name if another service already occupies these values.
 
 The final Docker image depends on the `verification` target, which executes
 `npm run check` using the same locked Linux dependencies without host dependency
-folders. You can also run that target on its own as shown above. A successful local build is
-not proof of a deployed Azure service.
+folders. The verification stage includes the state/localization checks and Pages
+helpers, with Git installed there for the disposable repository fixtures. Git,
+source files and test scripts are not copied into the runtime stage. You can run
+verification on its own as shown above. A successful local build is not proof of
+a deployed Azure service.
 
 Run the independent lightweight context regression when changing build inputs:
 
@@ -61,9 +69,11 @@ python3 server/docker-context-smoke.py
 ```
 
 It exercises Docker's actual ignore rules with a disposable `FROM scratch`
-fixture containing invented nested database, log, credential, environment and
-JSON files. It copies only `.dockerignore` from the repository and checks source
-filenames, not real private file contents. It does not build or modify the Kasa
+fixture containing invented nested database, log, credential, environment, JSON
+and generated-output files. Its expected input inventory follows the actual
+source, locale, server and verification-script filenames independently of the
+ignore rules. It copies only `.dockerignore` from the repository and creates
+synthetic contents; it does not read real private files. It does not build or modify the Kasa
 application image, install dependencies, access external providers or upload
 anything. Its fixture and exported files are removed automatically afterward.
 
@@ -118,11 +128,12 @@ rendering in this demo does not prove a paid provider has been configured.
 
 ## Release gates still open
 
-The existing lockfile's transitive `qs` package reports moderate advisories
-`GHSA-x5fp-wj9c-mxmx` and `GHSA-4mjr-xmp4-gh2g`. This packaging deliberately adds
-no dependency upgrades. The API explicitly uses the simple query parser and JSON
-bodies, not the extended `qs` parser, but the dependency advisory remains open
-for a reviewed lockfile update before real-customer production use.
+On 3 October 2026, compatible lockfile updates to `qs` 6.16.0, `ip-address`
+10.7.3 and development-only `brace-expansion` 5.0.12 resolved the reported npm
+advisories. Full and production-only lockfile audits reported zero known
+vulnerabilities at that time. The API still uses the simple query parser and JSON
+bodies. Rate-limit regressions check equivalent IP addresses and distinct client
+groups. These dependency checks do not replace the remaining production gates.
 
 Confirm approved hostname/CORS, image provenance, bounded replicas/log retention,
 health probes, remote catalogue rendering and rejection of both write routes.

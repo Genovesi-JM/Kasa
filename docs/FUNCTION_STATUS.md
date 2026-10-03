@@ -73,7 +73,11 @@ A single-image Azure pilot package now serves the existing web build and API
 on one origin. Its production-mode startup refuses demo writes; `/api/v1/ready`
 checks only the synthetic runtime and web build, explicitly returning
 `productionReady: false`. This packaging does not change any production
-integration status above. See [the container guide](./AZURE_PILOT_CONTAINER.md).
+integration status above. The Docker input allowlist includes the current source,
+locales and TypeScript verification scripts. Git is present only in the verification
+stage for the Pages fixtures; the runtime keeps compiled output and production
+dependencies. An independent synthetic-context check exercises Docker’s actual
+include/exclude rules. See [the container guide](./AZURE_PILOT_CONTAINER.md).
 
 Run the complete local quality gate:
 

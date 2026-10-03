@@ -14,14 +14,18 @@ RUN npm run build:pilot
 
 # Reproducible release gate using the same locked Linux dependencies.
 FROM build AS verification
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends git \
+    && rm -rf /var/lib/apt/lists/*
 COPY eslint.config.js .prettierignore Dockerfile .dockerignore ./
 COPY docs/openapi.yaml ./docs/openapi.yaml
+COPY scripts ./scripts
 RUN npm run check
 
 FROM node:24-bookworm-slim@sha256:2fe369e969550cde8e867afc3fe370b260140cab4a23d467074295b42163d553 AS runtime
 WORKDIR /app
 COPY package.json package-lock.json ./
-RUN npm ci --omit=dev --ignore-scripts && npm cache clean --force
+RUN npm ci --omit=dev --omit=optional --ignore-scripts && npm cache clean --force
 COPY --from=verification --chown=node:node /app/dist ./dist
 COPY --from=verification --chown=node:node /app/build-api ./build-api
 COPY --chown=node:node docs/openapi.yaml ./docs/openapi.yaml

@@ -1,6 +1,7 @@
 import { strict as assert } from "node:assert";
 import { spawn } from "node:child_process";
 import { createServer } from "node:http";
+import { ipKeyGenerator } from "express-rate-limit";
 import { rentProofSchema } from "./schemas.ts";
 
 const port = 8791;
@@ -78,6 +79,22 @@ function passed(label: string) {
 
 try {
   await waitForApi();
+
+  const ipv4Key = ipKeyGenerator("198.51.100.7");
+  assert.equal(ipKeyGenerator("::ffff:198.51.100.7"), ipv4Key);
+  assert.equal(ipKeyGenerator("::ffff:c633:6407"), ipv4Key);
+  assert.notEqual(ipKeyGenerator("198.51.100.8"), ipv4Key);
+  const ipv6Key = ipKeyGenerator("2001:db8:abcd:1200::1");
+  assert.equal(
+    ipKeyGenerator("2001:0db8:abcd:1200:0000:0000:0000:0001"),
+    ipv6Key,
+  );
+  assert.equal(ipKeyGenerator("2001:db8:abcd:12ff:ffff::99"), ipv6Key);
+  assert.notEqual(ipKeyGenerator("2001:db8:abcd:1300::1"), ipv6Key);
+  assert.notEqual(ipv4Key, ipv6Key);
+  passed(
+    "rate-limit keys group mapped IPv4 and equivalent IPv6 /56 addresses while separating other clients",
+  );
 
   const health = await json("/health");
   assert.equal(health.response.status, 200);
