@@ -383,7 +383,7 @@ export function PropertyRequestActions({
   applicationState: ApplicationState;
   setApplicationState: Dispatch<SetStateAction<ApplicationState>>;
   onApplicationSaved: (id: number) => void;
-  onViewApplications: () => void;
+  onViewApplications: (applicationId: number) => void;
   onViewViewings: (requestId?: string) => void;
   viewingLabel: string;
   applicationLabel: string;
@@ -485,7 +485,7 @@ export function PropertyRequestActions({
             className="button button-secondary"
             onClick={() => {
               setDraftDiscarded(false);
-              if (application) onViewApplications();
+              if (application) onViewApplications(application.id);
               else setFlow("application");
             }}
           >

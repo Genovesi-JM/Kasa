@@ -105,10 +105,23 @@ export interface ApplicationRecord extends Omit<
 
 export interface ApplicationState {
   records: ApplicationRecord[];
+  views?: Record<"tenant" | "landlord", ApplicationView>;
   rentalDrafts?: Partial<Record<number, RentalApplicationComposerDraft>>;
   evidenceDrafts?: Record<number, ApplicationEvidenceDraft>;
   evidenceRevision?: number;
   nextEvidenceId?: number;
+}
+
+export interface ApplicationView {
+  query: string;
+  status: "All" | "Review" | "Documents" | "Approved" | "Draft";
+  property: string;
+  completeness: "Any completeness" | "80" | "100";
+  sort:
+    | "Newest submitted"
+    | "Oldest submitted"
+    | "Most complete"
+    | "Action required first";
 }
 
 export interface RentalApplicationComposerDraft {
@@ -132,6 +145,10 @@ export function createInitialApplicationState(): ApplicationState {
     "2026-08-16T16:10:00Z",
   ];
   return {
+    views: {
+      tenant: createApplicationView(),
+      landlord: createApplicationView(),
+    },
     rentalDrafts: {},
     records: applications.map((application, index) => ({
       id: application.id,
@@ -242,6 +259,128 @@ export function visibleApplicationRecords(
     );
   if (role === "tenant") return state.records.filter(isTenantApplication);
   return [];
+}
+
+function createApplicationView(): ApplicationView {
+  return {
+    query: "",
+    status: "All",
+    property: "All properties",
+    completeness: "Any completeness",
+    sort: "Newest submitted",
+  };
+}
+
+export function applicationView(
+  state: ApplicationState,
+  role: Role,
+): ApplicationView {
+  return role === "tenant" || role === "landlord"
+    ? { ...(state.views?.[role] ?? createApplicationView()) }
+    : createApplicationView();
+}
+
+/** Filter choices expose only canonical properties referenced by this workspace's records. */
+export function applicationPropertyOptions(
+  state: ApplicationState,
+  role: Role,
+): Array<{ id: number; title: string }> {
+  const records = visibleApplicationRecords(state, role);
+  return properties
+    .filter((property) =>
+      records.some((record) =>
+        record.propertyId !== undefined
+          ? record.propertyId === property.id
+          : record.property === property.title,
+      ),
+    )
+    .map((property) => ({ id: property.id, title: property.title }));
+}
+
+export function updateApplicationView(
+  state: ApplicationState,
+  role: Role,
+  patch: Partial<ApplicationView>,
+): ApplicationState {
+  if (
+    (role !== "tenant" && role !== "landlord") ||
+    !patch ||
+    typeof patch !== "object"
+  )
+    return state;
+  const current = applicationView(state, role);
+  const next = { ...current };
+  if (typeof patch.query === "string") next.query = patch.query.slice(0, 200);
+  if (
+    typeof patch.status === "string" &&
+    ["All", "Review", "Documents", "Approved", "Draft"].includes(patch.status)
+  )
+    next.status = patch.status;
+  if (
+    patch.property === "All properties" ||
+    (typeof patch.property === "string" &&
+      applicationPropertyOptions(state, role).some(
+        (property) => String(property.id) === patch.property,
+      ))
+  )
+    next.property = patch.property;
+  if (
+    patch.completeness === "Any completeness" ||
+    patch.completeness === "80" ||
+    patch.completeness === "100"
+  )
+    next.completeness = patch.completeness;
+  if (
+    typeof patch.sort === "string" &&
+    [
+      "Newest submitted",
+      "Oldest submitted",
+      "Most complete",
+      "Action required first",
+    ].includes(patch.sort)
+  )
+    next.sort = patch.sort;
+  if (
+    (Object.keys(current) as Array<keyof ApplicationView>).every(
+      (field) => current[field] === next[field],
+    )
+  )
+    return state;
+  return {
+    ...state,
+    views: {
+      tenant: state.views?.tenant ?? createApplicationView(),
+      landlord: state.views?.landlord ?? createApplicationView(),
+      [role]: next,
+    },
+  };
+}
+
+export function resetApplicationView(
+  state: ApplicationState,
+  role: Role,
+): ApplicationState {
+  return updateApplicationView(state, role, createApplicationView());
+}
+
+/** Purposeful record navigation clears hiding filters without changing sort or opening a dialog. */
+export function revealApplication(
+  state: ApplicationState,
+  role: Role,
+  applicationId: number,
+): ApplicationState {
+  if (
+    !visibleApplicationRecords(state, role).some(
+      (record) => record.id === applicationId,
+    )
+  )
+    return state;
+  return updateApplicationView(state, role, {
+    query: "",
+    status: "All",
+    property: "All properties",
+    completeness: "Any completeness",
+  });
 }
 
 function isTenantApplication(record: ApplicationRecord): boolean {

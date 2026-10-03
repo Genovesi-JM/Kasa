@@ -1,4 +1,10 @@
-import { useRef, useState, type Dispatch, type SetStateAction } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type Dispatch,
+  type SetStateAction,
+} from "react";
 import {
   Check,
   CheckCircle2,
@@ -15,12 +21,17 @@ import type { Role } from "../types";
 import {
   applicationCompleteness,
   applicationEvidenceSummary,
+  applicationPropertyOptions,
+  applicationView,
   canReviewApplication,
+  resetApplicationView,
   updateApplication,
+  updateApplicationView,
   visibleApplicationRecords,
   type ApplicationAction,
   type ApplicationRecord,
   type ApplicationState,
+  type ApplicationView,
 } from "./applicationState";
 import { useDialogFocus } from "./useDialogFocus";
 import { ApplicationEvidence } from "./ApplicationEvidence";
@@ -438,32 +449,50 @@ function ApplicationDetail({
   );
 }
 
+export interface ApplicationOpenRequest {
+  role: Role;
+  applicationId: number;
+  revision: number;
+}
+
 export function Applications({
   role,
   state,
   setState,
   onNewApplication,
+  openRequest,
+  onOpenRequestHandled,
 }: {
   role: Role;
   state: ApplicationState;
   setState: Dispatch<SetStateAction<ApplicationState>>;
   onNewApplication: () => void;
+  openRequest?: ApplicationOpenRequest | null;
+  onOpenRequestHandled?: (revision: number) => void;
 }) {
   const { text, date: displayDate, phase } = useApplicationCopy();
-  const [tab, setTab] = useState<(typeof statuses)[number]>("All");
-  const [propertyFilter, setPropertyFilter] = useState("All properties");
-  const [completeness, setCompleteness] = useState("Any completeness");
-  const [applicationSort, setApplicationSort] = useState("Newest submitted");
-  const [query, setQuery] = useState("");
-  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const {
+    status: tab,
+    property: propertyFilter,
+    completeness,
+    sort: applicationSort,
+    query,
+  } = applicationView(state, role);
+  const searchInput = useRef<HTMLInputElement>(null);
+  const applicationRows = useRef<HTMLElement>(null);
   const baseApplications = visibleApplicationRecords(state, role);
-  const selected = baseApplications.find((record) => record.id === selectedId);
+  const propertyOptions = applicationPropertyOptions(state, role);
+  const selectedProperty = propertyOptions.find(
+    (property) => String(property.id) === propertyFilter,
+  );
   const visible = baseApplications
     .filter(
       (record) =>
         (tab === "All" || applicationDisplayStatus(record) === tab) &&
         (propertyFilter === "All properties" ||
-          record.property === propertyFilter) &&
+          (record.propertyId !== undefined
+            ? String(record.propertyId) === propertyFilter
+            : selectedProperty?.title === record.property)) &&
         (completeness === "Any completeness" ||
           applicationCompleteness(record) >= Number(completeness)) &&
         `${record.applicant} ${record.property} ${100 + record.id}`
@@ -481,18 +510,45 @@ export function Applications({
               b.submittedAt.localeCompare(a.submittedAt)
             : b.submittedAt.localeCompare(a.submittedAt),
     );
-  const resetFilters = () => {
-    setTab("All");
-    setPropertyFilter("All properties");
-    setCompleteness("Any completeness");
-    setApplicationSort("Newest submitted");
-    setQuery("");
+  const [selectedId, setSelectedId] = useState<number | null>(() =>
+    openRequest?.role === role &&
+    visible.some((record) => record.id === openRequest.applicationId)
+      ? openRequest.applicationId
+      : null,
+  );
+  const selected = baseApplications.find((record) => record.id === selectedId);
+  const handledRevision = useRef<number | null>(null);
+  useEffect(() => {
+    if (
+      !openRequest ||
+      openRequest.role !== role ||
+      handledRevision.current === openRequest.revision
+    )
+      return;
+    handledRevision.current = openRequest.revision;
+    onOpenRequestHandled?.(openRequest.revision);
+  }, [onOpenRequestHandled, openRequest, role]);
+  const updateView = (patch: Partial<ApplicationView>) =>
+    setState((current) => updateApplicationView(current, role, patch));
+  const closeDetails = () => {
+    setSelectedId(null);
+    requestAnimationFrame(() => {
+      const row = applicationRows.current?.querySelector<HTMLButtonElement>(
+        `[data-application-id="${selectedId}"]`,
+      );
+      (row ?? searchInput.current)?.focus();
+    });
   };
-  const activeFilters =
+  const resetFilters = () => {
+    setState((current) => resetApplicationView(current, role));
+    requestAnimationFrame(() => searchInput.current?.focus());
+  };
+  const changedControls =
     Number(tab !== "All") +
     Number(propertyFilter !== "All properties") +
     Number(completeness !== "Any completeness") +
-    Number(Boolean(query.trim()));
+    Number(Boolean(query)) +
+    Number(applicationSort !== "Newest submitted");
 
   return (
     <div className="page-stack applications-workspace">
@@ -506,7 +562,7 @@ export function Applications({
               type="button"
               key={status}
               className={tab === status ? "active" : ""}
-              onClick={() => setTab(status)}
+              onClick={() => updateView({ status })}
               aria-pressed={tab === status}
             >
               {status === "All"
@@ -551,13 +607,17 @@ export function Applications({
           <label className="filter-search">
             <Search size={15} />
             <input
+              ref={searchInput}
               aria-label={text("Search applications", "Pesquisar candidaturas")}
               placeholder={text(
                 "Search applicant or property",
                 "Pesquisar candidato ou imóvel",
               )}
               value={query}
-              onChange={(event) => setQuery(event.target.value)}
+              maxLength={200}
+              onChange={(event) =>
+                updateView({ query: event.currentTarget.value })
+              }
             />
           </label>
           <select
@@ -566,15 +626,17 @@ export function Applications({
               "Filtrar candidaturas por imóvel",
             )}
             value={propertyFilter}
-            onChange={(event) => setPropertyFilter(event.target.value)}
+            onChange={(event) =>
+              updateView({ property: event.currentTarget.value })
+            }
           >
             <option value="All properties">
               {text("All properties", "Todos os imóveis")}
             </option>
-            {[
-              ...new Set(baseApplications.map((record) => record.property)),
-            ].map((property) => (
-              <option key={property}>{property}</option>
+            {propertyOptions.map((property) => (
+              <option key={property.id} value={property.id}>
+                {property.title}
+              </option>
             ))}
           </select>
           <select
@@ -583,7 +645,12 @@ export function Applications({
               "Filtrar por preenchimento do perfil",
             )}
             value={completeness}
-            onChange={(event) => setCompleteness(event.target.value)}
+            onChange={(event) =>
+              updateView({
+                completeness: event.currentTarget
+                  .value as ApplicationView["completeness"],
+              })
+            }
           >
             <option value="Any completeness">
               {text("Any completeness", "Qualquer preenchimento")}
@@ -594,7 +661,11 @@ export function Applications({
           <select
             aria-label={text("Sort applications", "Ordenar candidaturas")}
             value={applicationSort}
-            onChange={(event) => setApplicationSort(event.target.value)}
+            onChange={(event) =>
+              updateView({
+                sort: event.currentTarget.value as ApplicationView["sort"],
+              })
+            }
           >
             <option value="Newest submitted">
               {text("Newest submitted", "Mais recentes")}
@@ -610,9 +681,17 @@ export function Applications({
             </option>
           </select>
         </div>
-        {activeFilters > 0 && (
-          <button type="button" className="text-button" onClick={resetFilters}>
-            {text("Reset", "Limpar")} ({activeFilters})
+        {changedControls > 0 && (
+          <button
+            type="button"
+            className="text-button"
+            aria-label={text(
+              "Reset search, filters and sort",
+              "Repor pesquisa, filtros e ordenação",
+            )}
+            onClick={resetFilters}
+          >
+            {text("Reset", "Limpar")} ({changedControls})
           </button>
         )}
       </div>
@@ -623,6 +702,7 @@ export function Applications({
           : text("applications", "candidaturas")}
       </p>
       <section
+        ref={applicationRows}
         className="card application-record-list"
         aria-label={text("Rental applications", "Candidaturas a arrendamento")}
       >
@@ -643,6 +723,7 @@ export function Applications({
             type="button"
             className="application-record-row"
             key={record.id}
+            data-application-id={record.id}
             onClick={() => setSelectedId(record.id)}
             aria-label={`${text("Open", "Abrir")} ${role === "tenant" ? `${text("application", "candidatura")} ${100 + record.id}` : record.applicant} · ${record.property}`}
           >
@@ -688,13 +769,16 @@ export function Applications({
                 "Nenhuma candidatura corresponde a estes filtros.",
               )}
             </span>
-            {activeFilters > 0 && (
+            {changedControls > 0 && (
               <button
                 type="button"
                 className="button button-secondary"
                 onClick={resetFilters}
               >
-                {text("Reset filters", "Limpar filtros")}
+                {text(
+                  "Reset search, filters and sort",
+                  "Repor pesquisa, filtros e ordenação",
+                )}
               </button>
             )}
           </div>
@@ -716,7 +800,7 @@ export function Applications({
           state={state}
           setState={setState}
           role={role}
-          onClose={() => setSelectedId(null)}
+          onClose={closeDetails}
           onAction={(action) => {
             const next = updateApplication(state, selected.id, role, action);
             if (next === state) return false;

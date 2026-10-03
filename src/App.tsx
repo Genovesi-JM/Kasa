@@ -133,8 +133,10 @@ import {
 } from "./components/spaceBookingNotifications";
 import {
   createInitialApplicationState,
+  revealApplication,
   visibleApplicationRecords,
 } from "./components/applicationState";
+import type { ApplicationOpenRequest } from "./components/Applications";
 import {
   createInitialPropertyRequestState,
   selectViewingRequest,
@@ -5104,6 +5106,22 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
   const [searchQuery, setSearchQuery] = useState(initialRoute.query);
   const [serviceEntryRevision, setServiceEntryRevision] = useState(0);
   const [spaceEntryRevision, setSpaceEntryRevision] = useState(0);
+  const [applicationEntry, setApplicationEntry] = useState<{
+    revision: number;
+    request: ApplicationOpenRequest | null;
+  }>({ revision: 0, request: null });
+  const clearApplicationOpenRequest = useCallback(() => {
+    setApplicationEntry((current) =>
+      current.request ? { ...current, request: null } : current,
+    );
+  }, []);
+  const consumeApplicationOpenRequest = useCallback((revision: number) => {
+    setApplicationEntry((current) =>
+      current.request?.revision === revision
+        ? { ...current, request: null }
+        : current,
+    );
+  }, []);
   const [propertyReturnTo, setPropertyReturnTo] = useState<
     AppRoute["returnTo"]
   >(initialRoute.returnTo);
@@ -5172,6 +5190,7 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
     const restore = () => {
       const route = readAppRoute(window.location.search);
       restoringHistory.current = true;
+      clearApplicationOpenRequest();
       setRole(route.role);
       setView(route.view);
       setSelectedVenueId(route.venueId);
@@ -5216,7 +5235,7 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
     };
     window.addEventListener("popstate", restore);
     return () => window.removeEventListener("popstate", restore);
-  }, [demoTarget]);
+  }, [demoTarget, clearApplicationOpenRequest]);
 
   const updateServiceArea = useCallback(
     (area: "discover" | "tasks" | "work", mode: "jobs" | "hire") => {
@@ -5509,6 +5528,7 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
 
   const go = useCallback(
     (next: View, query?: string) => {
+      if (next !== "applications") clearApplicationOpenRequest();
       setView(canonicalRoleView(role, next));
       if (next === "spaces" && query !== undefined) {
         setSpacesDiscovery((current) =>
@@ -5534,8 +5554,30 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
         behavior: reduceMotion || systemReduceMotion ? "instant" : "smooth",
       });
     },
-    [role, view, discoveryIntent, reduceMotion, systemReduceMotion],
+    [
+      role,
+      view,
+      discoveryIntent,
+      reduceMotion,
+      systemReduceMotion,
+      clearApplicationOpenRequest,
+    ],
   );
+  const openRentalApplication = (applicationId: number) => {
+    if (role !== "tenant" && role !== "landlord") return;
+    // A submission queues its new record before this callback runs.
+    setApplicationState((current) =>
+      revealApplication(current, role, applicationId),
+    );
+    setApplicationEntry((current) => {
+      const revision = current.revision + 1;
+      return {
+        revision,
+        request: { role, applicationId, revision },
+      };
+    });
+    go("applications");
+  };
   const openSpaceVenue = (venue: SpaceVenue) => {
     const canonical = spaceVenues.find((item) => item.id === venue.id);
     if (!canonical) return;
@@ -5636,6 +5678,7 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
     else go(notification.destination);
   };
   const selectWorkspace = (next: Role) => {
+    clearApplicationOpenRequest();
     const labels: Record<Role, string> = {
       landlord: tr("shell.propertyOwner"),
       tenant: `Inês Duarte · ${tr("shell.tenant")}`,
@@ -5663,6 +5706,7 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
     nextView: View = "overview",
     nextDiscoveryIntent?: "Rent" | "Buy",
   ) => {
+    clearApplicationOpenRequest();
     setRole(nextRole);
     setView(canonicalRoleView(nextRole, nextView));
     setSearchQuery("");
@@ -5884,14 +5928,15 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
                   setApplicationState={setApplicationState}
                   viewingLabel={tr("discover.requestViewing")}
                   applicationLabel={tr("discover.applyHome")}
-                  onApplicationSaved={() => {
+                  onApplicationSaved={(applicationId) => {
+                    openRentalApplication(applicationId);
                     notify(
                       language === "pt"
-                        ? "Candidatura guardada neste separador. Abra Candidaturas para a consultar; nada foi enviado."
-                        : "Application saved in this tab. Open Applications to inspect it; nothing was sent.",
+                        ? "Candidatura guardada neste separador. Nada foi enviado."
+                        : "Application saved in this tab. Nothing was sent.",
                     );
                   }}
-                  onViewApplications={() => go("applications")}
+                  onViewApplications={openRentalApplication}
                 />
               )
             }
@@ -5941,9 +5986,12 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
       case "applications":
         return (
           <Applications
+            key={`${role}-${applicationEntry.revision}`}
             role={role}
             state={applicationState}
             setState={setApplicationState}
+            openRequest={applicationEntry.request}
+            onOpenRequestHandled={consumeApplicationOpenRequest}
             onNewApplication={() => {
               setDiscoveryIntent("Rent");
               go("discover");
