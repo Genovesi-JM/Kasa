@@ -30,6 +30,7 @@ export interface SpaceBookingProposal {
 }
 export interface SpaceBookingHistory {
   id: string;
+  source: "sample" | "local";
   at: string;
   actor: string;
   action:
@@ -83,6 +84,11 @@ export interface SpaceBookingView {
   filter: SpaceBookingFilter;
   selectedId: string | null;
 }
+export interface SpaceOperatorInboxView {
+  query: string;
+  filter: "pending" | "agreed" | "history" | "all";
+  selectedId: string | null;
+}
 export interface SpaceTimeBlockDraft {
   date: string;
   start: string;
@@ -131,6 +137,7 @@ export interface SpaceBookingsState {
   filter: SpaceBookingFilter;
   selectedId: string | null;
   views: Record<Role, SpaceBookingView>;
+  operatorInboxView: SpaceOperatorInboxView;
   requestDrafts: Record<
     SpaceBookingCustomerRole,
     Record<string, SpaceBookingRequestDraft>
@@ -879,6 +886,7 @@ function addHistory(
       ...booking.history,
       {
         id: `${booking.id}-event-${booking.history.length + 1}`,
+        source: "local",
         at: now.toISOString(),
         actor,
         action,
@@ -941,7 +949,13 @@ export function createSpaceBookingRequest(
     requestedTerms: terms,
     proposals: [],
     history: [
-      { id: `${id}-event-1`, at, actor: customers[role], action: "requested" },
+      {
+        id: `${id}-event-1`,
+        source: "local",
+        at,
+        actor: customers[role],
+        action: "requested",
+      },
     ],
     createdAt: at,
     updatedAt: at,
@@ -964,6 +978,69 @@ export function scopedSpaceBookings(
 ): ManagedSpaceBooking[] {
   return state.bookings.filter((booking) => canRead(booking, role));
 }
+function defaultSpaceOperatorInboxView(): SpaceOperatorInboxView {
+  return { query: "", filter: "pending", selectedId: null };
+}
+
+export function spaceOperatorInboxView(
+  state: SpaceBookingsState,
+  role: Role,
+): SpaceOperatorInboxView {
+  return role === "spaceOperator"
+    ? { ...state.operatorInboxView }
+    : defaultSpaceOperatorInboxView();
+}
+
+export function updateSpaceOperatorInboxView(
+  state: SpaceBookingsState,
+  role: Role,
+  patch: Partial<SpaceOperatorInboxView>,
+): SpaceBookingsState {
+  if (role !== "spaceOperator" || !patch || typeof patch !== "object")
+    return state;
+  const current = state.operatorInboxView;
+  const next = { ...current };
+  if (typeof patch.query === "string") next.query = patch.query.slice(0, 200);
+  if (
+    patch.filter === "pending" ||
+    patch.filter === "agreed" ||
+    patch.filter === "history" ||
+    patch.filter === "all"
+  )
+    next.filter = patch.filter;
+  if (
+    patch.selectedId === null ||
+    (typeof patch.selectedId === "string" &&
+      scopedSpaceBookings(state, role).some(
+        (booking) => booking.id === patch.selectedId,
+      ))
+  )
+    next.selectedId = patch.selectedId;
+  return current.query === next.query &&
+    current.filter === next.filter &&
+    current.selectedId === next.selectedId
+    ? state
+    : { ...state, operatorInboxView: next };
+}
+
+/** Deliberate navigation reveals one owned record without changing booking data or drafts. */
+export function revealSpaceOperatorBooking(
+  state: SpaceBookingsState,
+  role: Role,
+  id: string,
+): SpaceBookingsState {
+  if (
+    role !== "spaceOperator" ||
+    !scopedSpaceBookings(state, role).some((booking) => booking.id === id)
+  )
+    return state;
+  return updateSpaceOperatorInboxView(state, role, {
+    query: "",
+    filter: "all",
+    selectedId: id,
+  });
+}
+
 export function spaceBookingView(
   state: SpaceBookingsState,
   role: Role,
@@ -1505,6 +1582,7 @@ export function createInitialSpaceBookingsState(
       history: [
         {
           id: `${seed.id}-event-1`,
+          source: "sample",
           at,
           actor: customers.tenant,
           action: "requested",
@@ -1543,7 +1621,15 @@ export function createInitialSpaceBookingsState(
         proposals: [proposal],
       };
     }
-    return [projection(booking)];
+    return [
+      projection({
+        ...booking,
+        history: booking.history.map((event) => ({
+          ...event,
+          source: "sample",
+        })),
+      }),
+    ];
   });
   const selectedId =
     bookings.find((booking) => booking.status === "Upcoming")?.id ?? null;
@@ -1558,6 +1644,7 @@ export function createInitialSpaceBookingsState(
       provider: { filter: "All", selectedId: null },
       admin: { filter: "All", selectedId: null },
     },
+    operatorInboxView: defaultSpaceOperatorInboxView(),
     requestDrafts: { tenant: {}, landlord: {} },
     actionDrafts: {
       tenant: {},

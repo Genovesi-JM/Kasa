@@ -49,6 +49,13 @@ const controls = {
     serviceRequestCancelled: "Service request cancelled",
     serviceStarted: "Service work started",
     serviceCompleted: "Service completion recorded",
+    spaceRequestSubmitted: "Space request recorded",
+    spaceRequestAccepted: "Space request agreed locally",
+    spaceRequestDeclined: "Space request declined",
+    spaceProposalRecorded: "Space terms proposed",
+    spaceProposalAccepted: "Proposed space terms accepted",
+    spaceProposalDeclined: "Proposed space terms declined",
+    spaceRequestCancelled: "Space request cancelled",
   },
   pt: {
     unread: "por ler",
@@ -69,6 +76,13 @@ const controls = {
     serviceRequestCancelled: "Pedido de serviço cancelado",
     serviceStarted: "Serviço iniciado",
     serviceCompleted: "Conclusão do serviço registada",
+    spaceRequestSubmitted: "Pedido de espaço registado",
+    spaceRequestAccepted: "Pedido de espaço acordado localmente",
+    spaceRequestDeclined: "Pedido de espaço recusado",
+    spaceProposalRecorded: "Condições do espaço propostas",
+    spaceProposalAccepted: "Condições propostas para o espaço aceites",
+    spaceProposalDeclined: "Condições propostas para o espaço recusadas",
+    spaceRequestCancelled: "Pedido de espaço cancelado",
   },
   es: {
     unread: "sin leer",
@@ -89,6 +103,13 @@ const controls = {
     serviceRequestCancelled: "Solicitud de servicio cancelada",
     serviceStarted: "Servicio iniciado",
     serviceCompleted: "Finalización del servicio registrada",
+    spaceRequestSubmitted: "Solicitud de espacio registrada",
+    spaceRequestAccepted: "Solicitud de espacio acordada localmente",
+    spaceRequestDeclined: "Solicitud de espacio rechazada",
+    spaceProposalRecorded: "Condiciones del espacio propuestas",
+    spaceProposalAccepted: "Condiciones propuestas para el espacio aceptadas",
+    spaceProposalDeclined: "Condiciones propuestas para el espacio rechazadas",
+    spaceRequestCancelled: "Solicitud de espacio cancelada",
   },
   fr: {
     unread: "non lues",
@@ -109,6 +130,13 @@ const controls = {
     serviceRequestCancelled: "Demande de service annulée",
     serviceStarted: "Prestation commencée",
     serviceCompleted: "Fin de prestation enregistrée",
+    spaceRequestSubmitted: "Demande d’espace enregistrée",
+    spaceRequestAccepted: "Accord local sur la demande d’espace",
+    spaceRequestDeclined: "Demande d’espace refusée",
+    spaceProposalRecorded: "Conditions d’espace proposées",
+    spaceProposalAccepted: "Conditions proposées pour l’espace acceptées",
+    spaceProposalDeclined: "Conditions proposées pour l’espace refusées",
+    spaceRequestCancelled: "Demande d’espace annulée",
   },
   ar: {
     unread: "غير مقروءة",
@@ -129,6 +157,13 @@ const controls = {
     serviceRequestCancelled: "تم إلغاء طلب الخدمة",
     serviceStarted: "بدأ تنفيذ الخدمة",
     serviceCompleted: "تم تسجيل اكتمال الخدمة",
+    spaceRequestSubmitted: "تم تسجيل طلب حجز المساحة",
+    spaceRequestAccepted: "تمت الموافقة محليًا على طلب حجز المساحة",
+    spaceRequestDeclined: "تم رفض طلب حجز المساحة",
+    spaceProposalRecorded: "تم اقتراح شروط حجز المساحة",
+    spaceProposalAccepted: "تم قبول الشروط المقترحة لحجز المساحة",
+    spaceProposalDeclined: "تم رفض الشروط المقترحة لحجز المساحة",
+    spaceRequestCancelled: "تم إلغاء طلب حجز المساحة",
   },
   zh: {
     unread: "未读",
@@ -148,6 +183,13 @@ const controls = {
     serviceRequestCancelled: "服务请求已取消",
     serviceStarted: "服务工作已开始",
     serviceCompleted: "已记录服务完成",
+    spaceRequestSubmitted: "场地请求已记录",
+    spaceRequestAccepted: "场地请求已在本地达成约定",
+    spaceRequestDeclined: "场地请求已被拒绝",
+    spaceProposalRecorded: "已提出场地使用条件",
+    spaceProposalAccepted: "已接受拟议场地使用条件",
+    spaceProposalDeclined: "已拒绝拟议场地使用条件",
+    spaceRequestCancelled: "场地请求已取消",
   },
 };
 
@@ -224,6 +266,19 @@ const serviceTitleKeys = {
   keyof typeof controls.en
 >;
 
+const spaceBookingTitleKeys = {
+  "request-submitted": "spaceRequestSubmitted",
+  "request-accepted": "spaceRequestAccepted",
+  "request-declined": "spaceRequestDeclined",
+  "proposal-recorded": "spaceProposalRecorded",
+  "proposal-accepted": "spaceProposalAccepted",
+  "proposal-declined": "spaceProposalDeclined",
+  "request-cancelled": "spaceRequestCancelled",
+} as const satisfies Record<
+  NonNullable<KasaNotification["spaceBookingEvent"]>["kind"],
+  keyof typeof controls.en
+>;
+
 interface NotificationsProps {
   state: NotificationState;
   setState: Dispatch<SetStateAction<NotificationState>>;
@@ -246,16 +301,20 @@ function NotificationList({
         const Icon = icons[item.icon];
         const workEvent = item.workEvent;
         const serviceEvent = item.serviceEvent;
-        const event = serviceEvent ?? workEvent;
-        const title = serviceEvent
-          ? labels[serviceTitleKeys[serviceEvent.kind]]
-          : workEvent
-            ? labels[workTitleKeys[workEvent.kind]]
-            : tr(item.titleKey);
-        const note =
-          serviceEvent?.requestTitle ??
-          workEvent?.opportunityTitle ??
-          tr(item.noteKey);
+        const spaceBookingEvent = item.spaceBookingEvent;
+        const event = spaceBookingEvent ?? serviceEvent ?? workEvent;
+        const title = spaceBookingEvent
+          ? labels[spaceBookingTitleKeys[spaceBookingEvent.kind]]
+          : serviceEvent
+            ? labels[serviceTitleKeys[serviceEvent.kind]]
+            : workEvent
+              ? labels[workTitleKeys[workEvent.kind]]
+              : tr(item.titleKey);
+        const note = spaceBookingEvent
+          ? `${spaceBookingEvent.venueName} · ${spaceBookingEvent.spaceName}`
+          : (serviceEvent?.requestTitle ??
+            workEvent?.opportunityTitle ??
+            tr(item.noteKey));
         const source = event ? labels.local : labels.sample;
         const timestamp = event
           ? formatTime(event.occurredAt)

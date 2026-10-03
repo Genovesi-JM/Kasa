@@ -8,7 +8,7 @@ const en = {
   cancelled: "Cancelled",
   declined: "Declined",
   scope:
-    "Requests and responses stay in this tab until you reload. No venue is contacted, no reservation is guaranteed and no payment or refund is processed.",
+    "Requests and responses stay in this tab until you reload. No external messages are sent, no reservation is guaranteed and no payment or refund is processed.",
   filter: "Filter reservations",
   records: "Reservation records",
   details: "Request details",
@@ -130,7 +130,7 @@ const pt: Record<keyof typeof en, string> = {
   cancelled: "Cancelado",
   declined: "Recusado",
   scope:
-    "Os pedidos e as respostas ficam neste separador até recarregar. Nenhum espaço é contactado, nenhuma reserva é garantida e nenhum pagamento ou reembolso é processado.",
+    "Os pedidos e as respostas ficam neste separador até recarregar. Não são enviadas mensagens externas, nenhuma reserva é garantida e nenhum pagamento ou reembolso é processado.",
   filter: "Filtrar reservas",
   records: "Registos de reservas",
   details: "Detalhes do pedido",

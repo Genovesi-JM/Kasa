@@ -22,7 +22,9 @@ import {
   spaceBookingActionIssue,
   spaceBookingCounts,
   spaceBookingDateValue,
+  spaceOperatorInboxView,
   updateSpaceBookingActionDraft,
+  updateSpaceOperatorInboxView,
   type ManagedSpaceBooking,
   type SpaceBookingsState,
 } from "./spaceBookingsState";
@@ -199,8 +201,8 @@ function historyText(action: string, copy: Copy) {
 
 function localNotice(copy: Copy) {
   return copy(
-    "These records stay in this tab until you reload. No customer is contacted, no real reservation is confirmed and no payment or refund is processed.",
-    "Estes registos ficam neste separador até recarregar. Nenhum cliente é contactado, nenhuma reserva real é confirmada e nenhum pagamento ou reembolso é processado.",
+    "These records stay in this tab until you reload. No external messages are sent, no real reservation is confirmed and no payment or refund is processed.",
+    "Estes registos ficam neste separador até recarregar. Não são enviadas mensagens externas, nenhuma reserva real é confirmada e nenhum pagamento ou reembolso é processado.",
   );
 }
 
@@ -544,8 +546,8 @@ function OperatorActionDialog({
           </div>
           <p className="space-operator-callout">
             {copy(
-              "Your draft is kept when you close this form. Values are local records, with no payment collection or customer notification.",
-              "O rascunho é mantido quando fechar este formulário. Os valores são registos locais, sem cobrança nem notificação ao cliente.",
+              "Your draft is kept when you close this form. Values are local records, with no payment collection or external messages.",
+              "O rascunho é mantido quando fechar este formulário. Os valores são registos locais, sem cobrança nem mensagens externas.",
             )}
           </p>
           <div className="space-operator-actions">
@@ -581,12 +583,18 @@ function OperatorInbox({
   const heading = useRef<HTMLHeadingElement>(null);
   const detailHeading = useRef<HTMLHeadingElement>(null);
   const lastRow = useRef<HTMLButtonElement | null>(null);
-  const [query, setQuery] = useState("");
-  const [filter, setFilter] = useState<OperatorFilter>("pending");
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const { query, filter, selectedId } = spaceOperatorInboxView(state, role);
   const [dialogMode, setDialogMode] = useState<DialogMode | null>(null);
   const [feedback, setFeedback] = useState("");
   const [actionIssue, setActionIssue] = useState<string | null>(null);
+  useEffect(() => {
+    if (!selectedId) return;
+    const frame = requestAnimationFrame(() => {
+      const target = detailHeading.current;
+      if (target?.dataset.bookingId === selectedId) target.focus();
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [role, selectedId]);
   const venues = operatorSpaceVenues(role);
   const records = scopedSpaceBookings(state, role);
   const counts = spaceBookingCounts(state, role);
@@ -634,7 +642,9 @@ function OperatorInbox({
   const canPropose =
     selected && ["Requested", "Proposed", "Agreed"].includes(selected.phase);
   const closeDetails = () => {
-    setSelectedId(null);
+    setState((current) =>
+      updateSpaceOperatorInboxView(current, role, { selectedId: null }),
+    );
     setActionIssue(null);
     requestAnimationFrame(() =>
       lastRow.current?.isConnected
@@ -741,9 +751,15 @@ function OperatorInbox({
               "Cliente, espaço ou referência",
             )}
             value={query}
+            maxLength={200}
             onChange={(event) => {
-              setQuery(event.target.value);
-              setSelectedId(null);
+              const query = event.currentTarget.value;
+              setState((current) =>
+                updateSpaceOperatorInboxView(current, role, {
+                  query,
+                  selectedId: null,
+                }),
+              );
               setActionIssue(null);
             }}
           />
@@ -752,8 +768,13 @@ function OperatorInbox({
           aria-label={copy("Filter requests", "Filtrar pedidos")}
           value={filter}
           onChange={(event) => {
-            setFilter(event.target.value as OperatorFilter);
-            setSelectedId(null);
+            const filter = event.currentTarget.value as OperatorFilter;
+            setState((current) =>
+              updateSpaceOperatorInboxView(current, role, {
+                filter,
+                selectedId: null,
+              }),
+            );
             setActionIssue(null);
           }}
         >
@@ -788,10 +809,15 @@ function OperatorInbox({
                 aria-pressed={selected?.id === record.id}
                 onClick={(event) => {
                   lastRow.current = event.currentTarget;
-                  setSelectedId(record.id);
+                  setState((current) =>
+                    updateSpaceOperatorInboxView(current, role, {
+                      selectedId: record.id,
+                    }),
+                  );
                   setActionIssue(null);
                   setFeedback("");
-                  requestAnimationFrame(() => detailHeading.current?.focus());
+                  if (selectedId === record.id)
+                    requestAnimationFrame(() => detailHeading.current?.focus());
                 }}
               >
                 <span className="space-operator-row-top">
@@ -845,7 +871,11 @@ function OperatorInbox({
             <header>
               <div>
                 <span className="eyebrow">{selected.id}</span>
-                <h3 tabIndex={-1} ref={detailHeading}>
+                <h3
+                  tabIndex={-1}
+                  ref={detailHeading}
+                  data-booking-id={selected.id}
+                >
                   {selected.customerName}
                 </h3>
                 <p>

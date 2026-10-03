@@ -128,6 +128,10 @@ import {
   reconcileServiceNotifications,
 } from "./components/serviceNotifications";
 import {
+  openSpaceBookingNotification,
+  reconcileSpaceBookingNotifications,
+} from "./components/spaceBookingNotifications";
+import {
   createInitialApplicationState,
   submitRentalApplication,
   tenantApplicationForProperty,
@@ -5000,23 +5004,29 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
   );
   const notificationState = useMemo(
     () =>
-      reconcileServiceNotifications(
-        reconcileWorkNotifications(savedNotificationState, workState),
-        serviceRequestState,
+      reconcileSpaceBookingNotifications(
+        reconcileServiceNotifications(
+          reconcileWorkNotifications(savedNotificationState, workState),
+          serviceRequestState,
+        ),
+        bookingsState,
       ),
-    [savedNotificationState, workState, serviceRequestState],
+    [savedNotificationState, workState, serviceRequestState, bookingsState],
   );
   const setNotificationState = useCallback(
     (update: SetStateAction<NotificationState>) => {
       setSavedNotificationState((current) => {
-        const reconciled = reconcileServiceNotifications(
-          reconcileWorkNotifications(current, workState),
-          serviceRequestState,
+        const reconciled = reconcileSpaceBookingNotifications(
+          reconcileServiceNotifications(
+            reconcileWorkNotifications(current, workState),
+            serviceRequestState,
+          ),
+          bookingsState,
         );
         return typeof update === "function" ? update(reconciled) : update;
       });
     },
-    [workState, serviceRequestState],
+    [workState, serviceRequestState, bookingsState],
   );
   const [mobileOpen, setMobileOpen] = useState(false);
   const [workspaceTool, setWorkspaceTool] = useState<
@@ -5095,6 +5105,7 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
   );
   const [searchQuery, setSearchQuery] = useState(initialRoute.query);
   const [serviceEntryRevision, setServiceEntryRevision] = useState(0);
+  const [spaceEntryRevision, setSpaceEntryRevision] = useState(0);
   const [propertyReturnTo, setPropertyReturnTo] = useState<
     AppRoute["returnTo"]
   >(initialRoute.returnTo);
@@ -5590,6 +5601,18 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
   };
   const openNotification = (notification: KasaNotification) => {
     setNotificationsOpen(false);
+    if (notification.spaceBookingEvent) {
+      const target = openSpaceBookingNotification(
+        bookingsState,
+        role,
+        notification,
+      );
+      if (!target) return;
+      setBookingsState(target.state);
+      setSpaceEntryRevision((value) => value + 1);
+      go(target.destination);
+      return;
+    }
     if (notification.serviceEvent) {
       const target = openServiceNotification(
         serviceRequestState,
@@ -5723,6 +5746,7 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
           />
         ) : role === "spaceOperator" ? (
           <SpaceOperatorInbox
+            key={`${role}-${spaceEntryRevision}`}
             role={role}
             state={bookingsState}
             setState={setBookingsState}
@@ -6055,6 +6079,7 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
       case "spaceBookings":
         return (
           <SpaceBookingsView
+            key={`${role}-${spaceEntryRevision}`}
             role={role}
             state={bookingsState}
             setState={setBookingsState}
@@ -6064,6 +6089,7 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
       case "spaceOperator":
         return (
           <SpaceOperatorInbox
+            key={`${role}-${spaceEntryRevision}`}
             role={role}
             state={bookingsState}
             setState={setBookingsState}

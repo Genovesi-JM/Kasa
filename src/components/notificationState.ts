@@ -23,6 +23,21 @@ export interface ServiceNotificationEvent {
   occurredAt: string;
 }
 
+export interface SpaceBookingNotificationEvent {
+  kind:
+    | "request-submitted"
+    | "request-accepted"
+    | "request-declined"
+    | "proposal-recorded"
+    | "proposal-accepted"
+    | "proposal-declined"
+    | "request-cancelled";
+  bookingId: string;
+  venueName: string;
+  spaceName: string;
+  occurredAt: string;
+}
+
 export interface KasaNotification {
   id: string;
   role: Role;
@@ -41,6 +56,7 @@ export interface KasaNotification {
   serviceMode?: "jobs" | "hire" | "tasks";
   workEvent?: WorkNotificationEvent;
   serviceEvent?: ServiceNotificationEvent;
+  spaceBookingEvent?: SpaceBookingNotificationEvent;
   read: boolean;
 }
 
@@ -54,7 +70,10 @@ export function sortNotificationActivity(
 ): NotificationState {
   const ordered = state.items
     .map((item, index) => {
-      const value = item.serviceEvent?.occurredAt ?? item.workEvent?.occurredAt;
+      const value =
+        item.spaceBookingEvent?.occurredAt ??
+        item.serviceEvent?.occurredAt ??
+        item.workEvent?.occurredAt;
       const date = typeof value === "string" ? new Date(value) : null;
       const at =
         date && Number.isFinite(date.getTime()) && date.toISOString() === value

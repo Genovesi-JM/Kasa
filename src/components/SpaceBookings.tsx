@@ -1,4 +1,5 @@
 import {
+  useEffect,
   useId,
   useRef,
   useState,
@@ -244,9 +245,19 @@ export function SpaceBookingsView({
   const visible = visibleSpaceBookings(state, role);
   const selected = selectedSpaceBooking(state, role);
   const view = spaceBookingView(state, role);
+  const selectedId = view.selectedId;
   const drafts = spaceBookingDrafts(state, role);
   const cancelling = all.find((booking) => booking.id === cancellingId);
   const allowed = isSpaceBookingCustomer(role);
+
+  useEffect(() => {
+    if (!selectedId) return;
+    const frame = requestAnimationFrame(() => {
+      const target = heading.current;
+      if (target?.dataset.bookingId === selectedId) target.focus();
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [role, selectedId]);
 
   function focusDetails() {
     requestAnimationFrame(() => heading.current?.focus());
@@ -269,7 +280,7 @@ export function SpaceBookingsView({
     setState(next);
     setActionError(null);
     setStatus(success);
-    focusDetails();
+    if (spaceBookingView(next, role).selectedId === selectedId) focusDetails();
     return undefined;
   }
 
@@ -409,7 +420,7 @@ export function SpaceBookingsView({
                   );
                   setStatus(null);
                   setActionError(null);
-                  focusDetails();
+                  if (selectedId === booking.id) focusDetails();
                 }}
               >
                 <img src={booking.image} alt="" />
@@ -441,7 +452,7 @@ export function SpaceBookingsView({
             <img src={selected.image} alt="" />
             <div>
               <BookingStatus booking={selected} copy={copy} />
-              <h2 ref={heading} tabIndex={-1}>
+              <h2 ref={heading} tabIndex={-1} data-booking-id={selected.id}>
                 {selected.venue}
               </h2>
               <p>{selected.space}</p>
@@ -637,7 +648,6 @@ export function SpaceBookingsView({
           onSaved={() => {
             setDraftTarget(null);
             setStatus("requestCreated");
-            focusDetails();
           }}
         />
       )}
