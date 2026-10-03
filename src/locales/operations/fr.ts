@@ -1,10 +1,12 @@
 import type { OperationsDictionary } from "./types";
 import { rentFr } from "./rent-fr";
 import { maintenanceFr } from "./maintenance-fr";
+import { messagesFr } from "./messages-fr";
 
 export const fr = {
   ...rentFr,
   ...maintenanceFr,
+  ...messagesFr,
   documents_samplePreview: "Aperçu d’exemple",
   documents_localFile: "Fichier local",
   documents_closePreview: "Fermer l’aperçu du document",

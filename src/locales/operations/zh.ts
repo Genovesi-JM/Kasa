@@ -1,10 +1,12 @@
 import type { OperationsDictionary } from "./types";
 import { rentZh } from "./rent-zh";
 import { maintenanceZh } from "./maintenance-zh";
+import { messagesZh } from "./messages-zh";
 
 export const zh = {
   ...rentZh,
   ...maintenanceZh,
+  ...messagesZh,
   documents_samplePreview: "示例预览",
   documents_localFile: "本地文件",
   documents_closePreview: "关闭文档预览",

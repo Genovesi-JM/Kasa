@@ -1,9 +1,11 @@
 import { rentEn } from "./rent-en";
 import { maintenanceEn } from "./maintenance-en";
+import { messagesEn } from "./messages-en";
 
 export const en = {
   ...rentEn,
   ...maintenanceEn,
+  ...messagesEn,
   documents_samplePreview: "Sample preview",
   documents_localFile: "Local file",
   documents_closePreview: "Close document preview",

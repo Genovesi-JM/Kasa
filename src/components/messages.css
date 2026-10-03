@@ -18,6 +18,48 @@
 .messages-layout .chat-body {
   min-height: 0;
 }
+.messages-layout .conversation-list > button {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  text-align: start;
+}
+.messages-layout .conversation-list time {
+  max-inline-size: 8em;
+  overflow-wrap: anywhere;
+  text-align: end;
+}
+.messages-layout .conversation-list i {
+  right: auto;
+  inset-inline-end: 14px;
+}
+.messages-layout .chat-panel {
+  grid-template-rows: minmax(65px, auto) minmax(0, 1fr) 67px;
+}
+.messages-layout .chat-panel header {
+  flex-wrap: wrap;
+  padding-block: 10px;
+}
+.messages-layout .chat-panel header > div:not(.chat-safety-actions) {
+  flex: 1 1 120px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.messages-layout .chat-safety-actions {
+  max-width: 100%;
+  margin-inline-start: auto;
+  flex-wrap: wrap;
+}
+.messages-layout .chat-safety-actions button {
+  max-width: 100%;
+  padding-block: 5px;
+  overflow-wrap: anywhere;
+}
+.messages-layout .chat-privacy-banner > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+[dir="rtl"] .messages-layout .mobile-chat-back svg {
+  transform: scaleX(-1);
+}
 .messages-layout .conversation-reset {
   grid-column: 1 / -1;
   justify-self: end;
@@ -32,6 +74,8 @@
   color: var(--green);
   font-size: 11px;
   cursor: pointer;
+  max-width: 100%;
+  overflow-wrap: anywhere;
 }
 .messages-layout .conversation-reset:disabled {
   cursor: not-allowed;

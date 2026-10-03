@@ -111,7 +111,6 @@ import {
   buildPropertyOperationsSummary,
   type PropertyOperationsSummary,
 } from "./components/propertyOperationsSummary";
-import { Messages } from "./components/Messages";
 import {
   NotificationsPopover,
   NotificationsView,
@@ -231,6 +230,11 @@ const formatEuro = (value: number) =>
 
 type ServiceLaunchMode = AppRoute["service"];
 
+const Messages = lazy(() =>
+  import("./components/Messages").then((module) => ({
+    default: module.Messages,
+  })),
+);
 const SpaceBookingsView = lazy(() =>
   import("./components/SpaceBookings").then((module) => ({
     default: module.SpaceBookingsView,

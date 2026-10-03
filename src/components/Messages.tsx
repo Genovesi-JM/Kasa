@@ -19,7 +19,6 @@ import { matchesSearch } from "../search";
 import {
   appendLocalMessage,
   messageView,
-  messageWorkspaceLabels,
   resetMessageView,
   updateConversation,
   updateMessageView,
@@ -29,6 +28,15 @@ import {
 } from "./messageState";
 import "./messages.css";
 import { useMediaQuery } from "./useMediaQuery";
+import { useOperationsI18n } from "./useOperationsI18n";
+import type { OperationsMessage } from "../locales/operations/types";
+import {
+  messageCategoryKeys,
+  messageContextKeys,
+  messageSortKeys,
+  messageTimeLabel,
+  messageWorkspaceKeys,
+} from "../locales/operations/messagesLabels";
 
 interface MessagesProps {
   state: MessageState;
@@ -49,6 +57,7 @@ function isVisibleFocusTarget(
 }
 
 export function Messages({ state, setState, notify }: MessagesProps) {
+  const { tr } = useOperationsI18n();
   const {
     query: conversationQuery,
     context: conversationContext,
@@ -58,7 +67,7 @@ export function Messages({ state, setState, notify }: MessagesProps) {
     conversationQuery !== "" ||
     conversationContext !== "All conversations" ||
     conversationSort !== "Most recent";
-  const [status, setStatus] = useState("");
+  const [status, setStatus] = useState<OperationsMessage | null>(null);
   const messagesRoot = useRef<HTMLElement>(null);
   const composer = useRef<HTMLInputElement>(null);
   const inboxSearch = useRef<HTMLInputElement>(null);
@@ -168,11 +177,12 @@ export function Messages({ state, setState, notify }: MessagesProps) {
     ),
   ];
   const preview = (conversation: ChatConversation) => {
-    if (conversation.draft) return `Draft: ${conversation.draft}`;
+    if (conversation.draft)
+      return `${tr("messages_draftPrefix")} ${conversation.draft}`;
     const lastMessage = conversation.messages.at(-1);
     return lastMessage
-      ? `${lastMessage.direction === "sent" ? "You: " : ""}${lastMessage.text}`
-      : "No messages yet";
+      ? `${lastMessage.direction === "sent" ? `${tr("messages_youPrefix")} ` : ""}${lastMessage.text}`
+      : tr("messages_noMessages");
   };
   const visibleConversations = state.conversations
     .filter((conversation) => {
@@ -180,6 +190,8 @@ export function Messages({ state, setState, notify }: MessagesProps) {
         conversationQuery,
         conversation.name,
         conversation.property,
+        conversation.category,
+        tr(messageCategoryKeys[conversation.category]),
         ...conversation.messages.map((message) => message.text),
       );
       const matchesContext =
@@ -209,7 +221,7 @@ export function Messages({ state, setState, notify }: MessagesProps) {
       selectedId: id,
       conversationOpen: true,
     }));
-    setStatus("");
+    setStatus(null);
     scheduleFocus("conversation", state.role, id);
   }
 
@@ -217,9 +229,7 @@ export function Messages({ state, setState, notify }: MessagesProps) {
     if (!selectedConversation?.draft.trim() || selectedConversation.blocked)
       return;
     setState((current) => appendLocalMessage(current, selectedConversation.id));
-    setStatus(
-      "Message added in this tab. It has not been delivered to anyone.",
-    );
+    setStatus({ key: "messages_savedFeedback" });
     composer.current?.focus({ preventScroll: true });
   }
 
@@ -232,18 +242,21 @@ export function Messages({ state, setState, notify }: MessagesProps) {
     <section
       ref={messagesRoot}
       className={`messages-layout card ${state.conversationOpen ? "chat-open" : ""}`}
-      aria-label="Messages"
+      aria-label={tr("messages_title")}
       data-message-role={state.role}
       data-conversation-id={state.selectedId}
       data-conversation-open={state.conversationOpen}
     >
-      <aside className="conversation-list" aria-label="Conversations">
+      <aside
+        className="conversation-list"
+        aria-label={tr("messages_conversations")}
+      >
         <div className="conversation-search">
           <Search size={17} />
           <input
             ref={inboxSearch}
-            placeholder="Search messages"
-            aria-label="Search messages"
+            placeholder={tr("messages_search")}
+            aria-label={tr("messages_search")}
             value={conversationQuery}
             maxLength={200}
             onChange={(event) => {
@@ -254,7 +267,7 @@ export function Messages({ state, setState, notify }: MessagesProps) {
         </div>
         <div className="conversation-filters">
           <select
-            aria-label="Conversation type"
+            aria-label={tr("messages_filterContext")}
             value={conversationContext}
             onChange={(event) => {
               const context = event.currentTarget
@@ -262,34 +275,43 @@ export function Messages({ state, setState, notify }: MessagesProps) {
               setState((current) => updateMessageView(current, { context }));
             }}
           >
-            <option>All conversations</option>
-            <option>Unread</option>
+            <option value="All conversations">
+              {tr(messageContextKeys["All conversations"])}
+            </option>
+            <option value="Unread">{tr(messageContextKeys.Unread)}</option>
             {categories.map((category) => (
-              <option key={category}>{category}</option>
+              <option key={category} value={category}>
+                {tr(messageContextKeys[category])}
+              </option>
             ))}
           </select>
           <select
-            aria-label="Sort messages"
+            aria-label={tr("messages_sort")}
             value={conversationSort}
             onChange={(event) => {
               const sort = event.currentTarget.value as MessageView["sort"];
               setState((current) => updateMessageView(current, { sort }));
             }}
           >
-            <option>Most recent</option>
-            <option>Unread first</option>
+            <option value="Most recent">
+              {tr(messageSortKeys["Most recent"])}
+            </option>
+            <option value="Unread first">
+              {tr(messageSortKeys["Unread first"])}
+            </option>
           </select>
           <button
             type="button"
             className="conversation-reset"
-            aria-label="Reset message search, conversation type and sort"
+            aria-label={tr("messages_resetFiltersLabel")}
             disabled={!hasFilters}
             onClick={() => {
               setState((current) => resetMessageView(current));
               inboxSearch.current?.focus({ preventScroll: true });
             }}
           >
-            <RotateCcw size={13} aria-hidden="true" /> Reset filters
+            <RotateCcw size={13} aria-hidden="true" />
+            {tr("messages_resetFilters")}
           </button>
         </div>
         {visibleConversations.map((conversation) => (
@@ -310,20 +332,24 @@ export function Messages({ state, setState, notify }: MessagesProps) {
               {conversation.initials}
             </span>
             <span>
-              <strong>{conversation.name}</strong>
-              <small>{conversation.property}</small>
-              <p>{preview(conversation)}</p>
+              <strong dir="auto">{conversation.name}</strong>
+              <small dir="auto">{conversation.property}</small>
+              <p dir="auto">{preview(conversation)}</p>
             </span>
-            <time>{conversation.time}</time>
+            <time>{messageTimeLabel(conversation.time, tr)}</time>
             {conversation.unread > 0 && (
-              <i aria-label={`${conversation.unread} unread messages`}>
+              <i
+                aria-label={tr("messages_unreadCount", {
+                  count: conversation.unread,
+                })}
+              >
                 {conversation.unread}
               </i>
             )}
           </button>
         ))}
         {visibleConversations.length === 0 && (
-          <div className="conversation-empty">No conversations match.</div>
+          <div className="conversation-empty">{tr("messages_noMatches")}</div>
         )}
       </aside>
       {selectedConversation ? (
@@ -332,7 +358,7 @@ export function Messages({ state, setState, notify }: MessagesProps) {
             <button
               className="mobile-chat-back"
               onClick={returnToInbox}
-              aria-label="Back to conversations"
+              aria-label={tr("messages_back")}
             >
               <ArrowLeft size={18} />
             </button>
@@ -344,20 +370,15 @@ export function Messages({ state, setState, notify }: MessagesProps) {
                 ref={conversationHeading}
                 tabIndex={-1}
                 data-conversation-id={selectedConversation.id}
+                dir="auto"
               >
                 {selectedConversation.name}
               </strong>
-              <small>{selectedConversation.property}</small>
+              <small dir="auto">{selectedConversation.property}</small>
             </div>
             <div className="chat-safety-actions">
-              <button
-                onClick={() =>
-                  notify(
-                    "Reporting is not connected in this prototype. No report has been submitted.",
-                  )
-                }
-              >
-                Report
+              <button onClick={() => notify(tr("messages_reportUnavailable"))}>
+                {tr("messages_report")}
               </button>
               <button
                 aria-pressed={selectedConversation.blocked}
@@ -372,14 +393,18 @@ export function Messages({ state, setState, notify }: MessagesProps) {
                       }),
                     ),
                   );
-                  setStatus(
-                    selectedConversation.blocked
-                      ? "Conversation unblocked in this tab."
-                      : "Conversation blocked in this tab. Messages to real people are not affected.",
-                  );
+                  setStatus({
+                    key: selectedConversation.blocked
+                      ? "messages_unblockedFeedback"
+                      : "messages_blockedFeedback",
+                  });
                 }}
               >
-                {selectedConversation.blocked ? "Unblock" : "Block"}
+                {tr(
+                  selectedConversation.blocked
+                    ? "messages_unblock"
+                    : "messages_block",
+                )}
               </button>
             </div>
           </header>
@@ -387,7 +412,9 @@ export function Messages({ state, setState, notify }: MessagesProps) {
             className="chat-body"
             ref={transcript}
             role="log"
-            aria-label={`Conversation with ${selectedConversation.name}`}
+            aria-label={tr("messages_conversationWith", {
+              name: selectedConversation.name,
+            })}
             aria-live="polite"
             aria-relevant="additions"
           >
@@ -395,23 +422,24 @@ export function Messages({ state, setState, notify }: MessagesProps) {
               <LockKeyhole size={16} />
               <span>
                 <strong>
-                  Sample inbox · {messageWorkspaceLabels[state.role]}
+                  {tr("messages_sampleInbox")} ·{" "}
+                  {tr(messageWorkspaceKeys[state.role])}
                 </strong>
-                <small>
-                  Messages are not delivered to anyone. Your messages and drafts
-                  are cleared when you reload this page.
-                </small>
+                <small>{tr("messages_sessionScope")}</small>
               </span>
             </div>
             {selectedConversation.messages.length === 0 ? (
               <div className="new-conversation-note">
                 <MessageCircle size={25} />
                 <strong>
-                  Start a conversation with {selectedConversation.name}
+                  {tr("messages_startConversation", {
+                    name: selectedConversation.name,
+                  })}
                 </strong>
                 <p>
-                  About {selectedConversation.property}. Write your first
-                  message below.
+                  {tr("messages_startHint", {
+                    property: selectedConversation.property,
+                  })}
                 </p>
               </div>
             ) : (
@@ -419,16 +447,21 @@ export function Messages({ state, setState, notify }: MessagesProps) {
                 {selectedConversation.messages.some(
                   (message) => !message.localOnly,
                 )
-                  ? "Sample history"
-                  : "Messages in this tab"}
+                  ? tr("messages_sampleHistory")
+                  : tr("messages_localHistory")}
               </span>
             )}
             {selectedConversation.messages.map((message) => (
               <div className={`message ${message.direction}`} key={message.id}>
-                <p>{message.text}</p>
+                <p dir="auto">{message.text}</p>
                 <time>
                   {message.time}
-                  {message.localOnly ? " · Not delivered" : " · Example"}
+                  {" · "}
+                  {tr(
+                    message.localOnly
+                      ? "messages_notDelivered"
+                      : "messages_example",
+                  )}
                 </time>
               </div>
             ))}
@@ -444,8 +477,8 @@ export function Messages({ state, setState, notify }: MessagesProps) {
               type="button"
               className="icon-button"
               disabled
-              title="File sharing is not connected"
-              aria-label="Attach a document (unavailable)"
+              title={tr("messages_attachmentUnavailable")}
+              aria-label={tr("messages_attachDocumentUnavailable")}
             >
               <Paperclip size={20} />
             </button>
@@ -453,13 +486,16 @@ export function Messages({ state, setState, notify }: MessagesProps) {
               ref={composer}
               placeholder={
                 selectedConversation.blocked
-                  ? "Unblock this conversation to write"
-                  : "Write a message…"
+                  ? tr("messages_blockedPlaceholder")
+                  : tr("messages_composePlaceholder")
               }
-              aria-label={`Message ${selectedConversation.name}`}
+              aria-label={tr("messages_messageName", {
+                name: selectedConversation.name,
+              })}
               aria-describedby="message-local-note"
               disabled={selectedConversation.blocked}
               value={selectedConversation.draft}
+              dir="auto"
               onChange={(event) => {
                 const draft = event.target.value;
                 setState((current) =>
@@ -482,7 +518,7 @@ export function Messages({ state, setState, notify }: MessagesProps) {
                 !selectedConversation.draft.trim() ||
                 selectedConversation.blocked
               }
-              aria-label="Send message in this tab"
+              aria-label={tr("messages_sendLocal")}
             >
               <Send size={18} />
             </button>
@@ -491,12 +527,12 @@ export function Messages({ state, setState, notify }: MessagesProps) {
       ) : (
         <div className="chat-empty">
           <MessageCircle size={27} />
-          <strong>No conversation selected</strong>
-          <span>Select a conversation to see messages.</span>
+          <strong>{tr("messages_noSelection")}</strong>
+          <span>{tr("messages_selectConversation")}</span>
         </div>
       )}
       <span className="messages-status" role="status">
-        {status}
+        {status ? tr(status.key, status.values) : null}
       </span>
     </section>
   );
