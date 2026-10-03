@@ -15,7 +15,10 @@ import { useDialogFocus } from "./useDialogFocus";
 import {
   actOnSpaceBooking,
   bookingTermsTotalCents,
+  discardSpaceBookingOperatorDraft,
+  hasSpaceBookingOperatorDraft,
   operatorSpaceVenues,
+  revealSpaceOperatorBooking,
   saveSpaceBookingProposal,
   scopedSpaceBookings,
   spaceBookingActionDraft,
@@ -50,6 +53,7 @@ type ActionDraft = ReturnType<typeof spaceBookingActionDraft>;
 type Terms = ManagedSpaceBooking["requestedTerms"];
 type FormErrors = Partial<Record<keyof ActionDraft, string>>;
 type DialogMode = "proposal" | "decline";
+type ActionDialog = { bookingId: string; mode: DialogMode };
 
 function phaseText(phase: ManagedSpaceBooking["phase"], copy: Copy) {
   return {
@@ -285,6 +289,72 @@ function valuesFromForm(
   return patch;
 }
 
+function operatorDraftLabels(copy: Copy): Record<keyof ActionDraft, string> {
+  return {
+    date: copy("Proposed date", "Data proposta"),
+    start: copy("Start time", "Hora de início"),
+    end: copy("End time", "Hora de fim"),
+    price: copy("Space price (€)", "Preço do espaço (€)"),
+    cleaningFee: copy("Cleaning fee (€)", "Taxa de limpeza (€)"),
+    deposit: copy("Deposit (€)", "Caução (€)"),
+    note: copy("Note or refusal reason", "Nota ou motivo da recusa"),
+  };
+}
+
+function UnavailableOperatorAction({
+  onClose,
+  copy,
+}: {
+  onClose: () => void;
+  copy: Copy;
+}) {
+  const dialog = useDialogFocus<HTMLDivElement>(onClose);
+  const id = useId();
+  return createPortal(
+    <div
+      className="modal-layer space-operator-modal-layer"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby={`${id}-title`}
+      tabIndex={-1}
+      ref={dialog}
+    >
+      <button
+        type="button"
+        className="modal-scrim"
+        tabIndex={-1}
+        aria-hidden="true"
+        onClick={onClose}
+      />
+      <section className="modal-card space-operator-modal">
+        <header>
+          <h2 id={`${id}-title`}>
+            {copy("Review the current record", "Reveja o registo atual")}
+          </h2>
+          <button
+            type="button"
+            className="icon-button"
+            aria-label={copy("Close", "Fechar")}
+            onClick={onClose}
+            data-dialog-initial-focus
+          >
+            <X size={20} />
+          </button>
+        </header>
+        <div className="modal-body">
+          <p className="space-operator-callout">
+            {copy(
+              "This action is no longer available for the record you opened. No unfinished values have been submitted.",
+              "Esta ação já não está disponível para o registo que abriu. Nenhum valor por concluir foi submetido.",
+            )}
+          </p>
+        </div>
+      </section>
+    </div>,
+    document.body,
+  );
+}
+
 function OperatorActionDialog({
   role,
   state,
@@ -333,12 +403,7 @@ function OperatorActionDialog({
     setIssue(null);
   };
   const labels: Record<keyof ActionDraft, string> = {
-    date: copy("Proposed date", "Data proposta"),
-    start: copy("Start time", "Hora de início"),
-    end: copy("End time", "Hora de fim"),
-    price: copy("Space price (€)", "Preço do espaço (€)"),
-    cleaningFee: copy("Cleaning fee (€)", "Taxa de limpeza (€)"),
-    deposit: copy("Deposit (€)", "Caução (€)"),
+    ...operatorDraftLabels(copy),
     note:
       mode === "decline"
         ? copy("Reason for declining", "Motivo da recusa")
@@ -589,7 +654,16 @@ function OperatorInbox({
   const detailHeading = useRef<HTMLHeadingElement>(null);
   const lastRow = useRef<HTMLButtonElement | null>(null);
   const { query, filter, selectedId } = spaceOperatorInboxView(state, role);
-  const [dialogMode, setDialogMode] = useState<DialogMode | null>(null);
+  const [actionDialog, setActionDialog] = useState<ActionDialog | null>(null);
+  const dialogTrigger = useRef<HTMLButtonElement | null>(null);
+  const draftFocusFrame = useRef<number | null>(null);
+  useEffect(
+    () => () => {
+      if (draftFocusFrame.current !== null)
+        cancelAnimationFrame(draftFocusFrame.current);
+    },
+    [],
+  );
   const [feedback, setFeedback] = useState("");
   const [actionIssue, setActionIssue] = useState<string | null>(null);
   const [, refreshCompletionEligibility] = useState(0);
@@ -632,6 +706,21 @@ function OperatorInbox({
         right.id.localeCompare(left.id, undefined, { numeric: true }),
     );
   const selected = records.find((record) => record.id === selectedId);
+  const dialogRecord = records.find(
+    (record) => record.id === actionDialog?.bookingId,
+  );
+  const dialogAvailable =
+    dialogRecord &&
+    !closed(dialogRecord) &&
+    (actionDialog?.mode === "proposal" ||
+      !spaceBookingActionIssue(state, role, dialogRecord.id, {
+        type: "decline-request",
+        note: "Operator decision",
+      }));
+  const privateDraft =
+    selected && hasSpaceBookingOperatorDraft(state, role, selected.id)
+      ? spaceBookingActionDraft(state, role, selected.id)
+      : null;
   const showCompletion = Boolean(selected?.agreedTerms && !closed(selected));
   const completionEndAt =
     showCompletion && selected?.agreedTerms
@@ -695,8 +784,55 @@ function OperatorInbox({
         : heading.current?.focus(),
     );
   };
-  const showSaved = (mode: DialogMode) => {
-    setDialogMode(null);
+  const focusDraftRecord = (
+    bookingId: string,
+    trigger: HTMLButtonElement | null,
+  ) => {
+    if (draftFocusFrame.current !== null)
+      cancelAnimationFrame(draftFocusFrame.current);
+    draftFocusFrame.current = requestAnimationFrame(() => {
+      draftFocusFrame.current = null;
+      const active = document.activeElement;
+      if (
+        active &&
+        active !== document.body &&
+        active !== document.documentElement &&
+        active !== trigger
+      )
+        return;
+      const target = detailHeading.current;
+      if (
+        target?.isConnected &&
+        target.dataset.bookingId === bookingId &&
+        !target.closest('[hidden], [inert], [aria-hidden="true"]') &&
+        target.getClientRects().length > 0 &&
+        getComputedStyle(target).visibility === "visible" &&
+        !document.querySelector('[role="dialog"], dialog[open]')
+      )
+        target.focus();
+    });
+  };
+  const discardDraft = (trigger: HTMLButtonElement) => {
+    if (!selected || !privateDraft) return;
+    const bookingId = selected.id;
+    setState((current) =>
+      discardSpaceBookingOperatorDraft(current, role, bookingId),
+    );
+    setFeedback(
+      copy(
+        "Private response draft discarded. Recorded proposals and agreements are unchanged.",
+        "Rascunho privado da resposta descartado. As propostas e os acordos registados permanecem inalterados.",
+      ),
+    );
+    focusDraftRecord(bookingId, trigger);
+  };
+  const showSaved = (mode: DialogMode, bookingId: string) => {
+    setActionDialog(null);
+    setState((current) =>
+      spaceOperatorInboxView(current, role).selectedId === bookingId
+        ? current
+        : revealSpaceOperatorBooking(current, role, bookingId),
+    );
     setActionIssue(null);
     setFeedback(
       mode === "proposal"
@@ -709,7 +845,7 @@ function OperatorInbox({
             "Recusa registada neste separador. O pedido original e o histórico continuam disponíveis.",
           ),
     );
-    requestAnimationFrame(() => detailHeading.current?.focus());
+    focusDraftRecord(bookingId, dialogTrigger.current);
   };
   if (!venues.length)
     return (
@@ -983,6 +1119,77 @@ function OperatorInbox({
                 )}
               </BookingTerms>
             )}
+            {privateDraft && actionDialog?.bookingId !== selected.id && (
+              <section
+                className="space-operator-private-draft"
+                aria-labelledby={`${id}-private-draft-title`}
+              >
+                <h4 id={`${id}-private-draft-title`}>
+                  {copy(
+                    "Private response draft",
+                    "Rascunho privado da resposta",
+                  )}
+                </h4>
+                <p>
+                  {copy(
+                    "Unfinished terms and notes stay private in your operator workspace in this tab. Reloading clears them.",
+                    "As condições e notas por concluir permanecem privadas na sua área de operador neste separador. Recarregar a página apaga-as.",
+                  )}
+                </p>
+                {!canPropose && (
+                  <p>
+                    {copy(
+                      "This record is closed. You can inspect, copy or discard these values. They cannot change recorded proposals or agreements.",
+                      "Este registo está fechado. Pode consultar, copiar ou descartar estes valores. Não podem alterar as propostas ou os acordos registados.",
+                    )}
+                  </p>
+                )}
+                <details>
+                  <summary>
+                    {copy("View unfinished values", "Ver valores por concluir")}
+                  </summary>
+                  <dl className="space-operator-facts">
+                    {(
+                      [
+                        "date",
+                        "start",
+                        "end",
+                        "price",
+                        "cleaningFee",
+                        "deposit",
+                        "note",
+                      ] as const
+                    ).map((field) => (
+                      <div
+                        key={field}
+                        className={
+                          field === "note"
+                            ? "space-operator-field-wide"
+                            : undefined
+                        }
+                      >
+                        <dt>{operatorDraftLabels(copy)[field]}</dt>
+                        <dd dir="auto">
+                          {privateDraft[field] === ""
+                            ? copy("Not entered", "Por preencher")
+                            : privateDraft[field]}
+                        </dd>
+                      </div>
+                    ))}
+                  </dl>
+                </details>
+                <button
+                  type="button"
+                  className="text-button"
+                  onClick={(event) => discardDraft(event.currentTarget)}
+                >
+                  {copy(
+                    "Discard response draft",
+                    "Descartar rascunho da resposta",
+                  )}
+                </button>
+              </section>
+            )}
             {acceptIssue && (
               <p className="space-operator-callout" id={`${id}-accept-issue`}>
                 {issueText(acceptIssue, copy)}
@@ -1096,23 +1303,36 @@ function OperatorInbox({
                 <button
                   type="button"
                   className="button button-secondary"
-                  onClick={() => {
+                  onClick={(event) => {
                     setActionIssue(null);
-                    setDialogMode("proposal");
+                    dialogTrigger.current = event.currentTarget;
+                    setActionDialog({
+                      bookingId: selected.id,
+                      mode: "proposal",
+                    });
                   }}
                 >
-                  {latestProposal?.status === "pending"
-                    ? copy("Revise proposal", "Rever proposta")
-                    : copy("Propose terms", "Propor condições")}
+                  {privateDraft
+                    ? copy(
+                        "Resume proposal draft",
+                        "Retomar rascunho da proposta",
+                      )
+                    : latestProposal?.status === "pending"
+                      ? copy("Revise proposal", "Rever proposta")
+                      : copy("Propose terms", "Propor condições")}
                 </button>
               )}
               {!declineIssue && (
                 <button
                   type="button"
                   className="text-button"
-                  onClick={() => {
+                  onClick={(event) => {
                     setActionIssue(null);
-                    setDialogMode("decline");
+                    dialogTrigger.current = event.currentTarget;
+                    setActionDialog({
+                      bookingId: selected.id,
+                      mode: "decline",
+                    });
                   }}
                 >
                   {copy("Decline request", "Recusar pedido")}
@@ -1187,18 +1407,23 @@ function OperatorInbox({
           </div>
         )}
       </div>
-      {dialogMode && selected && !closed(selected) && (
+      {actionDialog && dialogRecord && dialogAvailable ? (
         <OperatorActionDialog
-          key={`${selected.id}-${dialogMode}`}
+          key={`${role}-${actionDialog.bookingId}-${actionDialog.mode}`}
           role={role}
           state={state}
           setState={setState}
-          record={selected}
-          mode={dialogMode}
-          onClose={() => setDialogMode(null)}
-          onSaved={showSaved}
+          record={dialogRecord}
+          mode={actionDialog.mode}
+          onClose={() => setActionDialog(null)}
+          onSaved={(mode) => showSaved(mode, actionDialog.bookingId)}
         />
-      )}
+      ) : actionDialog ? (
+        <UnavailableOperatorAction
+          copy={copy}
+          onClose={() => setActionDialog(null)}
+        />
+      ) : null}
     </section>
   );
 }

@@ -765,8 +765,19 @@ assert.equal(
 assert.equal(proposal.status, "pending");
 assert.equal(proposal.note, proposalDraft.note.trim());
 assert.equal(item(customCreated.state, customId).proposals.length, 0);
+const unchangedProposalDraft = updateSpaceBookingActionDraft(
+  proposed,
+  "spaceOperator",
+  customId,
+  { note: proposalDraft.note },
+);
 assert.equal(
-  saveSpaceBookingProposal(proposed, "spaceOperator", customId, now).issue,
+  saveSpaceBookingProposal(
+    unchangedProposalDraft,
+    "spaceOperator",
+    customId,
+    now,
+  ).issue,
   "noChange",
 );
 assert.equal(
@@ -1247,7 +1258,7 @@ assert.equal(
   proposed,
 );
 const customerNote = updateSpaceBookingActionDraft(
-  proposed,
+  unchangedProposalDraft,
   "tenant",
   customId,
   { note: "I need to cancel" },

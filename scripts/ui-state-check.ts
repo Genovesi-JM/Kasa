@@ -12,6 +12,7 @@ import "./bookings-check";
 import "./space-schedule-check";
 import "./space-booking-notification-check";
 import "./space-booking-completion-check";
+import "./space-operator-draft-check";
 import "./discover-state-check";
 import "./discover-history-check";
 import "./spaces-discovery-state-check";

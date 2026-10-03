@@ -1169,6 +1169,34 @@ export function spaceBookingCounts(state: SpaceBookingsState, role: Role) {
     declined: bookings.filter((booking) => booking.phase === "Declined").length,
   };
 }
+/** Private operator work remains available after a booking leaves an editable phase. */
+export function hasSpaceBookingOperatorDraft(
+  state: SpaceBookingsState,
+  role: Role,
+  id: string,
+): boolean {
+  const booking = state.bookings.find((item) => item.id === id);
+  return Boolean(
+    booking &&
+    operatorOwns(booking, role) &&
+    Object.hasOwn(state.actionDrafts.spaceOperator, id),
+  );
+}
+
+export function discardSpaceBookingOperatorDraft(
+  state: SpaceBookingsState,
+  role: Role,
+  id: string,
+): SpaceBookingsState {
+  if (!hasSpaceBookingOperatorDraft(state, role, id)) return state;
+  const operatorDrafts = { ...state.actionDrafts.spaceOperator };
+  delete operatorDrafts[id];
+  return {
+    ...state,
+    actionDrafts: { ...state.actionDrafts, spaceOperator: operatorDrafts },
+  };
+}
+
 export function spaceBookingActionDraft(
   state: SpaceBookingsState,
   role: Role,
@@ -1188,7 +1216,7 @@ export function spaceBookingActionDraft(
   );
   if (!booking) return blank;
   const saved = state.actionDrafts[role][id];
-  if (saved) return saved;
+  if (saved) return { ...saved };
   const terms =
     booking.proposal?.proposedTerms ??
     booking.agreedTerms ??
@@ -1336,7 +1364,14 @@ export function saveSpaceBookingProposal(
     phase: "Proposed" as const,
     proposals: [...proposals, proposal],
   };
-  return { state: replaceBooking(state, updated), errors: {} };
+  return {
+    state: discardSpaceBookingOperatorDraft(
+      replaceBooking(state, updated),
+      role,
+      id,
+    ),
+    errors: {},
+  };
 }
 function confirmedTermsIssue(
   state: SpaceBookingsState,
@@ -1421,13 +1456,17 @@ export function spaceBookingActionIssue(
   if (action.type === "keep-original") return null;
   return confirmedTermsIssue(state, booking, proposal.proposedTerms, now);
 }
-function clearActionNote(
+function clearSubmittedActionNote(
   state: SpaceBookingsState,
   role: Role,
   id: string,
+  submittedNote: string | undefined,
 ): SpaceBookingsState {
   const draft = state.actionDrafts[role][id];
-  return draft
+  return draft &&
+    draft.note !== "" &&
+    typeof submittedNote === "string" &&
+    draft.note.trim() === submittedNote.trim()
     ? {
         ...state,
         actionDrafts: {
@@ -1512,7 +1551,9 @@ export function actOnSpaceBooking(
       ),
     };
   }
-  let next = clearActionNote(replaceBooking(state, updated), role, id);
+  let next = replaceBooking(state, updated);
+  if (action.type === "decline-request" || action.type === "cancel")
+    next = clearSubmittedActionNote(next, role, id, action.note);
   const currentView = spaceBookingView(next, role);
   const projected = next.bookings.find((item) => item.id === id)!;
   const filter: SpaceBookingFilter =
