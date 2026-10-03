@@ -24,6 +24,31 @@ export interface RentTransfer {
   note: string;
 }
 
+export interface RentRecordSnapshot {
+  readonly status: RentStatus;
+  readonly transfer?: Readonly<RentTransfer>;
+  readonly correctionNote: string;
+}
+
+export interface RentRecordChange {
+  readonly source: "local";
+  readonly actor: "tenant" | "landlord";
+  readonly action:
+    | "transfer-recorded"
+    | "transfer-updated"
+    | "correction-requested"
+    | "confirmed";
+  readonly before: RentRecordSnapshot;
+  readonly after: RentRecordSnapshot;
+}
+
+export interface RentRecordActivity {
+  id: string;
+  label: string;
+  at: string;
+  change?: RentRecordChange;
+}
+
 export interface RentRecord {
   id: string;
   period: string;
@@ -39,7 +64,7 @@ export interface RentRecord {
   correctionNote: string;
   updatedAt: string;
   confirmedAt?: string;
-  activity: Array<{ id: string; label: string; at: string }>;
+  activity: RentRecordActivity[];
 }
 
 export interface RentRecordState {
@@ -263,14 +288,35 @@ export function canRecordRentTransfer(record: RentRecord, role: Role): boolean {
   );
 }
 
+/** Keep known values detached from both the current record and later revisions. */
+function rentRecordSnapshot(record: RentRecord): RentRecordSnapshot {
+  return {
+    status: record.status,
+    ...(record.transfer
+      ? {
+          transfer: {
+            amountCents: record.transfer.amountCents,
+            transferredOn: record.transfer.transferredOn,
+            reference: record.transfer.reference,
+            note: record.transfer.note,
+          },
+        }
+      : {}),
+    correctionNote: record.correctionNote,
+  };
+}
+
 function replaceRentRecord(
   state: RentRecordState,
   record: RentRecord,
+  nextRecord: RentRecord,
   label: string,
+  actor: RentRecordChange["actor"],
+  action: RentRecordChange["action"],
   now: Date,
 ): RentRecordState {
   const updated: RentRecord = {
-    ...record,
+    ...nextRecord,
     updatedAt: now.toISOString(),
     activity: [
       ...record.activity,
@@ -278,6 +324,13 @@ function replaceRentRecord(
         id: `${record.id}-${record.activity.length}`,
         label,
         at: now.toISOString(),
+        change: {
+          source: "local",
+          actor,
+          action,
+          before: rentRecordSnapshot(record),
+          after: rentRecordSnapshot(nextRecord),
+        },
       },
     ],
   };
@@ -306,6 +359,7 @@ export function recordRentTransfer(
   const amountCents = parseRentAmount(draft.amount)!;
   return replaceRentRecord(
     state,
+    record,
     {
       ...record,
       transfer: {
@@ -320,6 +374,8 @@ export function recordRentTransfer(
     record.transfer
       ? "Tenant updated transfer details in this tab"
       : "Tenant recorded transfer details in this tab",
+    "tenant",
+    record.transfer ? "transfer-updated" : "transfer-recorded",
     now,
   );
 }
@@ -351,6 +407,7 @@ export function confirmRentRecord(
   if (!record || !canConfirmRentRecord(record, role)) return state;
   return replaceRentRecord(
     state,
+    record,
     {
       ...record,
       status: "Confirmed",
@@ -358,6 +415,8 @@ export function confirmRentRecord(
       correctionNote: "",
     },
     "Owner confirmed this record in the sample workspace",
+    "landlord",
+    "confirmed",
     now,
   );
 }
@@ -380,8 +439,11 @@ export function requestRentCorrection(
     return state;
   return replaceRentRecord(
     state,
+    record,
     { ...record, status: "Needs correction", correctionNote },
     "Owner recorded a correction request in this tab",
+    "landlord",
+    "correction-requested",
     now,
   );
 }

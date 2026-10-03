@@ -48,6 +48,7 @@ import {
   visibleRentRecords,
   type RentRecord,
   type RentRecordFilters,
+  type RentRecordSnapshot,
   type RentRecordState,
   type RentTransferDraft,
   type RentTransferIssues,
@@ -243,6 +244,47 @@ function TransferForm({
         </button>
       </div>
     </form>
+  );
+}
+
+function RentHistorySnapshot({ snapshot }: { snapshot: RentRecordSnapshot }) {
+  const { tr, locale } = useOperationsI18n();
+  const { money, dateLabel } = rentFormatters(locale);
+  const field = (label: string, value: ReactNode, wide = false) => (
+    <div className={wide ? "rent-history-value-wide" : undefined}>
+      <dt>{label}</dt>
+      <dd>{value}</dd>
+    </div>
+  );
+  return (
+    <dl className="rent-history-values">
+      {field(tr("rent_status"), tr(rentStatusKeys[snapshot.status]))}
+      {snapshot.transfer ? (
+        <>
+          {field(
+            tr("rent_recordedAmount"),
+            money(snapshot.transfer.amountCents),
+          )}
+          {field(
+            tr("rent_transferDate"),
+            dateLabel(snapshot.transfer.transferredOn),
+          )}
+          {field(tr("rent_reference"), snapshot.transfer.reference, true)}
+          {field(
+            tr("rent_note"),
+            snapshot.transfer.note || tr("rent_historyEmpty"),
+            true,
+          )}
+        </>
+      ) : (
+        field(tr("rent_recordedTransfer"), tr("rent_noTransfer"))
+      )}
+      {field(
+        tr("rent_correctionNote"),
+        snapshot.correctionNote || tr("rent_historyEmpty"),
+        true,
+      )}
+    </dl>
   );
 }
 
@@ -546,6 +588,9 @@ function RentRecordDialog({
                 aria-labelledby={`${id}-history-title`}
               >
                 <h3 id={`${id}-history-title`}>{tr("rent_history")}</h3>
+                {record.activity.some((entry) => entry.change) && (
+                  <p className="rent-muted">{tr("rent_historyScope")}</p>
+                )}
                 <ol className="rent-record-history">
                   {record.activity.map((entry) => (
                     <li key={entry.id}>
@@ -556,6 +601,18 @@ function RentRecordDialog({
                           timeStyle: "short",
                         })}
                       </time>
+                      {entry.change && (
+                        <div className="rent-history-change">
+                          <h4>{tr("rent_historyAfter")}</h4>
+                          <RentHistorySnapshot snapshot={entry.change.after} />
+                          <details className="rent-history-before">
+                            <summary>{tr("rent_historyBefore")}</summary>
+                            <RentHistorySnapshot
+                              snapshot={entry.change.before}
+                            />
+                          </details>
+                        </div>
+                      )}
                     </li>
                   ))}
                 </ol>

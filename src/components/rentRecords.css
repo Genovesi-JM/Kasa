@@ -310,6 +310,62 @@
   color: #768479;
   font-size: 11px;
 }
+.rent-history-change {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+  margin-top: 10px;
+  padding: 12px;
+  border: 1px solid #e0e8e1;
+  border-radius: 8px;
+  background: #f8faf6;
+}
+.rent-history-change h4 {
+  margin: 0;
+  color: #355342;
+  font-size: 12px;
+}
+.rent-history-values {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 9px 14px;
+  min-width: 0;
+  margin: 0;
+}
+.rent-history-values > div {
+  min-width: 0;
+}
+.rent-history-values dt {
+  color: #607769;
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+.rent-history-values dd {
+  margin: 2px 0 0;
+  color: #203e2e;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.rent-history-value-wide {
+  grid-column: 1 / -1;
+}
+.rent-history-before {
+  min-width: 0;
+  padding-top: 10px;
+  border-top: 1px solid #e0e8e1;
+}
+.rent-history-before > summary {
+  color: #355342;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+.rent-history-before[open] > summary {
+  margin-bottom: 12px;
+}
+.rent-history-before > summary:focus-visible {
+  outline: 3px solid #36885a;
+  outline-offset: 3px;
+}
 .rent-records-page button:focus-visible,
 .rent-record-layer button:focus-visible,
 .rent-managed-filters select:focus-visible,
