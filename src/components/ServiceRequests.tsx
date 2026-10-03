@@ -39,9 +39,11 @@ import {
   serviceRequestActionIssue,
   serviceRequestCounts,
   serviceRequestDraft,
+  serviceRequestView,
   updateServiceActionNote,
   updateServiceQuoteDraft,
   updateServiceRequestDraft,
+  updateServiceRequestView,
   visibleServiceRequests,
   workspaceServiceProvider,
   type ServiceIssue,
@@ -784,9 +786,7 @@ function historyText(
 function ServiceRecordBoard({ role, state, setState }: ServiceRecordProps) {
   const { copy, locale } = useServiceCopy();
   const id = useId();
-  const [query, setQuery] = useState("");
-  const [filter, setFilter] = useState<"active" | "history" | "all">("active");
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const { query, filter, selectedId } = serviceRequestView(state, role);
   const [composerOpen, setComposerOpen] = useState(false);
   const [quoteRequestId, setQuoteRequestId] = useState<string | null>(null);
   const [feedback, setFeedback] = useState("");
@@ -887,28 +887,20 @@ function ServiceRecordBoard({ role, state, setState }: ServiceRecordProps) {
         "Pedido recusado neste separador. O histórico está aberto com o motivo registado.",
       ),
       cancel: copy(
-        "Request cancelled in this tab. The record remains in History.",
-        "Pedido cancelado neste separador. O registo permanece no histórico.",
+        "Request cancelled in this tab. History is open with the recorded reason.",
+        "Pedido cancelado neste separador. O histórico está aberto com o motivo registado.",
       ),
       start: copy(
         "Work marked in progress in this tab.",
         "Trabalho marcado como em curso neste separador.",
       ),
       complete: copy(
-        "Completion and your note recorded in this tab.",
-        "Conclusão e nota registadas neste separador.",
+        "Completion and your note recorded in this tab. History is open with this request.",
+        "Conclusão e nota registadas neste separador. O histórico está aberto com este pedido.",
       ),
     };
     setFeedback(completed[action.type]);
-    if (action.type === "decline-request") {
-      setFilter("history");
-      setSelectedId(selected.id);
-    }
-    requestAnimationFrame(() =>
-      action.type === "cancel" || action.type === "complete"
-        ? heading.current?.focus()
-        : detailHeading.current?.focus(),
-    );
+    requestAnimationFrame(() => detailHeading.current?.focus());
   };
   if (!isServiceCustomer(role) && !provider)
     return (
@@ -991,9 +983,13 @@ function ServiceRecordBoard({ role, state, setState }: ServiceRecordProps) {
               "Search requests or people",
               "Pesquisar pedidos ou pessoas",
             )}
+            maxLength={200}
             value={query}
             onChange={(event) => {
-              setQuery(event.target.value);
+              const value = event.currentTarget.value;
+              setState((current) =>
+                updateServiceRequestView(current, role, { query: value }),
+              );
               setActionError(null);
             }}
           />
@@ -1012,7 +1008,9 @@ function ServiceRecordBoard({ role, state, setState }: ServiceRecordProps) {
               aria-pressed={filter === value}
               className={filter === value ? "active" : ""}
               onClick={() => {
-                setFilter(value);
+                setState((current) =>
+                  updateServiceRequestView(current, role, { filter: value }),
+                );
                 setActionError(null);
               }}
             >
@@ -1075,7 +1073,11 @@ function ServiceRecordBoard({ role, state, setState }: ServiceRecordProps) {
                 className={`card service-record-row ${selected?.id === record.id ? "selected" : ""}`}
                 aria-pressed={selected?.id === record.id}
                 onClick={() => {
-                  setSelectedId(record.id);
+                  setState((current) =>
+                    updateServiceRequestView(current, role, {
+                      selectedId: record.id,
+                    }),
+                  );
                   setActionError(null);
                   setFeedback("");
                   requestAnimationFrame(() => detailHeading.current?.focus());
@@ -1415,11 +1417,8 @@ function ServiceRecordBoard({ role, state, setState }: ServiceRecordProps) {
           state={state}
           setState={setState}
           onClose={() => setComposerOpen(false)}
-          onSaved={(requestId) => {
+          onSaved={() => {
             setComposerOpen(false);
-            setSelectedId(requestId);
-            setFilter("active");
-            setQuery("");
             setFeedback(
               copy(
                 "Service request recorded in this tab.",

@@ -85,11 +85,19 @@ export interface ServiceRequestRecord {
   createdAt: string;
   updatedAt: string;
 }
+export type ServiceRequestFilter = "active" | "history" | "all";
+export interface ServiceRequestView {
+  query: string;
+  filter: ServiceRequestFilter;
+  selectedId: string | null;
+}
+type ServiceRequestWorkspaceRole = ServiceCustomerRole | "provider";
 export interface ServiceRequestState {
   records: ServiceRequestRecord[];
   drafts: Record<ServiceCustomerRole, Record<string, ServiceRequestDraft>>;
   quoteDrafts: Record<string, ServiceQuoteDraft>;
   actionNotes: Record<Role, Record<string, string>>;
+  views: Record<ServiceRequestWorkspaceRole, ServiceRequestView>;
   nextId: number;
 }
 export type ServiceIssue =
@@ -327,12 +335,16 @@ export function saveServiceRequest(
   const drafts = { ...state.drafts[role] };
   delete drafts[serviceRequestDraftKey(providerName)];
   return {
-    state: {
-      ...state,
-      records: [record, ...state.records],
-      drafts: { ...state.drafts, [role]: drafts },
-      nextId: state.nextId + 1,
-    },
+    state: updateServiceRequestView(
+      {
+        ...state,
+        records: [record, ...state.records],
+        drafts: { ...state.drafts, [role]: drafts },
+        nextId: state.nextId + 1,
+      },
+      role,
+      { query: "", filter: "active", selectedId: id },
+    ),
     requestId: id,
     errors: {},
   };
@@ -372,6 +384,82 @@ export function visibleServiceRequests(
     (record) =>
       customerOwnsRequest(record, role) || providerOwnsRequest(record, role),
   );
+}
+function defaultServiceRequestView(): ServiceRequestView {
+  return { query: "", filter: "active", selectedId: null };
+}
+function isServiceRequestWorkspace(
+  role: Role,
+): role is ServiceRequestWorkspaceRole {
+  return isServiceCustomer(role) || role === "provider";
+}
+function isServiceRequestFilter(value: unknown): value is ServiceRequestFilter {
+  return value === "active" || value === "history" || value === "all";
+}
+export function serviceRequestView(
+  state: ServiceRequestState,
+  role: Role,
+): ServiceRequestView {
+  if (!isServiceRequestWorkspace(role)) return defaultServiceRequestView();
+  const view = state.views[role];
+  return {
+    query: view.query,
+    filter: view.filter,
+    selectedId: visibleServiceRequests(state, role).some(
+      (record) => record.id === view.selectedId,
+    )
+      ? view.selectedId
+      : null,
+  };
+}
+export function updateServiceRequestView(
+  state: ServiceRequestState,
+  role: Role,
+  patch: Partial<ServiceRequestView>,
+): ServiceRequestState {
+  if (!isServiceRequestWorkspace(role) || !patch || typeof patch !== "object")
+    return state;
+  const current = serviceRequestView(state, role);
+  const next = { ...current };
+  if (typeof patch.query === "string") next.query = patch.query.slice(0, 200);
+  if (isServiceRequestFilter(patch.filter)) next.filter = patch.filter;
+  if (
+    patch.selectedId === null ||
+    (typeof patch.selectedId === "string" &&
+      visibleServiceRequests(state, role).some(
+        (record) => record.id === patch.selectedId,
+      ))
+  )
+    next.selectedId = patch.selectedId;
+  if (
+    next.query === current.query &&
+    next.filter === current.filter &&
+    next.selectedId === current.selectedId
+  )
+    return state;
+  return { ...state, views: { ...state.views, [role]: next } };
+}
+export function selectServiceRequest(
+  state: ServiceRequestState,
+  role: Role,
+  id: string,
+): ServiceRequestState {
+  if (!isServiceRequestWorkspace(role)) return state;
+  const record = visibleServiceRequests(state, role).find(
+    (item) => item.id === id,
+  );
+  if (!record) return state;
+  const current = serviceRequestView(state, role);
+  return updateServiceRequestView(state, role, {
+    query: "",
+    filter:
+      current.filter === "all"
+        ? "all"
+        : isTerminalServiceRequest(record.status)
+          ? "history"
+          : "active",
+    selectedId: record.id,
+  });
 }
 export function isTerminalServiceRequest(
   status: ServiceRequestStatus,
@@ -647,13 +735,20 @@ export function actOnServiceRequest(
           }
         : quote,
     );
-  return {
+  const next: ServiceRequestState = {
     ...replaceServiceRequest(state, updated),
     actionNotes: {
       ...state.actionNotes,
       [role]: { ...state.actionNotes[role], [id]: "" },
     },
   };
+  return isTerminalServiceRequest(updated.status)
+    ? updateServiceRequestView(next, role, {
+        query: "",
+        filter: "history",
+        selectedId: id,
+      })
+    : next;
 }
 export function updateServiceActionNote(
   state: ServiceRequestState,
@@ -693,6 +788,11 @@ export function createInitialServiceRequestState(
       provider: {},
       spaceOperator: {},
       admin: {},
+    },
+    views: {
+      tenant: defaultServiceRequestView(),
+      landlord: defaultServiceRequestView(),
+      provider: defaultServiceRequestView(),
     },
     nextId: 1,
   };
@@ -746,9 +846,16 @@ export function createInitialServiceRequestState(
       now,
     ).state;
   }
-  state.records = state.records.map((record) => ({
-    ...record,
-    source: "sample",
-  }));
-  return state;
+  return {
+    ...state,
+    records: state.records.map((record) => ({
+      ...record,
+      source: "sample",
+    })),
+    views: {
+      tenant: defaultServiceRequestView(),
+      landlord: defaultServiceRequestView(),
+      provider: defaultServiceRequestView(),
+    },
+  };
 }
