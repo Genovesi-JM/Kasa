@@ -297,6 +297,50 @@ for (const endpoint of endpoints) {
   }
 }
 
+// Empty arrays are valid catalogue data. Preserve them in both modes so clients
+// can render their empty states instead of substituting an unrelated sample.
+const venueWithoutUnits: SpaceVenue = {
+  ...structuredClone(spaceVenues[0]),
+  spaces: [],
+};
+const venueWithoutSlots: SpaceVenue = {
+  ...structuredClone(spaceVenues[0]),
+  spaces: [{ ...structuredClone(spaceVenues[0].spaces[0]), slots: [] }],
+};
+const emptyCases = [
+  ...endpoints.map((endpoint) => ({
+    name: `${endpoint.name}: empty page`,
+    endpoint: endpoint.name,
+    load: endpoint.load,
+    response: { items: [], total: 0, nextOffset: null },
+    items: [] as Item[],
+  })),
+  ...[venueWithoutUnits, venueWithoutSlots].map((venue) => ({
+    name: venue.spaces.length ? "unit without slots" : "venue without units",
+    endpoint: "spaces",
+    load: (client: Catalogue) => client.listSpaces,
+    response: page(venue),
+    items: expected(venue),
+  })),
+];
+for (const example of emptyCases) {
+  for (const fresh of [false, true]) {
+    const { client, requests } = await fixture();
+    const load = example.load(client);
+    const pending = fresh ? load({ fresh: true }) : load();
+    captured(requests[0], example.endpoint, fresh);
+    requests[0].resolve(example.response);
+    assert.deepEqual(
+      await pending,
+      example.items,
+      `${example.name} remains valid in ${fresh ? "fresh" : "browse"} mode`,
+    );
+    if (!fresh) assert.equal(load(), pending);
+    assert.equal(requests.length, 1);
+    passed++;
+  }
+}
+
 // Failures and probes on one endpoint cannot invalidate the other catalogue.
 {
   const { client, requests } = await fixture();

@@ -3461,13 +3461,13 @@ function SpacesMarketplace({
   const space =
     venue.spaces.find((item) => item.id === spaceId) ?? venue.spaces[0];
   const slot =
-    space.slots.find((item) => item.status !== "Booked") ?? space.slots[0];
+    space?.slots.find((item) => item.status !== "Booked") ?? space?.slots[0];
   useEffect(() => {
     if (!appConfig.apiUrl) return;
     let active = true;
     void listSpaces()
       .then((items) => {
-        if (!active || items.length === 0) return;
+        if (!active) return;
         setCatalogVenues(items);
         // Catalogue refreshes must not replace a venue or request already selected.
       })
@@ -3590,7 +3590,7 @@ function SpacesMarketplace({
   const resetSpaceFilters = onResetFilters;
   const openVenue = onOpenVenue;
   const requestComposer =
-    requestOpen && canRequest ? (
+    requestOpen && canRequest && space ? (
       <SpaceBookingRequest
         role={role}
         state={bookingsState}
@@ -3612,7 +3612,7 @@ function SpacesMarketplace({
         <button className="back-link" onClick={onBrowse}>
           <ArrowLeft size={16} /> {copy("Back to spaces", "Voltar aos espaços")}
         </button>
-        <SpaceVenueShareButton venue={venue} spaceId={space.id} />
+        <SpaceVenueShareButton venue={venue} spaceId={space?.id} />
         <div className="space-gallery">
           <img src={venue.gallery[0]} alt={venue.name} />
           <img src={venue.gallery[1]} alt="" />
@@ -3753,15 +3753,26 @@ function SpacesMarketplace({
                 "Registe a data, o horário e o tamanho do grupo. Reveja qualquer alteração proposta antes de a aceitar.",
               )}
             </p>
-            <p>
-              <strong>{space.name}</strong> · {space.activity}
-            </p>
+            {space ? (
+              <p>
+                <strong>{space.name}</strong> · {space.activity}
+              </p>
+            ) : (
+              <p id="spaces-no-individual-spaces">
+                {tr("space.noIndividualSpaces")}
+              </p>
+            )}
             <button
               className="button"
               type="button"
-              disabled={!canRequest}
+              disabled={!canRequest || !space}
               aria-describedby={
-                !canRequest ? "spaces-request-workspace-hint" : undefined
+                [
+                  !space ? "spaces-no-individual-spaces" : null,
+                  !canRequest ? "spaces-request-workspace-hint" : null,
+                ]
+                  .filter(Boolean)
+                  .join(" ") || undefined
               }
               onClick={() => setRequestOpen(true)}
             >
@@ -4051,18 +4062,30 @@ function SpacesMarketplace({
       {visibleVenues.length === 0 && (
         <div className="empty-state">
           <Search size={28} />
-          <h3>{tr("space.noResults")}</h3>
-          <p>{tr("space.noResultsNote")}</p>
-          <ActionButton
-            secondary
-            onClick={() => {
-              resetSpaceFilters();
-              setQuery("");
-              setCategory("All");
-            }}
-          >
-            {tr("common.reset")}
-          </ActionButton>
+          <h3>
+            {tr(
+              catalogVenues.length ? "space.noResults" : "space.emptyCatalogue",
+            )}
+          </h3>
+          <p>
+            {tr(
+              catalogVenues.length
+                ? "space.noResultsNote"
+                : "space.emptyCatalogueNote",
+            )}
+          </p>
+          {catalogVenues.length > 0 && (
+            <ActionButton
+              secondary
+              onClick={() => {
+                resetSpaceFilters();
+                setQuery("");
+                setCategory("All");
+              }}
+            >
+              {tr("common.reset")}
+            </ActionButton>
+          )}
         </div>
       )}
       <section className="ecosystem-strip card">
