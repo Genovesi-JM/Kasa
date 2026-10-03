@@ -124,6 +124,10 @@ import {
   reconcileWorkNotifications,
 } from "./components/workNotifications";
 import {
+  openServiceNotification,
+  reconcileServiceNotifications,
+} from "./components/serviceNotifications";
+import {
   createInitialApplicationState,
   submitRentalApplication,
   tenantApplicationForProperty,
@@ -4995,17 +4999,24 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
     createInitialNotificationState,
   );
   const notificationState = useMemo(
-    () => reconcileWorkNotifications(savedNotificationState, workState),
-    [savedNotificationState, workState],
+    () =>
+      reconcileServiceNotifications(
+        reconcileWorkNotifications(savedNotificationState, workState),
+        serviceRequestState,
+      ),
+    [savedNotificationState, workState, serviceRequestState],
   );
   const setNotificationState = useCallback(
     (update: SetStateAction<NotificationState>) => {
       setSavedNotificationState((current) => {
-        const reconciled = reconcileWorkNotifications(current, workState);
+        const reconciled = reconcileServiceNotifications(
+          reconcileWorkNotifications(current, workState),
+          serviceRequestState,
+        );
         return typeof update === "function" ? update(reconciled) : update;
       });
     },
-    [workState],
+    [workState, serviceRequestState],
   );
   const [mobileOpen, setMobileOpen] = useState(false);
   const [workspaceTool, setWorkspaceTool] = useState<
@@ -5579,6 +5590,20 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
   };
   const openNotification = (notification: KasaNotification) => {
     setNotificationsOpen(false);
+    if (notification.serviceEvent) {
+      const target = openServiceNotification(
+        serviceRequestState,
+        role,
+        notification,
+      );
+      if (!target) return;
+      setServiceRequestState(target.state);
+      if (target.destination === "provider") {
+        setServiceEntryRevision((value) => value + 1);
+        go("provider");
+      } else openServices("tasks", "");
+      return;
+    }
     if (notification.workEvent) {
       const target = openWorkNotification(workState, role, notification);
       if (!target) return;
@@ -5691,6 +5716,7 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
           />
         ) : role === "provider" ? (
           <ServiceProviderInbox
+            key={`${role}-${serviceEntryRevision}`}
             role={role}
             state={serviceRequestState}
             setState={setServiceRequestState}
@@ -6058,6 +6084,7 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
       case "provider":
         return (
           <ServiceProviderInbox
+            key={`${role}-${serviceEntryRevision}`}
             role={role}
             state={serviceRequestState}
             setState={setServiceRequestState}

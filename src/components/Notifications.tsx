@@ -41,6 +41,12 @@ const controls = {
     applicationSubmitted: "Application recorded",
     applicationWithdrawn: "Application withdrawn",
     applicationReviewed: "Application review recorded",
+    serviceRequestSubmitted: "Service request recorded",
+    serviceQuoteRecorded: "Service quote recorded",
+    serviceRequestDeclined: "Service request declined by provider",
+    serviceQuoteAccepted: "Service quote accepted",
+    serviceQuoteDeclined: "Service quote declined",
+    serviceRequestCancelled: "Service request cancelled",
   },
   pt: {
     unread: "por ler",
@@ -53,6 +59,12 @@ const controls = {
     applicationSubmitted: "Candidatura registada",
     applicationWithdrawn: "Candidatura retirada",
     applicationReviewed: "Análise da candidatura registada",
+    serviceRequestSubmitted: "Pedido de serviço registado",
+    serviceQuoteRecorded: "Orçamento de serviço registado",
+    serviceRequestDeclined: "Pedido de serviço recusado pelo prestador",
+    serviceQuoteAccepted: "Orçamento de serviço aceite",
+    serviceQuoteDeclined: "Orçamento de serviço recusado",
+    serviceRequestCancelled: "Pedido de serviço cancelado",
   },
   es: {
     unread: "sin leer",
@@ -65,6 +77,12 @@ const controls = {
     applicationSubmitted: "Candidatura registrada",
     applicationWithdrawn: "Candidatura retirada",
     applicationReviewed: "Revisión de la candidatura registrada",
+    serviceRequestSubmitted: "Solicitud de servicio registrada",
+    serviceQuoteRecorded: "Presupuesto de servicio registrado",
+    serviceRequestDeclined: "Solicitud de servicio rechazada por el proveedor",
+    serviceQuoteAccepted: "Presupuesto de servicio aceptado",
+    serviceQuoteDeclined: "Presupuesto de servicio rechazado",
+    serviceRequestCancelled: "Solicitud de servicio cancelada",
   },
   fr: {
     unread: "non lues",
@@ -77,6 +95,12 @@ const controls = {
     applicationSubmitted: "Candidature enregistrée",
     applicationWithdrawn: "Candidature retirée",
     applicationReviewed: "Examen de la candidature enregistré",
+    serviceRequestSubmitted: "Demande de service enregistrée",
+    serviceQuoteRecorded: "Devis de service enregistré",
+    serviceRequestDeclined: "Demande de service refusée par le prestataire",
+    serviceQuoteAccepted: "Devis de service accepté",
+    serviceQuoteDeclined: "Devis de service refusé",
+    serviceRequestCancelled: "Demande de service annulée",
   },
   ar: {
     unread: "غير مقروءة",
@@ -89,6 +113,12 @@ const controls = {
     applicationSubmitted: "تم تسجيل طلب العمل",
     applicationWithdrawn: "تم سحب طلب العمل",
     applicationReviewed: "تم تسجيل مراجعة طلب العمل",
+    serviceRequestSubmitted: "تم تسجيل طلب الخدمة",
+    serviceQuoteRecorded: "تم تسجيل عرض سعر الخدمة",
+    serviceRequestDeclined: "رفض مقدم الخدمة طلب الخدمة",
+    serviceQuoteAccepted: "تم قبول عرض سعر الخدمة",
+    serviceQuoteDeclined: "تم رفض عرض سعر الخدمة",
+    serviceRequestCancelled: "تم إلغاء طلب الخدمة",
   },
   zh: {
     unread: "未读",
@@ -100,6 +130,12 @@ const controls = {
     applicationSubmitted: "已记录工作申请",
     applicationWithdrawn: "工作申请已撤回",
     applicationReviewed: "已记录申请审阅",
+    serviceRequestSubmitted: "已记录服务请求",
+    serviceQuoteRecorded: "已记录服务报价",
+    serviceRequestDeclined: "服务商已拒绝服务请求",
+    serviceQuoteAccepted: "服务报价已接受",
+    serviceQuoteDeclined: "服务报价已拒绝",
+    serviceRequestCancelled: "服务请求已取消",
   },
 };
 
@@ -162,6 +198,18 @@ const workTitleKeys = {
   "application-reviewed": "applicationReviewed",
 } as const;
 
+const serviceTitleKeys = {
+  "request-submitted": "serviceRequestSubmitted",
+  "quote-recorded": "serviceQuoteRecorded",
+  "request-declined": "serviceRequestDeclined",
+  "quote-accepted": "serviceQuoteAccepted",
+  "quote-declined": "serviceQuoteDeclined",
+  "request-cancelled": "serviceRequestCancelled",
+} as const satisfies Record<
+  NonNullable<KasaNotification["serviceEvent"]>["kind"],
+  keyof typeof controls.en
+>;
+
 interface NotificationsProps {
   state: NotificationState;
   setState: Dispatch<SetStateAction<NotificationState>>;
@@ -182,11 +230,18 @@ function NotificationList({
     <div className="kasa-notification-list">
       {items.map((item) => {
         const Icon = icons[item.icon];
-        const event = item.workEvent;
-        const title = event
-          ? labels[workTitleKeys[event.kind]]
-          : tr(item.titleKey);
-        const note = event ? event.opportunityTitle : tr(item.noteKey);
+        const workEvent = item.workEvent;
+        const serviceEvent = item.serviceEvent;
+        const event = serviceEvent ?? workEvent;
+        const title = serviceEvent
+          ? labels[serviceTitleKeys[serviceEvent.kind]]
+          : workEvent
+            ? labels[workTitleKeys[workEvent.kind]]
+            : tr(item.titleKey);
+        const note =
+          serviceEvent?.requestTitle ??
+          workEvent?.opportunityTitle ??
+          tr(item.noteKey);
         const source = event ? labels.local : labels.sample;
         const timestamp = event
           ? formatTime(event.occurredAt)
@@ -204,7 +259,7 @@ function NotificationList({
                 );
                 onNavigate(item);
               }}
-              aria-label={`${title}${event ? ` · ${event.opportunityTitle}` : ""} · ${source} · ${timestamp} · ${item.read ? labels.read : labels.unread}`}
+              aria-label={`${title}${event ? ` · ${note}` : ""} · ${source} · ${timestamp} · ${item.read ? labels.read : labels.unread}`}
             >
               <span className="notification-feed-icon">
                 <Icon size={19} aria-hidden="true" />
@@ -234,7 +289,7 @@ function NotificationList({
                     markNotificationRead(current, role, item.id),
                   )
                 }
-                aria-label={`${item.read ? labels.read : labels.markRead}: ${title}${event ? ` · ${event.opportunityTitle} · ${timestamp}` : ""}`}
+                aria-label={`${item.read ? labels.read : labels.markRead}: ${title}${event ? ` · ${note} · ${timestamp}` : ""}`}
               >
                 <Check size={15} aria-hidden="true" />
                 <span>{item.read ? labels.read : labels.markRead}</span>

@@ -794,6 +794,14 @@ function ServiceRecordBoard({ role, state, setState }: ServiceRecordProps) {
   const heading = useRef<HTMLHeadingElement>(null);
   const detailHeading = useRef<HTMLHeadingElement>(null);
   const noteInput = useRef<HTMLTextAreaElement>(null);
+  useEffect(() => {
+    if (!selectedId) return;
+    const frame = requestAnimationFrame(() => {
+      const target = detailHeading.current;
+      if (target?.dataset.requestId === selectedId) target.focus();
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [role, selectedId]);
   const provider = role === "provider";
   const records = visibleServiceRequests(state, role);
   const counts = serviceRequestCounts(state, role);
@@ -900,7 +908,12 @@ function ServiceRecordBoard({ role, state, setState }: ServiceRecordProps) {
       ),
     };
     setFeedback(completed[action.type]);
-    requestAnimationFrame(() => detailHeading.current?.focus());
+    const opensHistory =
+      action.type === "cancel" ||
+      action.type === "complete" ||
+      action.type === "decline-request";
+    if (!opensHistory || selectedId === selected.id)
+      requestAnimationFrame(() => detailHeading.current?.focus());
   };
   if (!isServiceCustomer(role) && !provider)
     return (
@@ -1080,7 +1093,8 @@ function ServiceRecordBoard({ role, state, setState }: ServiceRecordProps) {
                   );
                   setActionError(null);
                   setFeedback("");
-                  requestAnimationFrame(() => detailHeading.current?.focus());
+                  if (selectedId === record.id)
+                    requestAnimationFrame(() => detailHeading.current?.focus());
                 }}
               >
                 <span className="service-record-row-top">
@@ -1110,7 +1124,11 @@ function ServiceRecordBoard({ role, state, setState }: ServiceRecordProps) {
               <header>
                 <div>
                   <span className="eyebrow">{selected.id}</span>
-                  <h3 ref={detailHeading} tabIndex={-1}>
+                  <h3
+                    ref={detailHeading}
+                    tabIndex={-1}
+                    data-request-id={selected.id}
+                  >
                     {selected.title}
                   </h3>
                 </div>
@@ -1425,7 +1443,6 @@ function ServiceRecordBoard({ role, state, setState }: ServiceRecordProps) {
                 "Pedido de serviço registado neste separador.",
               ),
             );
-            requestAnimationFrame(() => detailHeading.current?.focus());
           }}
         />
       )}

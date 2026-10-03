@@ -8,6 +8,19 @@ export interface WorkNotificationEvent {
   occurredAt: string;
 }
 
+export interface ServiceNotificationEvent {
+  kind:
+    | "request-submitted"
+    | "quote-recorded"
+    | "request-declined"
+    | "quote-accepted"
+    | "quote-declined"
+    | "request-cancelled";
+  requestId: string;
+  requestTitle: string;
+  occurredAt: string;
+}
+
 export interface KasaNotification {
   id: string;
   role: Role;
@@ -23,13 +36,48 @@ export interface KasaNotification {
     | "payment"
     | "shield";
   destination: View;
-  serviceMode?: "jobs" | "hire";
+  serviceMode?: "jobs" | "hire" | "tasks";
   workEvent?: WorkNotificationEvent;
+  serviceEvent?: ServiceNotificationEvent;
   read: boolean;
 }
 
 export interface NotificationState {
   items: KasaNotification[];
+}
+
+/** Sort recorded activity together without inventing timestamps for sample entries. */
+export function sortNotificationActivity(
+  state: NotificationState,
+): NotificationState {
+  const ordered = state.items
+    .map((item, index) => {
+      const value = item.serviceEvent?.occurredAt ?? item.workEvent?.occurredAt;
+      const date = typeof value === "string" ? new Date(value) : null;
+      const at =
+        date && Number.isFinite(date.getTime()) && date.toISOString() === value
+          ? date.getTime()
+          : null;
+      return { item, index, at };
+    })
+    .sort((left, right) => {
+      if (left.at === null)
+        return right.at === null ? left.index - right.index : 1;
+      if (right.at === null) return -1;
+      return (
+        right.at - left.at ||
+        (left.item.id < right.item.id
+          ? -1
+          : left.item.id > right.item.id
+            ? 1
+            : 0) ||
+        left.index - right.index
+      );
+    })
+    .map(({ item }) => item);
+  return ordered.every((item, index) => item === state.items[index])
+    ? state
+    : { ...state, items: ordered };
 }
 
 export function createInitialNotificationState(): NotificationState {
