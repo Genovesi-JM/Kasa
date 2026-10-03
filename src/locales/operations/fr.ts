@@ -1,3 +1,4 @@
+import { viewingFr } from "./viewing-fr";
 import { expenseFr } from "./expense-fr";
 import type { OperationsDictionary } from "./types";
 import { rentFr } from "./rent-fr";
@@ -5,6 +6,7 @@ import { maintenanceFr } from "./maintenance-fr";
 import { messagesFr } from "./messages-fr";
 
 export const fr = {
+  ...viewingFr,
   ...expenseFr,
   ...rentFr,
   ...maintenanceFr,

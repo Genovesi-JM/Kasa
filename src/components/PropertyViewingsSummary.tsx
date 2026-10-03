@@ -1,5 +1,5 @@
 import { useEffect, useId, useState } from "react";
-import { useTranslation } from "react-i18next";
+import { useViewingCopy } from "./viewingCopy";
 import { ArrowRight, CalendarDays, Clock3 } from "lucide-react";
 import { properties } from "../data";
 import type { Role } from "../types";
@@ -26,22 +26,7 @@ export function PropertyViewingsSummary({
   onOpenViewings,
   onOpenDecisions,
 }: PropertyViewingsSummaryProps) {
-  const { i18n } = useTranslation();
-  const language = (i18n.resolvedLanguage || i18n.language || "pt").split(
-    "-",
-  )[0];
-  const text = (en: string, pt: string) => (language === "pt" ? pt : en);
-  const locale =
-    (
-      {
-        pt: "pt-PT",
-        en: "en-GB",
-        es: "es-ES",
-        fr: "fr-FR",
-        ar: "ar",
-        zh: "zh-CN",
-      } as Record<string, string>
-    )[language] ?? "en-GB";
+  const { text, tr, locale, number } = useViewingCopy();
   const id = useId();
   const [now, setNow] = useState(() => new Date());
   useEffect(() => {
@@ -62,7 +47,6 @@ export function PropertyViewingsSummary({
   const shown = upcoming.slice(0, 3);
   const awaitingDecision =
     role === "landlord" ? counts.pending : counts.proposed;
-  const number = (value: number) => new Intl.NumberFormat(locale).format(value);
   const date = (value: string) =>
     new Intl.DateTimeFormat(locale, {
       weekday: "short",
@@ -72,16 +56,10 @@ export function PropertyViewingsSummary({
       hour: "2-digit",
       minute: "2-digit",
     }).format(new Date(value));
-  const decisionLabel =
-    role === "landlord"
-      ? text(
-          `${number(awaitingDecision)} ${awaitingDecision === 1 ? "request awaits" : "requests await"} your decision`,
-          `${number(awaitingDecision)} ${awaitingDecision === 1 ? "pedido aguarda" : "pedidos aguardam"} a sua decisão`,
-        )
-      : text(
-          `${number(awaitingDecision)} ${awaitingDecision === 1 ? "proposal awaits" : "proposals await"} your decision`,
-          `${number(awaitingDecision)} ${awaitingDecision === 1 ? "proposta aguarda" : "propostas aguardam"} a sua decisão`,
-        );
+  const decisionLabel = tr(
+    role === "landlord" ? "viewings_ownerDecision" : "viewings_tenantDecision",
+    { count: awaitingDecision, shownCount: number(awaitingDecision) },
+  );
 
   if (role !== "tenant" && role !== "landlord") return null;
 
@@ -130,10 +108,10 @@ export function PropertyViewingsSummary({
             </h3>
             <span>
               {upcoming.length > shown.length
-                ? text(
-                    `Next ${number(shown.length)} of ${number(upcoming.length)}`,
-                    `Próximas ${number(shown.length)} de ${number(upcoming.length)}`,
-                  )
+                ? tr("viewings_upcomingSubset", {
+                    shown: number(shown.length),
+                    total: number(upcoming.length),
+                  })
                 : text("Local time", "Hora local")}
             </span>
           </div>

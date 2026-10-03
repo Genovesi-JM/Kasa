@@ -10,6 +10,7 @@ import { createPortal } from "react-dom";
 import { CalendarDays, ChevronRight, Download, Plus } from "lucide-react";
 import { properties } from "../data";
 import type { Role } from "../types";
+import type { OperationsKey } from "../locales/operations/types";
 import {
   actOnViewingRequest,
   discardViewingDraft,
@@ -31,6 +32,7 @@ import {
   type PropertyRequestState,
   type ViewingAction,
   type ViewingFilter,
+  type ViewingIssue,
   type ViewingRequest,
   type ViewingTerms,
 } from "./propertyRequestState";
@@ -43,6 +45,8 @@ import { useViewingCopy } from "./viewingCopy";
 import { viewingCalendarFile } from "./viewingCalendar";
 import { useDialogFocus } from "./useDialogFocus";
 import "./viewings.css";
+
+type ViewingNotice = Extract<OperationsKey, `viewings_notice${string}`>;
 
 export interface ViewingOpenRequest {
   role: Role;
@@ -232,15 +236,22 @@ function ViewingInbox({
   openRequest,
   onOpenHandled,
 }: ViewingRequestsProps) {
-  const { text, date, status, proposalStatus, issueText, history, scope } =
-    useViewingCopy();
+  const {
+    text,
+    tr,
+    number,
+    date,
+    status,
+    proposalStatus,
+    issueText,
+    history,
+    scope,
+  } = useViewingCopy();
   const id = useId();
   const detailHeading = useRef<HTMLHeadingElement>(null);
   const handledOpenRevision = useRef<number | null>(null);
   const draftsHeading = useRef<HTMLHeadingElement>(null);
-  const [feedback, setFeedback] = useState<
-    string | { type: "responseDiscarded" }
-  >("");
+  const [feedback, setFeedback] = useState<ViewingNotice | null>(null);
   const discardFocusFrame = useRef<number | null>(null);
   useEffect(
     () => () => {
@@ -249,7 +260,7 @@ function ViewingInbox({
     },
     [],
   );
-  const [error, setError] = useState("");
+  const [error, setError] = useState<ViewingIssue["code"] | null>(null);
   const [actionDialog, setActionDialog] = useState<{
     mode: ViewingActionMode;
     requestId: string;
@@ -365,26 +376,26 @@ function ViewingInbox({
     setState((current) =>
       selectVisibleViewingRequest(current, role, id, clickedAt),
     );
-    setFeedback("");
-    setError("");
+    setFeedback(null);
+    setError(null);
     focusDetail(id);
   }
-  function act(action: ViewingAction, message: string) {
+  function act(action: ViewingAction, message: ViewingNotice) {
     if (!selected) return;
     const issue = viewingActionIssue(state, role, selected.id, action);
     if (issue) {
-      setError(issueText(issue.code));
-      setFeedback("");
+      setError(issue.code);
+      setFeedback(null);
       return;
     }
     const updated = actOnViewingRequest(state, role, selected.id, action);
     if (updated === state) {
-      setError(issueText("unavailable"));
+      setError("unavailable");
       return;
     }
     setState(selectViewingRequest(updated, role, selected.id));
     setFeedback(message);
-    setError("");
+    setError(null);
     focusDetail();
   }
   function completedAction() {
@@ -394,21 +405,12 @@ function ViewingInbox({
     );
     setFeedback(
       actionDialog.mode === "proposal"
-        ? text(
-            "Proposed time saved. The tenant can now accept or decline it in this tab.",
-            "Horário proposto guardado. O inquilino pode agora aceitá-lo ou recusá-lo neste separador.",
-          )
+        ? "viewings_noticeProposalSaved"
         : actionDialog.mode === "decline"
-          ? text(
-              "Decline saved in the request history.",
-              "Recusa guardada no histórico do pedido.",
-            )
-          : text(
-              "Cancellation saved in the request history.",
-              "Cancelamento guardado no histórico do pedido.",
-            ),
+          ? "viewings_noticeDeclineSaved"
+          : "viewings_noticeCancellationSaved",
     );
-    setError("");
+    setError(null);
     setActionDialog(null);
     focusDetail(actionDialog.requestId);
   }
@@ -417,8 +419,8 @@ function ViewingInbox({
     trigger: HTMLElement | null,
     restoredTrigger?: HTMLElement | null,
   ) {
-    setFeedback({ type: "responseDiscarded" });
-    setError("");
+    setFeedback("viewings_noticeResponseDiscarded");
+    setError(null);
     if (discardFocusFrame.current !== null)
       cancelAnimationFrame(discardFocusFrame.current);
     discardFocusFrame.current = requestAnimationFrame(() => {
@@ -485,16 +487,11 @@ function ViewingInbox({
       </header>
       <p className="viewing-scope">{scope}</p>
       <div className="viewing-feedback" role="status">
-        {typeof feedback === "string"
-          ? feedback
-          : text(
-              "Private response draft discarded. The viewing request is unchanged.",
-              "Rascunho privado da resposta descartado. O pedido de visita permanece inalterado.",
-            )}
+        {feedback && tr(feedback)}
       </div>
       {error && (
         <p className="property-request-errors" role="alert">
-          {error}
+          {issueText(error)}
         </p>
       )}
       {role === "tenant" && (
@@ -504,7 +501,7 @@ function ViewingInbox({
         >
           <h2 id={`${id}-drafts`} ref={draftsHeading} tabIndex={-1}>
             {text("Unsent drafts", "Rascunhos por enviar")}{" "}
-            <span>({drafts.length})</span>
+            <span>({number(drafts.length)})</span>
           </h2>
           {drafts.length ? (
             <ul>
@@ -540,12 +537,7 @@ function ViewingInbox({
                           setState((current) =>
                             discardViewingDraft(current, role, propertyId),
                           );
-                          setFeedback(
-                            text(
-                              "Unsent draft discarded.",
-                              "Rascunho por enviar eliminado.",
-                            ),
-                          );
+                          setFeedback("viewings_noticeDraftDiscarded");
                           requestAnimationFrame(() =>
                             draftsHeading.current?.focus(),
                           );
@@ -584,22 +576,22 @@ function ViewingInbox({
             className={view.filter === filter ? "active" : ""}
             onClick={() => {
               setState((current) => setViewingFilter(current, role, filter));
-              setFeedback("");
-              setError("");
+              setFeedback(null);
+              setError(null);
             }}
           >
             {filter === "Agreed"
               ? text("Upcoming accepted", "Aceites futuras")
               : status(filter)}{" "}
-            <span>{count}</span>
+            <span>{number(count)}</span>
           </button>
         ))}
       </div>
       <p className="viewing-result-count" role="status">
-        {requests.length}{" "}
-        {requests.length === 1
-          ? text("request shown", "pedido apresentado")
-          : text("requests shown", "pedidos apresentados")}
+        {tr("viewings_requestsShown", {
+          count: requests.length,
+          shownCount: number(requests.length),
+        })}
       </p>
       {!requests.length ? (
         <section className="panel viewing-empty">
@@ -769,7 +761,7 @@ function ViewingInbox({
                 >
                   <h3 id={`${id}-proposal`}>
                     {text("Proposed change", "Alteração proposta")} ·{" "}
-                    {text("version", "versão")} {proposal.version}
+                    {text("version", "versão")} {number(proposal.version)}
                   </h3>
                   <ViewingTermsDisplay
                     terms={proposal.terms}
@@ -801,10 +793,7 @@ function ViewingInbox({
                               type: "accept-proposal",
                               proposalId: proposal.id,
                             },
-                            text(
-                              "Proposed time accepted in this tab.",
-                              "Horário proposto aceite neste separador.",
-                            ),
+                            "viewings_noticeProposalAccepted",
                           )
                         }
                       >
@@ -823,14 +812,8 @@ function ViewingInbox({
                               proposalId: proposal.id,
                             },
                             selected.agreedTerms
-                              ? text(
-                                  "Change declined. The previous accepted time is preserved.",
-                                  "Alteração recusada. O horário anteriormente aceite mantém-se.",
-                                )
-                              : text(
-                                  "Change declined. The original request is still awaiting agreement.",
-                                  "Alteração recusada. O pedido original continua por acordar.",
-                                ),
+                              ? "viewings_noticeProposalDeclinedKept"
+                              : "viewings_noticeProposalDeclinedPending",
                           )
                         }
                       >
@@ -923,10 +906,7 @@ function ViewingInbox({
                             onClick={() =>
                               act(
                                 { type: "accept-request" },
-                                text(
-                                  "Requested time accepted in this tab.",
-                                  "Horário pedido aceite neste separador.",
-                                ),
+                                "viewings_noticeRequestAccepted",
                               )
                             }
                           >
@@ -1012,7 +992,7 @@ function ViewingInbox({
                       <li key={item.id}>
                         <div>
                           <strong>
-                            {text("Version", "Versão")} {item.version} ·{" "}
+                            {text("Version", "Versão")} {number(item.version)} ·{" "}
                             {date(item.terms.date)} · {item.terms.time}
                           </strong>
                           <span>{proposalStatus(item.status)}</span>
@@ -1090,12 +1070,7 @@ function ViewingInbox({
             setState((current) =>
               selectViewingRequest(current, role, requestId),
             );
-            setFeedback(
-              text(
-                "Viewing request saved in this tab.",
-                "Pedido de visita guardado neste separador.",
-              ),
-            );
+            setFeedback("viewings_noticeRequestSaved");
             focusDetail();
           }}
         />

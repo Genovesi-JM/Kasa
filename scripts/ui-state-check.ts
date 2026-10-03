@@ -25,6 +25,7 @@ import "./viewing-selection-check";
 import "./viewing-action-draft-check";
 import "./viewing-notification-check";
 import "./viewing-calendar-check";
+import "./viewing-localization-check";
 import "./maintenance-state-check";
 import "./document-state-check";
 import "./document-view-check";

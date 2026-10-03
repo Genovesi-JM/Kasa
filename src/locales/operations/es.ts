@@ -1,3 +1,4 @@
+import { viewingEs } from "./viewing-es";
 import { expenseEs } from "./expense-es";
 import type { OperationsDictionary } from "./types";
 import { rentEs } from "./rent-es";
@@ -5,6 +6,7 @@ import { maintenanceEs } from "./maintenance-es";
 import { messagesEs } from "./messages-es";
 
 export const es = {
+  ...viewingEs,
   ...expenseEs,
   ...rentEs,
   ...maintenanceEs,

@@ -1,3 +1,4 @@
+import { viewingPt } from "./viewing-pt";
 import { expensePt } from "./expense-pt";
 import type { OperationsDictionary } from "./types";
 import { rentPt } from "./rent-pt";
@@ -5,6 +6,7 @@ import { maintenancePt } from "./maintenance-pt";
 import { messagesPt } from "./messages-pt";
 
 export const pt = {
+  ...viewingPt,
   ...expensePt,
   ...rentPt,
   ...maintenancePt,

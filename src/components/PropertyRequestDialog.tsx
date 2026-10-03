@@ -77,7 +77,7 @@ function RentalApplicationDialog({
   onClose: () => void;
   onSaved: (id: number) => void;
 }) {
-  const { text } = useViewingCopy();
+  const { legacyText: text } = useViewingCopy();
   const id = useId();
   const form = useRef<HTMLFormElement>(null);
   const summary = useRef<HTMLDivElement>(null);
@@ -388,7 +388,12 @@ export function PropertyRequestActions({
   viewingLabel: string;
   applicationLabel: string;
 }) {
-  const { text, status, date } = useViewingCopy();
+  const {
+    legacyText: text,
+    text: viewingText,
+    status,
+    date,
+  } = useViewingCopy();
   const [flow, setFlow] = useState<"viewing" | "application" | null>(null);
   const [draftDiscarded, setDraftDiscarded] = useState(false);
   const applicationAction = useRef<HTMLButtonElement>(null);
@@ -410,7 +415,7 @@ export function PropertyRequestActions({
   if (role !== "tenant")
     return (
       <p className="property-request-scope">
-        {text(
+        {viewingText(
           "Viewing and rental requests are available in the tenant workspace.",
           "Os pedidos de visita e as candidaturas estão disponíveis na área do inquilino.",
         )}
@@ -427,15 +432,18 @@ export function PropertyRequestActions({
       >
         <CalendarDays size={16} />
         {activeViewing
-          ? text("Open viewing request", "Abrir pedido de visita")
+          ? viewingText("Open viewing request", "Abrir pedido de visita")
           : hasDraft
-            ? text("Continue viewing draft", "Continuar rascunho de visita")
+            ? viewingText(
+                "Continue viewing draft",
+                "Continuar rascunho de visita",
+              )
             : viewingLabel}
       </button>
       {viewing && (
         <section
           className="property-request-summary"
-          aria-label={text(
+          aria-label={viewingText(
             "Your local viewing request",
             "O seu pedido local de visita",
           )}
@@ -443,18 +451,21 @@ export function PropertyRequestActions({
           <strong>{status(viewing.status)}</strong>
           <span>
             {viewing.agreedTerms
-              ? text(
+              ? viewingText(
                   "Accepted time in this tab",
                   "Horário aceite neste separador",
                 )
-              : text("Original requested time", "Horário originalmente pedido")}
+              : viewingText(
+                  "Original requested time",
+                  "Horário originalmente pedido",
+                )}
           </span>
           <time dateTime={`${viewing.date}T${viewing.time}`}>
             {date(viewing.date)} · {viewing.time}
           </time>
           {proposal && (
             <p>
-              {text(
+              {viewingText(
                 "Proposed time · awaiting your decision",
                 "Horário proposto · aguarda a sua decisão",
               )}
@@ -463,7 +474,7 @@ export function PropertyRequestActions({
           )}
           {viewing.note && <p>{viewing.note}</p>}
           <small>
-            {text(
+            {viewingText(
               "Local record only. No one is contacted and no real visit is confirmed.",
               "Apenas um registo local. Ninguém é contactado e nenhuma visita real é confirmada.",
             )}
@@ -473,7 +484,7 @@ export function PropertyRequestActions({
             className="text-button"
             onClick={() => onViewViewings(viewing.id)}
           >
-            {text("View request and history", "Ver pedido e histórico")}
+            {viewingText("View request and history", "Ver pedido e histórico")}
           </button>
         </section>
       )}

@@ -1,9 +1,11 @@
+import { viewingEn } from "./viewing-en";
 import { expenseEn } from "./expense-en";
 import { rentEn } from "./rent-en";
 import { maintenanceEn } from "./maintenance-en";
 import { messagesEn } from "./messages-en";
 
 export const en = {
+  ...viewingEn,
   ...expenseEn,
   ...rentEn,
   ...maintenanceEn,

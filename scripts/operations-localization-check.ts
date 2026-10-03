@@ -133,7 +133,10 @@ for (const language of languages) {
     if (Object.hasOwn(english, key)) continue;
     const base = key.replace(/_(zero|two|few|many)$/, "");
     assert.ok(pluralBases.includes(base), `${language}: unexpected key ${key}`);
-    assert.deepEqual(placeholders(dictionary[key]), ["count"]);
+    assert.deepEqual(
+      placeholders(dictionary[key]),
+      placeholders(english[`${base}_one` as keyof typeof english]),
+    );
   }
   for (const base of pluralBases) {
     for (const plural of new Intl.PluralRules(
@@ -146,18 +149,31 @@ for (const language of languages) {
     }
     for (const count of [0, 1, 2, 3, 11, 100, 1_000_000]) {
       const key = base as OperationsKey;
-      const text = operationText(instance, language, key, { count });
+      const values = {
+        count,
+        shownCount: new Intl.NumberFormat(operationsLocales[language]).format(
+          count,
+        ),
+      };
+      const text = operationText(instance, language, key, values);
       assert.ok(
         !text.includes("documents_"),
         `${language}: unresolved plural ${key}`,
       );
-      assert.ok(!text.includes("{{"), `${language}: unresolved count ${key}`);
       assert.ok(
-        text.includes(String(count)),
-        `${language}: count lost in ${key}`,
+        !text.includes(base),
+        `${language}: unresolved plural key ${key}`,
       );
+      assert.ok(!text.includes("{{"), `${language}: unresolved count ${key}`);
+      for (const placeholder of placeholders(
+        english[`${base}_one` as keyof typeof english],
+      ))
+        assert.ok(
+          text.includes(String(values[placeholder as keyof typeof values])),
+          `${language}: ${placeholder} lost in ${key}`,
+        );
       if (language === "ar" || language === "zh") {
-        const englishText = operationText(instance, "en", key, { count });
+        const englishText = operationText(instance, "en", key, values);
         assert.ok(
           text.endsWith(`(${englishText})`),
           `${language}: bilingual plural ${key}`,
