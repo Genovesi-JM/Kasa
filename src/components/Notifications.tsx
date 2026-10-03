@@ -56,6 +56,7 @@ const controls = {
     spaceProposalAccepted: "Proposed space terms accepted",
     spaceProposalDeclined: "Proposed space terms declined",
     spaceRequestCancelled: "Space request cancelled",
+    spaceBookingCompleted: "Space completion recorded",
   },
   pt: {
     unread: "por ler",
@@ -83,6 +84,7 @@ const controls = {
     spaceProposalAccepted: "Condições propostas para o espaço aceites",
     spaceProposalDeclined: "Condições propostas para o espaço recusadas",
     spaceRequestCancelled: "Pedido de espaço cancelado",
+    spaceBookingCompleted: "Conclusão da utilização do espaço registada",
   },
   es: {
     unread: "sin leer",
@@ -110,6 +112,7 @@ const controls = {
     spaceProposalAccepted: "Condiciones propuestas para el espacio aceptadas",
     spaceProposalDeclined: "Condiciones propuestas para el espacio rechazadas",
     spaceRequestCancelled: "Solicitud de espacio cancelada",
+    spaceBookingCompleted: "Finalización del uso del espacio registrada",
   },
   fr: {
     unread: "non lues",
@@ -137,6 +140,7 @@ const controls = {
     spaceProposalAccepted: "Conditions proposées pour l’espace acceptées",
     spaceProposalDeclined: "Conditions proposées pour l’espace refusées",
     spaceRequestCancelled: "Demande d’espace annulée",
+    spaceBookingCompleted: "Fin d’utilisation de l’espace enregistrée",
   },
   ar: {
     unread: "غير مقروءة",
@@ -164,6 +168,7 @@ const controls = {
     spaceProposalAccepted: "تم قبول الشروط المقترحة لحجز المساحة",
     spaceProposalDeclined: "تم رفض الشروط المقترحة لحجز المساحة",
     spaceRequestCancelled: "تم إلغاء طلب حجز المساحة",
+    spaceBookingCompleted: "تم تسجيل انتهاء استخدام المساحة",
   },
   zh: {
     unread: "未读",
@@ -190,6 +195,7 @@ const controls = {
     spaceProposalAccepted: "已接受拟议场地使用条件",
     spaceProposalDeclined: "已拒绝拟议场地使用条件",
     spaceRequestCancelled: "场地请求已取消",
+    spaceBookingCompleted: "已记录场地使用完成",
   },
 };
 
@@ -274,6 +280,7 @@ const spaceBookingTitleKeys = {
   "proposal-accepted": "spaceProposalAccepted",
   "proposal-declined": "spaceProposalDeclined",
   "request-cancelled": "spaceRequestCancelled",
+  "booking-completed": "spaceBookingCompleted",
 } as const satisfies Record<
   NonNullable<KasaNotification["spaceBookingEvent"]>["kind"],
   keyof typeof controls.en

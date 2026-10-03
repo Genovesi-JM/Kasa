@@ -172,6 +172,7 @@ export type SpaceBookingIssue =
   | "status"
   | "staleProposal"
   | "priceRequired"
+  | "completionTime"
   | "noChange";
 export type SpaceBookingRequestErrors = Partial<
   Record<keyof SpaceBookingRequestDraft, SpaceBookingIssue>
@@ -180,6 +181,7 @@ export type SpaceBookingProposalErrors = Partial<
   Record<keyof SpaceBookingActionDraft, SpaceBookingIssue>
 >;
 export type SpaceBookingAction =
+  | { type: "complete" }
   | { type: "accept-request" }
   | { type: "decline-request"; note: string }
   | { type: "accept-proposal"; proposalId: string }
@@ -253,6 +255,27 @@ function validDateTime(date: string, time: string, now: Date): boolean {
     parsed.getTime() >= Math.floor(now.getTime() / 60000) * 60000
   );
 }
+
+/** Resolve the existing agreement in device-local time without requiring it to be future. */
+export function spaceBookingEndTimestamp(terms: SpaceBookingTerms): number {
+  const start = minute(terms.start);
+  const end = minute(terms.end);
+  if (!validDate(terms.date) || start === null || end === null || end <= start)
+    return NaN;
+  const localTime = (time: string) => {
+    const date = new Date(`${terms.date}T${time}:00`);
+    return Number.isFinite(date.getTime()) &&
+      spaceBookingDateValue(date) === terms.date &&
+      date.getHours() === Number(time.slice(0, 2)) &&
+      date.getMinutes() === Number(time.slice(3))
+      ? date.getTime()
+      : NaN;
+  };
+  const startAt = localTime(terms.start);
+  const endAt = localTime(terms.end);
+  return Number.isFinite(startAt) && endAt > startAt ? endAt : NaN;
+}
+
 function timeText(terms: Pick<SpaceBookingTerms, "start" | "end">) {
   return `${terms.start}–${terms.end}`;
 }
@@ -1348,6 +1371,23 @@ export function spaceBookingActionIssue(
 ): SpaceBookingIssue | null {
   const booking = state.bookings.find((item) => item.id === id);
   if (!booking) return "unavailable";
+  if (action.type === "complete") {
+    if (!operatorOwns(booking, role)) return "unavailable";
+    if (
+      booking.phase !== "Agreed" ||
+      !booking.agreedTerms ||
+      booking.proposals.some((proposal) => proposal.status === "pending")
+    )
+      return "status";
+    if (bookingTermsTotalCents(booking.agreedTerms) === null)
+      return "priceRequired";
+    const endAt = spaceBookingEndTimestamp(booking.agreedTerms);
+    return Number.isFinite(now.getTime()) &&
+      Number.isFinite(endAt) &&
+      endAt <= now.getTime()
+      ? null
+      : "completionTime";
+  }
   if (action.type === "accept-request" || action.type === "decline-request") {
     if (!operatorOwns(booking, role)) return "unavailable";
     if (
@@ -1410,6 +1450,17 @@ export function actOnSpaceBooking(
     role === "spaceOperator"
       ? spaceBookingVenue(booking.venueId)!.name
       : customers[role as SpaceBookingCustomerRole];
+  if (action.type === "complete") {
+    const completed = replaceBooking(state, {
+      ...addHistory(booking, "completed", actor, now),
+      phase: "Completed",
+    });
+    return updateSpaceOperatorInboxView(completed, role, {
+      query: "",
+      filter: "history",
+      selectedId: id,
+    });
+  }
   let updated: ManagedSpaceBooking;
   if (action.type === "accept-request")
     updated = {

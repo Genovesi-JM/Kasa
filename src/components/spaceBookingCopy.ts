@@ -4,7 +4,17 @@ const en = {
   all: "All",
   upcoming: "Accepted locally",
   requested: "Awaiting response",
-  completed: "Completed sample",
+  completed: "Completed",
+  markCompleted: "Mark completed",
+  completionScope:
+    "Mark completion only after the agreed end, with no pending proposal. This records status in this tab; it does not verify attendance or payment.",
+  agreedEnd: "Agreed end",
+  deviceTime: "Device local time",
+  completionSaved:
+    "Completion recorded in this tab. The record is now in History.",
+  completionRecorded: "Completion recorded locally",
+  completionTime:
+    "The agreed end time must be valid and reached before completion can be recorded.",
   cancelled: "Cancelled",
   declined: "Declined",
   scope:
@@ -126,7 +136,17 @@ const pt: Record<keyof typeof en, string> = {
   all: "Todos",
   upcoming: "Aceite localmente",
   requested: "Aguarda resposta",
-  completed: "Exemplo concluído",
+  completed: "Concluído",
+  markCompleted: "Marcar como concluído",
+  completionScope:
+    "Registe a conclusão apenas após o fim acordado e sem propostas pendentes. Esta ação regista o estado neste separador; não verifica a presença nem o pagamento.",
+  agreedEnd: "Fim acordado",
+  deviceTime: "Hora local do dispositivo",
+  completionSaved:
+    "Conclusão registada neste separador. O registo está agora no Histórico.",
+  completionRecorded: "Conclusão registada localmente",
+  completionTime:
+    "A hora de fim acordada tem de ser válida e já ter sido atingida para registar a conclusão.",
   cancelled: "Cancelado",
   declined: "Recusado",
   scope:
@@ -327,7 +347,7 @@ export function spaceBookingHistoryText(
     "proposal-accepted": copy.proposalAcceptedHistory,
     "proposal-declined": copy.proposalDeclinedHistory,
     cancelled: copy.cancelledHistory,
-    completed: copy.completed,
+    completed: copy.completionRecorded,
   };
   return labels[action] ?? action;
 }
@@ -341,6 +361,7 @@ export function spaceBookingIssueText(issue: string, copy: SpaceBookingCopy) {
     date: copy.invalidDate,
     start: copy.invalidStart,
     end: copy.invalidEnd,
+    completionTime: copy.completionTime,
     range: copy.invalidEnd,
     openingHours: copy.invalidHours,
     participants: copy.invalidGuests,

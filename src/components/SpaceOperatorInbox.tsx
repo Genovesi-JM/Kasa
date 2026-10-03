@@ -22,6 +22,7 @@ import {
   spaceBookingActionIssue,
   spaceBookingCounts,
   spaceBookingDateValue,
+  spaceBookingEndTimestamp,
   spaceOperatorInboxView,
   updateSpaceBookingActionDraft,
   updateSpaceOperatorInboxView,
@@ -144,6 +145,10 @@ function issueText(issue: string, copy: Copy) {
     blocked: copy(
       "This time is marked unavailable in the local schedule. Choose another time or review the block.",
       "Este horário está marcado como indisponível no calendário local. Escolha outro horário ou reveja o bloqueio.",
+    ),
+    completionTime: copy(
+      "The agreed end time must be valid and reached before completion can be recorded.",
+      "A hora de fim acordada tem de ser válida e já ter sido atingida para registar a conclusão.",
     ),
     status: copy(
       "This action is no longer available. Review the current record.",
@@ -577,7 +582,7 @@ function OperatorInbox({
   setState,
   onBrowseSpaces,
 }: SpaceOperatorInboxProps) {
-  const { locale } = useSpaceBookingCopy();
+  const { locale, copy: bookingCopy } = useSpaceBookingCopy();
   const copy: Copy = (en, pt) => (locale === "pt-PT" ? pt : en);
   const id = useId();
   const heading = useRef<HTMLHeadingElement>(null);
@@ -587,6 +592,7 @@ function OperatorInbox({
   const [dialogMode, setDialogMode] = useState<DialogMode | null>(null);
   const [feedback, setFeedback] = useState("");
   const [actionIssue, setActionIssue] = useState<string | null>(null);
+  const [, refreshCompletionEligibility] = useState(0);
   useEffect(() => {
     if (!selectedId) return;
     const frame = requestAnimationFrame(() => {
@@ -626,6 +632,43 @@ function OperatorInbox({
         right.id.localeCompare(left.id, undefined, { numeric: true }),
     );
   const selected = records.find((record) => record.id === selectedId);
+  const showCompletion = Boolean(selected?.agreedTerms && !closed(selected));
+  const completionEndAt =
+    showCompletion && selected?.agreedTerms
+      ? spaceBookingEndTimestamp(selected.agreedTerms)
+      : NaN;
+  const completionIssue =
+    showCompletion && selected
+      ? spaceBookingActionIssue(state, role, selected.id, { type: "complete" })
+      : null;
+  useEffect(() => {
+    if (!Number.isFinite(completionEndAt)) return;
+    let timer: number | undefined;
+    const schedule = () => {
+      const remaining = completionEndAt - Date.now();
+      if (remaining > 0)
+        timer = window.setTimeout(
+          refresh,
+          Math.min(remaining + 1, 2_147_483_647),
+        );
+    };
+    const refresh = () => {
+      window.clearTimeout(timer);
+      refreshCompletionEligibility((value) => value + 1);
+      schedule();
+    };
+    const onVisible = () => {
+      if (document.visibilityState === "visible") refresh();
+    };
+    schedule();
+    window.addEventListener("focus", refresh);
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      window.clearTimeout(timer);
+      window.removeEventListener("focus", refresh);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [completionEndAt, role, selectedId]);
   const latestProposal = selected?.proposals.at(-1);
   const acceptIssue =
     selected && selected.phase === "Requested"
@@ -881,6 +924,9 @@ function OperatorInbox({
                 <p>
                   {selected.venue} · {selected.space}
                 </p>
+                {selected.source === "sample" && (
+                  <small>{bookingCopy.system}</small>
+                )}
               </div>
               <span className="pill pill-neutral">
                 {phaseText(selected.phase, copy)}
@@ -947,7 +993,71 @@ function OperatorInbox({
                 {issueText(actionIssue, copy)}
               </p>
             )}
+            {showCompletion && (
+              <p
+                className="space-operator-callout"
+                id={`${id}-completion-scope`}
+              >
+                {bookingCopy.completionScope}
+                {Number.isFinite(completionEndAt) && (
+                  <>
+                    {" "}
+                    {bookingCopy.agreedEnd}:{" "}
+                    <time dateTime={new Date(completionEndAt).toISOString()}>
+                      {spaceBookingDate(
+                        new Date(completionEndAt).toISOString(),
+                        locale,
+                        true,
+                      )}
+                    </time>{" "}
+                    · {bookingCopy.deviceTime}.
+                  </>
+                )}
+              </p>
+            )}
             <div className="space-operator-actions">
+              {showCompletion && (
+                <button
+                  type="button"
+                  className="button"
+                  disabled={Boolean(completionIssue)}
+                  aria-describedby={`${id}-completion-scope`}
+                  onClick={() => {
+                    const now = new Date();
+                    const action = { type: "complete" } as const;
+                    const issue = spaceBookingActionIssue(
+                      state,
+                      role,
+                      selected.id,
+                      action,
+                      now,
+                    );
+                    setActionIssue(issue);
+                    setFeedback("");
+                    if (issue) return;
+                    const next = actOnSpaceBooking(
+                      state,
+                      role,
+                      selected.id,
+                      action,
+                      now,
+                    );
+                    if (next === state) {
+                      setActionIssue("status");
+                      return;
+                    }
+                    setState(next);
+                    setFeedback(bookingCopy.completionSaved);
+                    requestAnimationFrame(() => {
+                      const target = detailHeading.current;
+                      if (target?.dataset.bookingId === selected.id)
+                        target.focus();
+                    });
+                  }}
+                >
+                  {bookingCopy.markCompleted}
+                </button>
+              )}
               {selected.phase === "Requested" && (
                 <button
                   type="button"
@@ -1042,6 +1152,9 @@ function OperatorInbox({
                 {[...selected.history].reverse().map((entry) => (
                   <li key={entry.id}>
                     <strong>{historyText(entry.action, copy)}</strong>
+                    {entry.source === "sample" && (
+                      <small>{bookingCopy.system}</small>
+                    )}
                     <span>
                       {entry.actor} · {spaceBookingDate(entry.at, locale, true)}
                     </span>

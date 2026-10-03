@@ -530,13 +530,14 @@ assert.equal(
   activity(reconcileSpaceBookingNotifications(seeds, only(ambiguous))).length,
   0,
 );
-const noCompletion = {
+// A status flag and unlinked history alone are not a genuine completed agreement.
+const unlinkedCompletion = {
   ...original,
   phase: "Completed" as const,
   history: [
     ...original.history,
     {
-      id: "unsupported-completion",
+      id: "unlinked-completion",
       source: "local" as const,
       at: time(25).toISOString(),
       actor: "Poblenou MultiSport Club",
@@ -545,7 +546,7 @@ const noCompletion = {
   ],
 };
 assert.equal(
-  activity(reconcileSpaceBookingNotifications(seeds, only(noCompletion)))
+  activity(reconcileSpaceBookingNotifications(seeds, only(unlinkedCompletion)))
     .length,
   1,
 );

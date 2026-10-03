@@ -12,11 +12,13 @@ import {
   revealSpaceOperatorBooking,
   scopedSpaceBookings,
   selectSpaceBooking,
+  spaceBookingEndTimestamp,
   spaceBookingUnit,
   spaceBookingVenue,
   type ManagedSpaceBooking,
   type SpaceBookingCustomerRole,
   type SpaceBookingHistory,
+  type SpaceBookingTerms,
   type SpaceBookingsState,
 } from "./spaceBookingsState";
 
@@ -57,6 +59,90 @@ function distinctHistory(
     if (!previous) events.set(event.id, event);
   }
   return [...events.values()];
+}
+
+function sameTerms(left: SpaceBookingTerms, right: SpaceBookingTerms): boolean {
+  return (
+    left.date === right.date &&
+    left.start === right.start &&
+    left.end === right.end &&
+    left.priceCents === right.priceCents &&
+    left.cleaningFeeCents === right.cleaningFeeCents &&
+    left.depositCents === right.depositCents
+  );
+}
+
+function recordedCompletion(
+  booking: ManagedSpaceBooking,
+  event: SpaceBookingHistory,
+  history: SpaceBookingHistory[],
+  operatorName: string,
+): boolean {
+  const terms = booking.agreedTerms;
+  if (
+    booking.phase !== "Completed" ||
+    !terms ||
+    event.actor !== operatorName ||
+    event.proposalId !== undefined ||
+    event.at !== booking.updatedAt ||
+    history.at(-1) !== event ||
+    history.filter((source) => source.action === "completed").length !== 1 ||
+    booking.proposals.some((proposal) => proposal.status === "pending") ||
+    bookingTermsTotalCents(terms) === null ||
+    !(spaceBookingEndTimestamp(terms) <= Date.parse(event.at))
+  )
+    return false;
+  const agreement = history
+    .filter(
+      (source) =>
+        source.action === "accepted" || source.action === "proposal-accepted",
+    )
+    .at(-1);
+  const request = history.find(
+    (source) =>
+      validHistoryEvent(source) &&
+      source.action === "requested" &&
+      source.actor === booking.customerName &&
+      source.at === booking.createdAt &&
+      source.proposalId === undefined,
+  );
+  if (
+    !agreement ||
+    !request ||
+    !validHistoryEvent(agreement) ||
+    history.indexOf(request) >= history.indexOf(agreement) ||
+    history.indexOf(agreement) >= history.indexOf(event)
+  )
+    return false;
+  if (agreement.action === "accepted")
+    return (
+      agreement.actor === operatorName &&
+      agreement.proposalId === undefined &&
+      sameTerms(booking.requestedTerms, terms)
+    );
+  const proposals = booking.proposals.filter(
+    (proposal) => proposal.id === agreement.proposalId,
+  );
+  if (proposals.length !== 1) return false;
+  const [proposal] = proposals;
+  return (
+    agreement.actor === booking.customerName &&
+    proposal.status === "accepted" &&
+    proposal.decidedAt === agreement.at &&
+    Number.isSafeInteger(proposal.version) &&
+    proposal.version > 0 &&
+    proposal.id === `${booking.id}-proposal-${proposal.version}` &&
+    sameTerms(proposal.proposedTerms, terms) &&
+    history.some(
+      (source, index) =>
+        validHistoryEvent(source) &&
+        source.action === "proposed" &&
+        source.actor === operatorName &&
+        source.proposalId === proposal.id &&
+        source.at === proposal.createdAt &&
+        index < history.indexOf(agreement),
+    )
+  );
 }
 
 function recordedEvent(
@@ -149,6 +235,11 @@ function recordedEvent(
     booking.updatedAt === event.at
   )
     return { role: "spaceOperator", kind: "request-cancelled" };
+  if (
+    event.action === "completed" &&
+    recordedCompletion(booking, event, history, operatorName)
+  )
+    return { role: booking.customerRole, kind: "booking-completed" };
   return null;
 }
 

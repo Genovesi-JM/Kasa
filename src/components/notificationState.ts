@@ -31,7 +31,8 @@ export interface SpaceBookingNotificationEvent {
     | "proposal-recorded"
     | "proposal-accepted"
     | "proposal-declined"
-    | "request-cancelled";
+    | "request-cancelled"
+    | "booking-completed";
   bookingId: string;
   venueName: string;
   spaceName: string;

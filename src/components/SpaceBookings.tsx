@@ -65,9 +65,14 @@ function BookingStatus({
         ? "amber"
         : "neutral";
   return (
-    <span className={`pill pill-${tone}`}>
-      {spaceBookingStatusText(booking.phase, copy)}
-    </span>
+    <>
+      <span className={`pill pill-${tone}`}>
+        {spaceBookingStatusText(booking.phase, copy)}
+      </span>
+      {booking.source === "sample" && (
+        <span className="pill pill-neutral">{copy.system}</span>
+      )}
+    </>
   );
 }
 
@@ -586,6 +591,9 @@ export function SpaceBookingsView({
                       <strong>
                         {spaceBookingHistoryText(entry.action, copy)}
                       </strong>
+                      {entry.source === "sample" && (
+                        <small>{copy.system}</small>
+                      )}
                       <small>
                         {entry.actor} ·{" "}
                         {spaceBookingDate(entry.at, locale, true)}
