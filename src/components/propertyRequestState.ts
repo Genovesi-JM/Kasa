@@ -568,7 +568,21 @@ export function viewingActionDraft(
     pendingViewingProposal(request)?.terms ??
     request.agreedTerms ??
     request.requestedTerms;
-  return state.actionDrafts?.[role]?.[id] ?? { ...terms, note: "" };
+  const retained = state.actionDrafts?.[role]?.[id];
+  return retained ? { ...retained } : { ...terms, note: "" };
+}
+
+export function hasViewingActionDraft(
+  state: PropertyRequestState,
+  role: Role,
+  id: string,
+): boolean {
+  const request = state.viewings.find((record) => record.id === id);
+  return Boolean(
+    request &&
+    ownsViewing(request, role) &&
+    Object.hasOwn(state.actionDrafts?.[role] ?? {}, id),
+  );
 }
 
 export function updateViewingActionDraft(
@@ -577,29 +591,55 @@ export function updateViewingActionDraft(
   id: string,
   patch: Partial<ViewingActionDraft>,
 ): PropertyRequestState {
+  const request = state.viewings.find((record) => record.id === id);
+  if (
+    !request ||
+    ["Cancelled", "Declined"].includes(request.status) ||
+    !patch ||
+    typeof patch !== "object"
+  )
+    return state;
   const draft = viewingActionDraft(state, role, id);
   if (!draft) return state;
+  const next = { ...draft };
+  let recognized = false;
+  for (const field of ["date", "time", "note"] as const) {
+    if (
+      (field === "note" || role === "landlord") &&
+      Object.hasOwn(patch, field) &&
+      typeof patch[field] === "string"
+    ) {
+      next[field] = patch[field];
+      recognized = true;
+    }
+  }
+  if (
+    !recognized ||
+    (hasViewingActionDraft(state, role, id) &&
+      next.date === draft.date &&
+      next.time === draft.time &&
+      next.note === draft.note)
+  )
+    return state;
   return {
     ...state,
     actionDrafts: {
       ...state.actionDrafts,
       [role]: {
         ...state.actionDrafts?.[role],
-        [id]: {
-          date: role === "landlord" ? (patch.date ?? draft.date) : draft.date,
-          time: role === "landlord" ? (patch.time ?? draft.time) : draft.time,
-          note: patch.note ?? draft.note,
-        },
+        [id]: next,
       },
     },
   };
 }
 
-function clearViewingActionDraft(
+/** Private responses remain disposable after either party closes the request. */
+export function discardViewingActionDraft(
   state: PropertyRequestState,
   role: Role,
   id: string,
 ): PropertyRequestState {
+  if (!hasViewingActionDraft(state, role, id)) return state;
   const drafts = { ...state.actionDrafts?.[role] };
   delete drafts[id];
   return { ...state, actionDrafts: { ...state.actionDrafts, [role]: drafts } };
@@ -718,7 +758,7 @@ export function saveViewingProposal(
     ],
   };
   return {
-    state: clearViewingActionDraft(replaceViewing(state, updated), role, id),
+    state: discardViewingActionDraft(replaceViewing(state, updated), role, id),
     proposalId: proposal.id,
     errors: {},
     issue: null,
@@ -844,6 +884,6 @@ export function actOnViewingRequest(
   updated.history = [...request.history, event];
   const next = replaceViewing(state, updated);
   return action.type === "cancel" || action.type === "decline-request"
-    ? clearViewingActionDraft(next, role, id)
+    ? discardViewingActionDraft(next, role, id)
     : next;
 }

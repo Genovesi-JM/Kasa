@@ -22,6 +22,7 @@ import "./saved-homes-view-check";
 import "./workspace-saved-state-check";
 import "./property-request-check";
 import "./viewing-selection-check";
+import "./viewing-action-draft-check";
 import "./maintenance-state-check";
 import "./document-state-check";
 import "./document-view-check";

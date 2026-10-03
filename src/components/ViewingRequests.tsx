@@ -1,4 +1,5 @@
 import {
+  useEffect,
   useId,
   useRef,
   useState,
@@ -12,6 +13,8 @@ import type { Role } from "../types";
 import {
   actOnViewingRequest,
   discardViewingDraft,
+  discardViewingActionDraft,
+  hasViewingActionDraft,
   isActiveViewing,
   pendingViewingProposal,
   scopedViewingRequests,
@@ -20,6 +23,7 @@ import {
   selectedViewingRequest,
   setViewingFilter,
   viewingActionIssue,
+  viewingActionDraft,
   viewingCounts,
   viewingDrafts,
   viewingView,
@@ -135,12 +139,31 @@ function ViewingInbox({
   const id = useId();
   const detailHeading = useRef<HTMLHeadingElement>(null);
   const draftsHeading = useRef<HTMLHeadingElement>(null);
-  const [feedback, setFeedback] = useState("");
+  const [feedback, setFeedback] = useState<
+    string | { type: "responseDiscarded" }
+  >("");
+  const discardFocusFrame = useRef<number | null>(null);
+  useEffect(
+    () => () => {
+      if (discardFocusFrame.current !== null)
+        cancelAnimationFrame(discardFocusFrame.current);
+    },
+    [],
+  );
   const [error, setError] = useState("");
   const [actionDialog, setActionDialog] = useState<{
     mode: ViewingActionMode;
     requestId: string;
   } | null>(null);
+  const actionTrigger = useRef<HTMLButtonElement | null>(null);
+  function openAction(
+    mode: ViewingActionMode,
+    requestId: string,
+    trigger: HTMLButtonElement,
+  ) {
+    actionTrigger.current = trigger;
+    setActionDialog({ mode, requestId });
+  }
   const [draftPropertyId, setDraftPropertyId] = useState<number | null>(null);
   const renderedAt = new Date();
   const view = viewingView(state, role);
@@ -161,6 +184,10 @@ function ViewingInbox({
   const proposal = selected ? pendingViewingProposal(selected) : null;
   const closed =
     selected && ["Cancelled", "Declined"].includes(selected.status);
+  const responseDraft =
+    selected && hasViewingActionDraft(state, role, selected.id)
+      ? viewingActionDraft(state, role, selected.id)
+      : null;
   const pastAgreement =
     selected?.agreedTerms &&
     !isActiveViewing({ ...selected, status: "Agreed" }, renderedAt);
@@ -228,7 +255,39 @@ function ViewingInbox({
     );
     setError("");
     setActionDialog(null);
-    focusDetail();
+    focusDetail(actionDialog.requestId);
+  }
+  function responseDiscarded(
+    requestId: string,
+    trigger: HTMLElement | null,
+    restoredTrigger?: HTMLElement | null,
+  ) {
+    setFeedback({ type: "responseDiscarded" });
+    setError("");
+    if (discardFocusFrame.current !== null)
+      cancelAnimationFrame(discardFocusFrame.current);
+    discardFocusFrame.current = requestAnimationFrame(() => {
+      discardFocusFrame.current = null;
+      const target = detailHeading.current;
+      const active = document.activeElement;
+      if (
+        active &&
+        active !== document.body &&
+        active !== document.documentElement &&
+        active !== trigger &&
+        active !== restoredTrigger
+      )
+        return;
+      if (
+        target?.isConnected &&
+        target.dataset.viewingId === requestId &&
+        target.getClientRects().length &&
+        !target.closest('[hidden], [inert], [aria-hidden="true"]') &&
+        getComputedStyle(target).visibility === "visible" &&
+        !document.querySelector('[role="dialog"], dialog[open]')
+      )
+        target.focus();
+    });
   }
   if (!["tenant", "landlord"].includes(role))
     return (
@@ -271,7 +330,12 @@ function ViewingInbox({
       </header>
       <p className="viewing-scope">{scope}</p>
       <div className="viewing-feedback" role="status">
-        {feedback}
+        {typeof feedback === "string"
+          ? feedback
+          : text(
+              "Private response draft discarded. The viewing request is unchanged.",
+              "Rascunho privado da resposta descartado. O pedido de visita permanece inalterado.",
+            )}
       </div>
       {error && (
         <p className="property-request-errors" role="alert">
@@ -614,6 +678,72 @@ function ViewingInbox({
                   )}
                 </section>
               )}
+              {responseDraft && actionDialog?.requestId !== selected.id && (
+                <section
+                  className="viewing-private-response"
+                  aria-labelledby={`${id}-private-response`}
+                >
+                  <h3 id={`${id}-private-response`}>
+                    {text(
+                      "Private response draft",
+                      "Rascunho privado da resposta",
+                    )}
+                  </h3>
+                  <p>
+                    {closed
+                      ? text(
+                          "This request is closed. You can inspect, copy or discard your unfinished values; they cannot change the request.",
+                          "Este pedido está encerrado. Pode consultar, copiar ou descartar os valores por concluir; não podem alterar o pedido.",
+                        )
+                      : text(
+                          "Your unfinished response stays private to this workspace. Use an available response action below to continue. Reloading clears the draft.",
+                          "A resposta por concluir fica privada nesta área de trabalho. Use uma das ações de resposta abaixo para continuar. Recarregar apaga o rascunho.",
+                        )}
+                  </p>
+                  <details>
+                    <summary>
+                      {text(
+                        "View unfinished response",
+                        "Ver resposta por concluir",
+                      )}
+                    </summary>
+                    <dl className="viewing-response-values">
+                      {(["date", "time", "note"] as const).map((field) => (
+                        <div key={field}>
+                          <dt>
+                            {field === "date"
+                              ? text("Date", "Data")
+                              : field === "time"
+                                ? text("Time", "Hora")
+                                : text("Note", "Nota")}
+                          </dt>
+                          <dd dir="auto">
+                            {responseDraft[field] === ""
+                              ? text("Not entered", "Por preencher")
+                              : responseDraft[field]}
+                          </dd>
+                        </div>
+                      ))}
+                    </dl>
+                  </details>
+                  <button
+                    type="button"
+                    className="text-button"
+                    onClick={(event) => {
+                      const requestId = selected.id;
+                      setState((current) =>
+                        discardViewingActionDraft(current, role, requestId),
+                      );
+                      responseDiscarded(requestId, event.currentTarget);
+                    }}
+                  >
+                    {text(
+                      "Discard response draft",
+                      "Descartar rascunho da resposta",
+                    )}
+                  </button>
+                </section>
+              )}
               {!closed && (
                 <div className="viewing-buttons viewing-main-actions">
                   {role === "landlord" && (
@@ -642,11 +772,12 @@ function ViewingInbox({
                       <button
                         type="button"
                         className="button button-secondary"
-                        onClick={() =>
-                          setActionDialog({
-                            mode: "proposal",
-                            requestId: selected.id,
-                          })
+                        onClick={(event) =>
+                          openAction(
+                            "proposal",
+                            selected.id,
+                            event.currentTarget,
+                          )
                         }
                       >
                         {proposal
@@ -663,11 +794,12 @@ function ViewingInbox({
                         <button
                           type="button"
                           className="button button-secondary"
-                          onClick={() =>
-                            setActionDialog({
-                              mode: "decline",
-                              requestId: selected.id,
-                            })
+                          onClick={(event) =>
+                            openAction(
+                              "decline",
+                              selected.id,
+                              event.currentTarget,
+                            )
                           }
                         >
                           {text("Decline request", "Recusar pedido")}
@@ -679,11 +811,8 @@ function ViewingInbox({
                     <button
                       type="button"
                       className="button button-secondary"
-                      onClick={() =>
-                        setActionDialog({
-                          mode: "cancel",
-                          requestId: selected.id,
-                        })
+                      onClick={(event) =>
+                        openAction("cancel", selected.id, event.currentTarget)
                       }
                     >
                       {text("Cancel request", "Cancelar pedido")}
@@ -767,6 +896,17 @@ function ViewingInbox({
             mode={actionDialog.mode}
             onClose={() => setActionDialog(null)}
             onSaved={completedAction}
+            onDiscarded={() => {
+              const requestId = actionDialog.requestId;
+              setActionDialog(null);
+              responseDiscarded(
+                requestId,
+                document.activeElement instanceof HTMLElement
+                  ? document.activeElement
+                  : null,
+                actionTrigger.current,
+              );
+            }}
           />
         ) : (
           <UnavailableViewingAction onClose={() => setActionDialog(null)} />
