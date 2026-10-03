@@ -12,7 +12,7 @@ import { properties } from "../data";
 import type { Role } from "../types";
 import type { OperationsKey } from "../locales/operations/types";
 import {
-  actOnViewingRequest,
+  applyViewingActionCommand,
   discardViewingDraft,
   discardViewingActionDraft,
   hasViewingActionDraft,
@@ -23,14 +23,14 @@ import {
   selectViewingRequest,
   selectedViewingRequest,
   setViewingFilter,
-  viewingActionIssue,
   viewingActionDraft,
   viewingCounts,
   viewingDrafts,
   viewingView,
   visibleViewingRequests,
   type PropertyRequestState,
-  type ViewingAction,
+  type ViewingActionCommand,
+  type ViewingImmediateAction,
   type ViewingFilter,
   type ViewingIssue,
   type ViewingRequest,
@@ -47,6 +47,22 @@ import { useDialogFocus } from "./useDialogFocus";
 import "./viewings.css";
 
 type ViewingNotice = Extract<OperationsKey, `viewings_notice${string}`>;
+
+function captureViewingActionCommand(
+  role: Role,
+  requestId: string,
+  action: ViewingImmediateAction,
+  view: ReturnType<typeof viewingView>,
+): ViewingActionCommand {
+  return Object.freeze({
+    token: crypto.randomUUID(),
+    role,
+    requestId,
+    action: Object.freeze({ ...action }),
+    view: Object.freeze({ ...view }),
+    at: Date.now(),
+  });
+}
 
 export interface ViewingOpenRequest {
   role: Role;
@@ -252,6 +268,12 @@ function ViewingInbox({
   const handledOpenRevision = useRef<number | null>(null);
   const draftsHeading = useRef<HTMLHeadingElement>(null);
   const [feedback, setFeedback] = useState<ViewingNotice | null>(null);
+  const [pendingAction, setPendingAction] = useState<{
+    command: ViewingActionCommand;
+    notice: ViewingNotice;
+  } | null>(null);
+  const immediateTrigger = useRef<HTMLElement | null>(null);
+  const focusedAction = useRef<string | null>(null);
   const discardFocusFrame = useRef<number | null>(null);
   useEffect(
     () => () => {
@@ -271,6 +293,7 @@ function ViewingInbox({
     requestId: string,
     trigger: HTMLButtonElement,
   ) {
+    setPendingAction(null);
     actionTrigger.current = trigger;
     setActionDialog({ mode, requestId });
   }
@@ -357,6 +380,98 @@ function ViewingInbox({
   const pastAgreement =
     selected?.agreedTerms &&
     !isActiveViewing({ ...selected, status: "Agreed" }, renderedAt);
+  const command = pendingAction?.command;
+  const commandProposalId =
+    command && "proposalId" in command.action
+      ? command.action.proposalId
+      : null;
+  const receipt =
+    command &&
+    state.actionReceipt?.token === command.token &&
+    state.actionReceipt.role === command.role &&
+    state.actionReceipt.requestId === command.requestId &&
+    state.actionReceipt.actionType === command.action.type &&
+    state.actionReceipt.proposalId === commandProposalId
+      ? state.actionReceipt
+      : null;
+  const capturedViewMatches =
+    command &&
+    view.filter === command.view.filter &&
+    view.selectedId === command.view.selectedId;
+  const ownRevealMatches =
+    command &&
+    receipt?.issue === null &&
+    view.filter === "All" &&
+    view.selectedId === command.requestId;
+  const eventAction =
+    command?.action.type === "accept-request"
+      ? "accepted"
+      : command?.action.type === "accept-proposal"
+        ? "proposal-accepted"
+        : "proposal-declined";
+  const recordedEvent =
+    command && receipt?.issue === null
+      ? selected?.history.find(
+          (event) =>
+            event.id === receipt.eventId &&
+            event.source === "local" &&
+            event.action === eventAction &&
+            event.actor === command.role &&
+            Date.parse(event.at) === command.at &&
+            (event.proposalId ?? null) === commandProposalId,
+        )
+      : undefined;
+  const newerDecision =
+    recordedEvent &&
+    (selected?.history.at(-1)?.id !== recordedEvent.id ||
+      (proposal && proposal.id !== commandProposalId));
+  const actionContext =
+    command?.role === role &&
+    !hasDialog &&
+    (capturedViewMatches || ownRevealMatches) &&
+    (!selected || selected.id === command.requestId) &&
+    !newerDecision;
+  const actionPending = Boolean(actionContext && !receipt);
+  const immediateNotice = actionContext
+    ? !receipt
+      ? "viewings_actionPending"
+      : recordedEvent
+        ? pendingAction?.notice
+        : null
+    : null;
+  const immediateError =
+    actionContext && receipt && !recordedEvent
+      ? (receipt.issue ?? "unavailable")
+      : null;
+  const actionFocusToken =
+    actionContext && recordedEvent ? command?.token : undefined;
+  const actionFocusId = actionFocusToken ? command?.requestId : undefined;
+  useEffect(() => {
+    if (
+      !actionFocusToken ||
+      !actionFocusId ||
+      focusedAction.current === actionFocusToken
+    )
+      return;
+    focusedAction.current = actionFocusToken;
+    const frame = requestAnimationFrame(() => {
+      const heading = detailHeading.current;
+      const active = document.activeElement;
+      if (
+        heading?.isConnected &&
+        heading.dataset.viewingId === actionFocusId &&
+        heading.getClientRects().length &&
+        !heading.closest('[hidden], [inert], [aria-hidden="true"]') &&
+        getComputedStyle(heading).visibility === "visible" &&
+        !document.querySelector('[role="dialog"], dialog[open]') &&
+        (!active ||
+          active === document.body ||
+          active === immediateTrigger.current)
+      )
+        heading.focus();
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [actionFocusToken, actionFocusId]);
   const filters: [ViewingFilter, number][] = [
     ["All", counts.total],
     ["Pending", counts.pending],
@@ -372,6 +487,7 @@ function ViewingInbox({
     });
   }
   function select(id: string) {
+    setPendingAction(null);
     const clickedAt = new Date();
     setState((current) =>
       selectVisibleViewingRequest(current, role, id, clickedAt),
@@ -380,25 +496,21 @@ function ViewingInbox({
     setError(null);
     focusDetail(id);
   }
-  function act(action: ViewingAction, message: ViewingNotice) {
-    if (!selected) return;
-    const issue = viewingActionIssue(state, role, selected.id, action);
-    if (issue) {
-      setError(issue.code);
-      setFeedback(null);
-      return;
-    }
-    const updated = actOnViewingRequest(state, role, selected.id, action);
-    if (updated === state) {
-      setError("unavailable");
-      return;
-    }
-    setState(selectViewingRequest(updated, role, selected.id));
-    setFeedback(message);
+  function act(action: ViewingImmediateAction, notice: ViewingNotice) {
+    if (!selected || actionPending) return;
+    const next = captureViewingActionCommand(role, selected.id, action, view);
+    immediateTrigger.current =
+      document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : null;
+    setFeedback(null);
     setError(null);
-    focusDetail();
+    setPendingAction({ command: next, notice });
+    setState((current) => applyViewingActionCommand(current, next));
   }
+
   function completedAction() {
+    setPendingAction(null);
     if (!actionDialog) return;
     setState((current) =>
       selectViewingRequest(current, role, actionDialog.requestId),
@@ -419,6 +531,7 @@ function ViewingInbox({
     trigger: HTMLElement | null,
     restoredTrigger?: HTMLElement | null,
   ) {
+    setPendingAction(null);
     setFeedback("viewings_noticeResponseDiscarded");
     setError(null);
     if (discardFocusFrame.current !== null)
@@ -487,11 +600,11 @@ function ViewingInbox({
       </header>
       <p className="viewing-scope">{scope}</p>
       <div className="viewing-feedback" role="status">
-        {feedback && tr(feedback)}
+        {immediateNotice ? tr(immediateNotice) : feedback && tr(feedback)}
       </div>
-      {error && (
+      {(immediateError || error) && (
         <p className="property-request-errors" role="alert">
-          {issueText(error)}
+          {issueText((immediateError || error)!)}
         </p>
       )}
       {role === "tenant" && (
@@ -525,7 +638,10 @@ function ViewingInbox({
                         className="button button-secondary"
                         type="button"
                         aria-label={`${text("Continue draft", "Continuar rascunho")} · ${home.title}`}
-                        onClick={() => setDraftPropertyId(propertyId)}
+                        onClick={() => {
+                          setPendingAction(null);
+                          setDraftPropertyId(propertyId);
+                        }}
                       >
                         {text("Continue", "Continuar")}
                       </button>
@@ -537,6 +653,7 @@ function ViewingInbox({
                           setState((current) =>
                             discardViewingDraft(current, role, propertyId),
                           );
+                          setPendingAction(null);
                           setFeedback("viewings_noticeDraftDiscarded");
                           requestAnimationFrame(() =>
                             draftsHeading.current?.focus(),
@@ -575,6 +692,7 @@ function ViewingInbox({
             aria-pressed={view.filter === filter}
             className={view.filter === filter ? "active" : ""}
             onClick={() => {
+              setPendingAction(null);
               setState((current) => setViewingFilter(current, role, filter));
               setFeedback(null);
               setError(null);
@@ -624,9 +742,10 @@ function ViewingInbox({
             <button
               type="button"
               className="button button-secondary"
-              onClick={() =>
-                setState((current) => setViewingFilter(current, role, "All"))
-              }
+              onClick={() => {
+                setPendingAction(null);
+                setState((current) => setViewingFilter(current, role, "All"));
+              }}
             >
               {text("Show all requests", "Ver todos os pedidos")}
             </button>
@@ -787,6 +906,7 @@ function ViewingInbox({
                       <button
                         type="button"
                         className="button"
+                        disabled={actionPending}
                         onClick={() =>
                           act(
                             {
@@ -805,6 +925,7 @@ function ViewingInbox({
                       <button
                         type="button"
                         className="button button-secondary"
+                        disabled={actionPending}
                         onClick={() =>
                           act(
                             {
@@ -903,6 +1024,7 @@ function ViewingInbox({
                           <button
                             type="button"
                             className="button"
+                            disabled={actionPending}
                             onClick={() =>
                               act(
                                 { type: "accept-request" },
@@ -1066,6 +1188,7 @@ function ViewingInbox({
           property={draftProperty}
           onClose={() => setDraftPropertyId(null)}
           onSaved={(requestId) => {
+            setPendingAction(null);
             setDraftPropertyId(null);
             setState((current) =>
               selectViewingRequest(current, role, requestId),

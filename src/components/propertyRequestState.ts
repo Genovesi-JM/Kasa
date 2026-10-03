@@ -77,6 +77,31 @@ export type ViewingAction =
   | { type: "accept-proposal"; proposalId: string }
   | { type: "decline-proposal"; proposalId: string };
 
+export type ViewingImmediateAction = Extract<
+  ViewingAction,
+  { type: "accept-request" | "accept-proposal" | "decline-proposal" }
+>;
+export interface ViewingActionCommand {
+  readonly token: string;
+  readonly role: Role;
+  readonly requestId: string;
+  readonly action: Readonly<ViewingImmediateAction>;
+  readonly at: number;
+  readonly view: Readonly<{
+    filter: ViewingFilter;
+    selectedId: string | null;
+  }>;
+}
+export interface ViewingActionReceipt {
+  readonly token: string;
+  readonly role: Role;
+  readonly requestId: string;
+  readonly actionType: ViewingImmediateAction["type"];
+  readonly proposalId: string | null;
+  readonly issue: ViewingIssue["code"] | null;
+  readonly eventId: string | null;
+}
+
 export interface ViewingRequest {
   id: string;
   propertyId: number;
@@ -97,6 +122,7 @@ export interface ViewingRequest {
 
 export interface PropertyRequestState {
   viewings: ViewingRequest[];
+  actionReceipt?: ViewingActionReceipt;
   drafts?: Record<number, ViewingRequestDraft>;
   actionDrafts?: Partial<Record<Role, Record<string, ViewingActionDraft>>>;
   views?: Partial<
@@ -890,4 +916,93 @@ export function actOnViewingRequest(
   return action.type === "cancel" || action.type === "decline-request"
     ? discardViewingActionDraft(next, role, id)
     : next;
+}
+
+/** Applies an immediate action to queued state and records its exact committed result. */
+export function applyViewingActionCommand(
+  state: PropertyRequestState,
+  command: ViewingActionCommand,
+): PropertyRequestState {
+  const { token, role, requestId, at } = command;
+  if (state.actionReceipt?.token === token) return state;
+  const action: ViewingImmediateAction =
+    command.action.type === "accept-request"
+      ? { type: "accept-request" }
+      : { type: command.action.type, proposalId: command.action.proposalId };
+  const proposalId = "proposalId" in action ? action.proposalId : null;
+  const receipt = (
+    next: PropertyRequestState,
+    issue: ViewingIssue["code"] | null,
+    eventId: string | null = null,
+  ): PropertyRequestState => ({
+    ...next,
+    actionReceipt: {
+      token,
+      role,
+      requestId,
+      actionType: action.type,
+      proposalId,
+      issue,
+      eventId,
+    },
+  });
+  if (
+    !["accept-request", "accept-proposal", "decline-proposal"].includes(
+      action.type,
+    ) ||
+    typeof at !== "number" ||
+    !Number.isSafeInteger(at)
+  )
+    return receipt(state, "unavailable");
+  const now = new Date(at);
+  if (!Number.isFinite(now.getTime())) return receipt(state, "unavailable");
+  const matches = state.viewings.filter((request) => request.id === requestId);
+  if (matches.length !== 1) return receipt(state, "unavailable");
+  const [before] = matches;
+  if (
+    proposalId !== null &&
+    before.proposals.filter((proposal) => proposal.id === proposalId).length > 1
+  )
+    return receipt(state, "unavailable");
+  const issue = viewingActionIssue(state, role, requestId, action, now);
+  if (issue) return receipt(state, issue.code);
+  const terms =
+    action.type === "accept-request"
+      ? before.requestedTerms
+      : pendingViewingProposal(before)?.terms;
+  const next = actOnViewingRequest(state, role, requestId, action, now);
+  const after = next.viewings.find((request) => request.id === requestId);
+  const event = after?.history.at(-1);
+  const eventAction =
+    action.type === "accept-request"
+      ? "accepted"
+      : action.type === "accept-proposal"
+        ? "proposal-accepted"
+        : "proposal-declined";
+  if (
+    next === state ||
+    !after ||
+    !event ||
+    !terms ||
+    after.history.length !== before.history.length + 1 ||
+    !before.history.every((entry, index) => after.history[index] === entry) ||
+    event.id !== `${requestId}-event-${before.history.length + 1}` ||
+    before.history.some((entry) => entry.id === event.id) ||
+    event.source !== "local" ||
+    event.action !== eventAction ||
+    event.actor !== role ||
+    event.at !== now.toISOString() ||
+    after.updatedAt !== event.at ||
+    event.proposalId !== (proposalId ?? undefined) ||
+    event.terms?.date !== terms.date ||
+    event.terms?.time !== terms.time
+  )
+    return receipt(state, "unavailable");
+  const latestView = viewingView(state, role);
+  const revealed =
+    latestView.filter === command.view.filter &&
+    latestView.selectedId === command.view.selectedId
+      ? selectViewingRequest(next, role, requestId)
+      : next;
+  return receipt(revealed, null, event.id);
 }

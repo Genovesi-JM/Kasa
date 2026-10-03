@@ -1,6 +1,7 @@
 import type { ViewingDictionary } from "./viewing-types";
 
 export const viewingEs = {
+  viewings_actionPending: "Guardando la respuesta…",
   viewings_requestUnavailable: "Solicitud no disponible",
   viewings_close: "Cerrar",
   viewings_noticeProposalSaved:

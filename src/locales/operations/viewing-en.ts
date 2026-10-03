@@ -1,4 +1,5 @@
 export const viewingEn = {
+  viewings_actionPending: "Saving response…",
   viewings_requestUnavailable: "Request unavailable",
   viewings_close: "Close",
   viewings_noticeProposalSaved:

@@ -1,6 +1,7 @@
 import type { ViewingDictionary } from "./viewing-types";
 
 export const viewingZh = {
+  viewings_actionPending: "正在保存回复…",
   viewings_requestUnavailable: "请求不可用",
   viewings_close: "关闭",
   viewings_noticeProposalSaved:
