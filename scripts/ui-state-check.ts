@@ -21,6 +21,7 @@ import "./property-request-check";
 import "./viewing-selection-check";
 import "./maintenance-state-check";
 import "./document-state-check";
+import "./document-view-check";
 import "./rent-record-state-check";
 import "./rent-history-check";
 import "./property-operations-summary-check";

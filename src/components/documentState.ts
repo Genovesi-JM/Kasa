@@ -30,10 +30,19 @@ export type DocumentContent =
 
 export type WorkspaceDocument = DocumentMetadata & DocumentContent;
 
+export interface DocumentView {
+  query: string;
+  category: "All categories" | DocumentCategory;
+  source: "All documents" | "Local files" | "Sample previews";
+  sort: "Recently added" | "Document name" | "Largest first";
+  addCategory: DocumentCategory;
+}
+
 export interface DocumentState {
   records: WorkspaceDocument[];
   removed: Partial<Record<Role, WorkspaceDocument>>;
   nextId: number;
+  views?: Partial<Record<Role, DocumentView>>;
 }
 
 export const documentIssueMessages = {
@@ -111,6 +120,81 @@ export function categoriesForRole(role: Role): DocumentCategory[] {
   return ["Platform records", "Other"];
 }
 
+function isDocumentRole(role: Role): boolean {
+  return ["tenant", "landlord", "provider", "spaceOperator", "admin"].includes(
+    role,
+  );
+}
+
+function createDocumentView(): DocumentView {
+  return {
+    query: "",
+    category: "All categories",
+    source: "All documents",
+    sort: "Recently added",
+    addCategory: "Other",
+  };
+}
+
+/** Library preferences belong to one workspace and never expose retained references. */
+export function documentView(state: DocumentState, role: Role): DocumentView {
+  return isDocumentRole(role)
+    ? { ...(state.views?.[role] ?? createDocumentView()) }
+    : createDocumentView();
+}
+
+export function updateDocumentView(
+  state: DocumentState,
+  role: Role,
+  patch: Partial<DocumentView>,
+): DocumentState {
+  if (!isDocumentRole(role) || !patch || typeof patch !== "object")
+    return state;
+  const current = documentView(state, role);
+  const next = { ...current };
+  const categories = categoriesForRole(role);
+  if (typeof patch.query === "string") next.query = patch.query.slice(0, 200);
+  if (
+    typeof patch.category === "string" &&
+    (patch.category === "All categories" || categories.includes(patch.category))
+  )
+    next.category = patch.category;
+  if (
+    typeof patch.addCategory === "string" &&
+    categories.includes(patch.addCategory)
+  )
+    next.addCategory = patch.addCategory;
+  if (
+    typeof patch.source === "string" &&
+    ["All documents", "Local files", "Sample previews"].includes(patch.source)
+  )
+    next.source = patch.source;
+  if (
+    typeof patch.sort === "string" &&
+    ["Recently added", "Document name", "Largest first"].includes(patch.sort)
+  )
+    next.sort = patch.sort;
+  if (
+    (Object.keys(current) as Array<keyof DocumentView>).every(
+      (field) => current[field] === next[field],
+    )
+  )
+    return state;
+  return { ...state, views: { ...state.views, [role]: next } };
+}
+
+export function resetDocumentFilters(
+  state: DocumentState,
+  role: Role,
+): DocumentState {
+  return updateDocumentView(state, role, {
+    query: "",
+    category: "All categories",
+    source: "All documents",
+    sort: "Recently added",
+  });
+}
+
 export function createInitialDocumentState(): DocumentState {
   const seeds: Record<
     Role,
@@ -170,6 +254,13 @@ export function createInitialDocumentState(): DocumentState {
   return {
     nextId: 1,
     removed: {},
+    views: {
+      tenant: createDocumentView(),
+      landlord: createDocumentView(),
+      provider: createDocumentView(),
+      spaceOperator: createDocumentView(),
+      admin: createDocumentView(),
+    },
     records: Object.entries(seeds).flatMap(([role, items]) =>
       items.map((item, index): WorkspaceDocument => ({
         id: `sample-${role}-${index + 1}`,
@@ -298,7 +389,9 @@ export function addLocalDocuments(
   }
   const added = records.length - state.records.length;
   return {
-    state: added ? { ...state, records, nextId } : state,
+    state: added
+      ? resetDocumentFilters({ ...state, records, nextId }, role)
+      : state,
     added,
     errors: issues.map(englishDocumentIssue),
     issues,

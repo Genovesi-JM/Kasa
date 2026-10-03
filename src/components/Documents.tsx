@@ -21,14 +21,18 @@ import {
   categoriesForRole,
   DOCUMENT_ACCEPT,
   documentBytes,
+  documentView,
   removeDocument,
+  resetDocumentFilters,
   restoreDocument,
   restoreDocumentIssue,
+  updateDocumentView,
   workspaceDocuments,
   workspaceLocalBytes,
   type DocumentCategory,
   type DocumentIssue,
   type DocumentState,
+  type DocumentView,
 } from "./documentState";
 import { DocumentPreview } from "./DocumentPreview";
 import { useOperationsI18n } from "./useOperationsI18n";
@@ -67,11 +71,10 @@ function WorkspaceDocuments({ role, state, setState }: DocumentsProps) {
   const { tr, locale, issueText } = useOperationsI18n();
   const records = workspaceDocuments(state, role);
   const categories = categoriesForRole(role);
-  const [query, setQuery] = useState("");
-  const [category, setCategory] = useState("All categories");
-  const [source, setSource] = useState("All documents");
-  const [sort, setSort] = useState("Recently added");
-  const [addCategory, setAddCategory] = useState<DocumentCategory>("Other");
+  const { query, category, source, sort, addCategory } = documentView(
+    state,
+    role,
+  );
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<OperationsMessage | null>(null);
   const [errors, setErrors] = useState<DocumentIssue[]>([]);
@@ -106,12 +109,10 @@ function WorkspaceDocuments({ role, state, setState }: DocumentsProps) {
           : right.addedAt.localeCompare(left.addedAt) ||
             right.id.localeCompare(left.id, undefined, { numeric: true }),
     );
-  const resetFilters = () => {
-    setQuery("");
-    setCategory("All categories");
-    setSource("All documents");
-    setSort("Recently added");
-  };
+  const updateView = (patch: Partial<DocumentView>) =>
+    setState((current) => updateDocumentView(current, role, patch));
+  const resetFilters = () =>
+    setState((current) => resetDocumentFilters(current, role));
   const filtered = Boolean(
     query || category !== "All categories" || source !== "All documents",
   );
@@ -156,7 +157,9 @@ function WorkspaceDocuments({ role, state, setState }: DocumentsProps) {
             <select
               value={addCategory}
               onChange={(event) =>
-                setAddCategory(event.target.value as DocumentCategory)
+                updateView({
+                  addCategory: event.currentTarget.value as DocumentCategory,
+                })
               }
             >
               {categories.map((item) => (
@@ -185,8 +188,17 @@ function WorkspaceDocuments({ role, state, setState }: DocumentsProps) {
           aria-label={tr("documents_chooseFiles")}
           onChange={(event) => {
             const files = Array.from(event.currentTarget.files ?? []);
+            const categoryForFiles = addCategory;
+            const addedAt = new Date();
+            event.currentTarget.value = "";
             if (files.length) {
-              const result = addLocalDocuments(state, role, files, addCategory);
+              const result = addLocalDocuments(
+                state,
+                role,
+                files,
+                categoryForFiles,
+                addedAt,
+              );
               setState(result.state);
               setErrors(result.issues);
               setFeedback(
@@ -197,9 +209,7 @@ function WorkspaceDocuments({ role, state, setState }: DocumentsProps) {
                     }
                   : { key: "documents_noFilesAdded" },
               );
-              if (result.added) resetFilters();
             }
-            event.currentTarget.value = "";
             addButton.current?.focus();
           }}
         />
@@ -254,14 +264,21 @@ function WorkspaceDocuments({ role, state, setState }: DocumentsProps) {
             type="search"
             aria-label={tr("documents_search")}
             placeholder={tr("documents_searchPlaceholder")}
+            maxLength={200}
             value={query}
-            onChange={(event) => setQuery(event.target.value)}
+            onChange={(event) =>
+              updateView({ query: event.currentTarget.value })
+            }
           />
         </label>
         <select
           aria-label={tr("documents_filterCategory")}
           value={category}
-          onChange={(event) => setCategory(event.target.value)}
+          onChange={(event) =>
+            updateView({
+              category: event.currentTarget.value as DocumentView["category"],
+            })
+          }
         >
           <option value="All categories">
             {tr("documents_allCategories")}
@@ -275,7 +292,11 @@ function WorkspaceDocuments({ role, state, setState }: DocumentsProps) {
         <select
           aria-label={tr("documents_filterSource")}
           value={source}
-          onChange={(event) => setSource(event.target.value)}
+          onChange={(event) =>
+            updateView({
+              source: event.currentTarget.value as DocumentView["source"],
+            })
+          }
         >
           {Object.entries(documentSourceKeys).map(([value, key]) => (
             <option key={value} value={value}>
@@ -286,7 +307,11 @@ function WorkspaceDocuments({ role, state, setState }: DocumentsProps) {
         <select
           aria-label={tr("documents_sort")}
           value={sort}
-          onChange={(event) => setSort(event.target.value)}
+          onChange={(event) =>
+            updateView({
+              sort: event.currentTarget.value as DocumentView["sort"],
+            })
+          }
         >
           {Object.entries(documentSortKeys).map(([value, key]) => (
             <option key={value} value={value}>
