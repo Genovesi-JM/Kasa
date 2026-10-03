@@ -23,6 +23,7 @@ import "./workspace-saved-state-check";
 import "./property-request-check";
 import "./viewing-selection-check";
 import "./viewing-action-draft-check";
+import "./viewing-action-command-check";
 import "./viewing-notification-check";
 import "./viewing-calendar-check";
 import "./viewing-localization-check";

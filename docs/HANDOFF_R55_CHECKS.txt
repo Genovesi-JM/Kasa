@@ -1,0 +1,32 @@
+R55 actual ViewingInbox handler validation — prepared read-only during the R54 gate
+
+Run after the immediate-action UI patch is saved. Source-owned domain tests remain separate. Reuse real ViewingInbox renders, real localized copy and genuine request/proposal helpers from the R54 113-render harness. Delay parent state updates; do not simulate browser network concurrency or claim this artificial queue is a normal-browser reproduction.
+
+Captured command contract
+- Frozen token, role, requestId, copied/frozen immediate action, one at timestamp.
+- Detached/frozen view {filter,selectedId} from click-time viewingView.
+- Receipt token/role/requestId/actionType/proposalId/issue/eventId must match the command and the exact current scoped history proof.
+
+Business boundaries exercised through the actual button
+1. Owner accepts Pending; intervene with tenant cancellation before flushing the updater. Cancellation/history/private drafts remain; no agreement/success/focus; matching committed rejection is localized.
+2. Owner accepts Pending; intervene with new raw tenant/owner drafts and another record update. Valid acceptance commits once, retaining every newer draft/unrelated record/reference.
+3. Tenant accepts P1 or declines P1; intervene with a genuine P2 replacement. P1 cannot mutate P2, prior agreement and history survive, stale-proposal receipt cannot announce success or focus a different proposal.
+4. Original acceptance; proposal acceptance; proposal rejection both with and without a previous agreement. Exact committed success notice only; proposal disappearance caused by the successful action must not suppress success.
+5. One captured click time across the update: valid-before-boundary click delayed past the boundary uses the captured time; click at the boundary rejects. No second clock read from the updater.
+6. Replay a queued updater against its committed result; no second event/notice/focus. Two commands/late older receipt cannot satisfy the latest token.
+
+Presentation and newer navigation
+- Pending state must disable the intended immediate actions and show no success before commit.
+- Clear local pending context on explicit row selection, filter click, opening either dialog, role remount, and external handoff/remount. Returning to the same record must not revive an old notice.
+- Same captured view: success retains the existing reveal-to-All/exact-target behavior.
+- Newer selected row or filter: business action can still commit; retain latest view and suppress old receipt presentation/focus.
+- New current proposal after a committed result hides older decision feedback. Do not require a still-Pending P1 after its own success; validate the captured proposal against receipt/history instead.
+- Locale switches re-render semantic success/error text; they neither clear nor re-submit commands and never schedule another focus.
+
+Post-commit focus
+Extend the fake hooks with dependency-aware effect setup/cleanup, a cancellable RAF queue and native heading/trigger probes. Focus occurs once for a proven current receipt only, after the matching detail exists. Guard exact dataset.viewingId, connected/visible/not inert, current selection/filter context, no dialog and no newly deliberate focus. Cancellation on unmount/context change prevents old-frame focus. Existing intentional row focus is separate and may target the newly selected row.
+
+Proof hardening cases
+Alter one matching result dimension at a time: token, role, requestId, actionType, proposalId, missing event, wrong actor/action/source/time. No success for a mismatched result. A private draft change and a language change preserve proof and never trigger a business action.
+
+No source edits, builds or shared test changes in this preparation task.
