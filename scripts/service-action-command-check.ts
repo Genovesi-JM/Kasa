@@ -11,7 +11,7 @@ import {
   latestServiceQuote,
   saveServiceQuote,
   serviceRequestActionIssue,
-  updateServiceActionNote,
+  updateServiceActionNoteDraft,
   updateServiceQuoteDraft,
   updateServiceRequestDraft,
   updateServiceRequestView,
@@ -49,11 +49,18 @@ function fixture(date: string, validUntil: string) {
   state = updateServiceRequestDraft(state, "landlord", {
     title: "PRIVATE unfinished owner request",
   });
-  state = updateServiceActionNote(state, "tenant", id, privateNote);
-  state = updateServiceActionNote(
+  state = updateServiceActionNoteDraft(
+    state,
+    "tenant",
+    id,
+    { type: "cancel" },
+    privateNote,
+  );
+  state = updateServiceActionNoteDraft(
     state,
     "provider",
     otherId,
+    { type: "decline-request" },
     "PRIVATE unrelated provider note",
   );
   state = updateServiceQuoteDraft(state, "provider", otherId, {
@@ -141,7 +148,7 @@ function assertRejected(
     "records",
     "drafts",
     "quoteDrafts",
-    "actionNotes",
+    "actionNoteDrafts",
     "views",
   ] as const)
     assert.equal(
@@ -187,7 +194,10 @@ function assertSuccess(
     "admin",
   ] as const)
     if (role !== cmd.role)
-      assert.equal(result.actionNotes[role], state.actionNotes[role]);
+      assert.equal(
+        result.actionNoteDrafts?.[role],
+        state.actionNoteDrafts?.[role],
+      );
   assert.equal(JSON.stringify(state), before);
   assert.equal(JSON.stringify(cmd), commandBefore);
   assert.deepEqual(
@@ -240,8 +250,8 @@ assert.equal(
 );
 assert.equal(accepted.views, visitState.views);
 assert.equal(
-  accepted.actionNotes.tenant[otherId],
-  visitState.actionNotes.tenant[otherId],
+  accepted.actionNoteDrafts?.tenant?.[otherId],
+  visitState.actionNoteDrafts?.tenant?.[otherId],
 );
 for (const time of [visitDeadline, new Date(visitDeadline.getTime() + 1)])
   assertRejected(
@@ -367,10 +377,11 @@ assertRejected(
 );
 
 // The latest receipt survives unrelated edits and consumes no extra action on replay.
-const unrelated = updateServiceActionNote(
+const unrelated = updateServiceActionNoteDraft(
   accepted,
   "provider",
   otherId,
+  { type: "decline-request" },
   "Later unrelated work",
 );
 assert.notEqual(unrelated, accepted);

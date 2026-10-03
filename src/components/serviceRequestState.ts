@@ -92,11 +92,29 @@ export interface ServiceRequestView {
   selectedId: string | null;
 }
 type ServiceRequestWorkspaceRole = ServiceCustomerRole | "provider";
+export type ServiceNoteTarget =
+  | { type: "decline-request" }
+  | { type: "cancel" }
+  | { type: "complete" }
+  | { type: "decline"; quoteId: string };
+interface StoredServiceActionNoteDraft {
+  target: ServiceNoteTarget;
+  note: string;
+}
+export interface ServiceActionNoteDraft {
+  /** null identifies an older, unassigned note; its purpose is never inferred. */
+  target: ServiceNoteTarget | null;
+  note: string;
+  editable: boolean;
+}
 export interface ServiceRequestState {
   records: ServiceRequestRecord[];
   drafts: Record<ServiceCustomerRole, Record<string, ServiceRequestDraft>>;
   quoteDrafts: Record<string, ServiceQuoteDraft>;
   actionNotes: Record<Role, Record<string, string>>;
+  actionNoteDrafts?: Partial<
+    Record<Role, Record<string, StoredServiceActionNoteDraft[]>>
+  >;
   views: Record<ServiceRequestWorkspaceRole, ServiceRequestView>;
   nextId: number;
   actionReceipt?: ServiceActionReceipt;
@@ -794,13 +812,12 @@ export function actOnServiceRequest(
           }
         : quote,
     );
-  const next: ServiceRequestState = {
-    ...replaceServiceRequest(state, updated),
-    actionNotes: {
-      ...state.actionNotes,
-      [role]: { ...state.actionNotes[role], [id]: "" },
-    },
-  };
+  const next = consumeServiceActionNoteDraft(
+    replaceServiceRequest(state, updated),
+    role,
+    id,
+    action,
+  );
   return isTerminalServiceRequest(updated.status)
     ? updateServiceRequestView(next, role, {
         query: "",
@@ -877,6 +894,192 @@ export function applyServiceActionCommand(
   return receipt(next, null, event.id);
 }
 
+function scopedServiceNoteTarget(
+  state: ServiceRequestState,
+  role: Role,
+  id: string,
+  target: ServiceNoteTarget,
+): ServiceNoteTarget | null {
+  if (!target || typeof target !== "object") return null;
+  const record = state.records.find((item) => item.id === id);
+  if (!record) return null;
+  if (target.type === "decline-request" || target.type === "complete")
+    return providerOwnsRequest(record, role) ? { type: target.type } : null;
+  if (!customerOwnsRequest(record, role)) return null;
+  if (target.type === "cancel") return { type: "cancel" };
+  if (
+    target.type === "decline" &&
+    typeof target.quoteId === "string" &&
+    target.quoteId.length > 0 &&
+    record.quotes.filter((quote) => quote.id === target.quoteId).length === 1
+  )
+    return { type: "decline", quoteId: target.quoteId };
+  return null;
+}
+
+function sameServiceNoteTarget(
+  left: ServiceNoteTarget,
+  right: ServiceNoteTarget,
+): boolean {
+  return (
+    left.type === right.type &&
+    (left.type !== "decline" ||
+      (right.type === "decline" && left.quoteId === right.quoteId))
+  );
+}
+
+function serviceNoteIsEditable(
+  state: ServiceRequestState,
+  role: Role,
+  id: string,
+  target: ServiceNoteTarget,
+): boolean {
+  // Every note-bearing action checks scope/status before its required note.
+  return (
+    serviceRequestActionIssue(state, role, id, { ...target, note: "" }) ===
+    "note"
+  );
+}
+
+export function hasServiceActionNoteDraft(
+  state: ServiceRequestState,
+  role: Role,
+  id: string,
+  target: ServiceNoteTarget | null,
+): boolean {
+  if (target === null)
+    return (
+      visibleServiceRequests(state, role).some((record) => record.id === id) &&
+      Object.hasOwn(state.actionNotes[role], id)
+    );
+  const scoped = scopedServiceNoteTarget(state, role, id, target);
+  return Boolean(
+    scoped &&
+    state.actionNoteDrafts?.[role]?.[id]?.some((draft) =>
+      sameServiceNoteTarget(draft.target, scoped),
+    ),
+  );
+}
+
+/** Defaults never store text, and historical targets never inherit another purpose. */
+export function serviceActionNoteDraft(
+  state: ServiceRequestState,
+  role: Role,
+  id: string,
+  target: ServiceNoteTarget,
+): ServiceActionNoteDraft | null {
+  const scoped = scopedServiceNoteTarget(state, role, id, target);
+  if (!scoped) return null;
+  const retained = state.actionNoteDrafts?.[role]?.[id]?.find((draft) =>
+    sameServiceNoteTarget(draft.target, scoped),
+  );
+  const editable = serviceNoteIsEditable(state, role, id, scoped);
+  return retained || editable
+    ? { target: scoped, note: retained?.note ?? "", editable }
+    : null;
+}
+
+/** Enumerate only this actor's retained notes, including inactive and unassigned text. */
+export function serviceActionNoteDrafts(
+  state: ServiceRequestState,
+  role: Role,
+  id: string,
+): ServiceActionNoteDraft[] {
+  if (!visibleServiceRequests(state, role).some((record) => record.id === id))
+    return [];
+  const drafts = (state.actionNoteDrafts?.[role]?.[id] ?? []).flatMap(
+    (retained) => {
+      const draft = serviceActionNoteDraft(state, role, id, retained.target);
+      return draft ? [draft] : [];
+    },
+  );
+  if (hasServiceActionNoteDraft(state, role, id, null))
+    drafts.push({
+      target: null,
+      note: state.actionNotes[role][id],
+      editable: false,
+    });
+  return drafts;
+}
+
+export function updateServiceActionNoteDraft(
+  state: ServiceRequestState,
+  role: Role,
+  id: string,
+  target: ServiceNoteTarget,
+  note: string,
+): ServiceRequestState {
+  const scoped = scopedServiceNoteTarget(state, role, id, target);
+  if (
+    !scoped ||
+    !serviceNoteIsEditable(state, role, id, scoped) ||
+    typeof note !== "string" ||
+    note.length > 2000
+  )
+    return state;
+  const drafts = state.actionNoteDrafts?.[role]?.[id] ?? [];
+  const retained = drafts.find((draft) =>
+    sameServiceNoteTarget(draft.target, scoped),
+  );
+  if (retained?.note === note) return state;
+  const next = { target: scoped, note };
+  return {
+    ...state,
+    actionNoteDrafts: {
+      ...state.actionNoteDrafts,
+      [role]: {
+        ...state.actionNoteDrafts?.[role],
+        [id]: retained
+          ? drafts.map((draft) => (draft === retained ? next : draft))
+          : [...drafts, next],
+      },
+    },
+  };
+}
+
+export function discardServiceActionNoteDraft(
+  state: ServiceRequestState,
+  role: Role,
+  id: string,
+  target: ServiceNoteTarget | null,
+): ServiceRequestState {
+  if (!hasServiceActionNoteDraft(state, role, id, target)) return state;
+  if (target === null) {
+    const notes = { ...state.actionNotes[role] };
+    delete notes[id];
+    return { ...state, actionNotes: { ...state.actionNotes, [role]: notes } };
+  }
+  const notes = { ...state.actionNoteDrafts?.[role] };
+  const remaining = notes[id].filter(
+    (draft) => !sameServiceNoteTarget(draft.target, target),
+  );
+  if (remaining.length) notes[id] = remaining;
+  else delete notes[id];
+  return {
+    ...state,
+    actionNoteDrafts: { ...state.actionNoteDrafts, [role]: notes },
+  };
+}
+
+function consumeServiceActionNoteDraft(
+  state: ServiceRequestState,
+  role: Role,
+  id: string,
+  action: ServiceRequestAction,
+): ServiceRequestState {
+  if (!("note" in action)) return state;
+  const target: ServiceNoteTarget =
+    action.type === "decline"
+      ? { type: "decline", quoteId: action.quoteId }
+      : { type: action.type };
+  if (!hasServiceActionNoteDraft(state, role, id, target)) return state;
+  const draft = serviceActionNoteDraft(state, role, id, target);
+  return draft && draft.note.trim() === action.note.trim()
+    ? discardServiceActionNoteDraft(state, role, id, target)
+    : state;
+}
+
+/** @deprecated Older generic notes remain unassigned; use an explicit note target. */
 export function updateServiceActionNote(
   state: ServiceRequestState,
   role: Role,
@@ -909,6 +1112,7 @@ export function createInitialServiceRequestState(
     records: [],
     drafts: { tenant: {}, landlord: {} },
     quoteDrafts: {},
+    actionNoteDrafts: {},
     actionNotes: {
       tenant: {},
       landlord: {},

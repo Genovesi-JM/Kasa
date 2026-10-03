@@ -37,6 +37,7 @@ import "./space-listing-state-check";
 import "./service-request-state-check";
 import "./service-quote-draft-check";
 import "./service-action-command-check";
+import "./service-action-note-check";
 import "./service-request-view-check";
 import "./service-notification-check";
 import "./work-state-check";

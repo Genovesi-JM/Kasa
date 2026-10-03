@@ -13,7 +13,7 @@ import {
   latestServiceQuote,
   saveServiceQuote,
   serviceQuoteDraft,
-  updateServiceActionNote,
+  updateServiceActionNoteDraft,
   updateServiceQuoteDraft,
   updateServiceRequestDraft,
   updateServiceRequestView,
@@ -82,16 +82,18 @@ prepared = updateServiceRequestDraft(prepared, "tenant", {
 prepared = updateServiceRequestDraft(prepared, "landlord", {
   title: "PRIVATE owner request draft",
 });
-prepared = updateServiceActionNote(
+prepared = updateServiceActionNoteDraft(
   prepared,
   "provider",
   id,
+  { type: "decline-request" },
   "PRIVATE action note",
 );
-prepared = updateServiceActionNote(
+prepared = updateServiceActionNoteDraft(
   prepared,
   "tenant",
   id,
+  { type: "cancel" },
   "PRIVATE customer note",
 );
 prepared = updateServiceRequestView(prepared, "provider", {
@@ -124,7 +126,7 @@ assert.notEqual(saved1.state, editing1);
 assert.equal(hasServiceQuoteDraft(saved1.state, "provider", id), false);
 assert.equal(saved1.state.quoteDrafts[otherId], editing1.quoteDrafts[otherId]);
 assert.equal(saved1.state.views, editing1.views);
-assert.equal(saved1.state.actionNotes, editing1.actionNotes);
+assert.equal(saved1.state.actionNoteDrafts, editing1.actionNoteDrafts);
 assert.equal(saved1.state.drafts, editing1.drafts);
 assert.equal(saved1.state.nextId, editing1.nextId);
 assert.equal(record(saved1.state).status, "Quoted");
@@ -277,7 +279,7 @@ for (const [state, status] of closedToQuotes) {
   assert.equal(hasServiceQuoteDraft(discarded, "provider", id), false);
   assert.equal(discarded.records, state.records);
   assert.equal(discarded.drafts, state.drafts);
-  assert.equal(discarded.actionNotes, state.actionNotes);
+  assert.equal(discarded.actionNoteDrafts, state.actionNoteDrafts);
   assert.equal(discarded.views, state.views);
   assert.equal(discarded.nextId, state.nextId);
   assert.equal(discarded.quoteDrafts[otherId], state.quoteDrafts[otherId]);
@@ -339,7 +341,7 @@ assert.equal(latestServiceQuote(record(saved2.state))!.amountCents, 14000);
 assert.equal(hasServiceQuoteDraft(saved2.state, "provider", id), false);
 assert.equal(saved2.state.quoteDrafts[otherId], revision.quoteDrafts[otherId]);
 assert.equal(saved2.state.views, revision.views);
-assert.equal(saved2.state.actionNotes, revision.actionNotes);
+assert.equal(saved2.state.actionNoteDrafts, revision.actionNoteDrafts);
 assert.equal(saved2.state.drafts, revision.drafts);
 
 // Other roles cannot inspect or discard provider work, including terminal retained work.

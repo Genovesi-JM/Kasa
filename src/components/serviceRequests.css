@@ -593,3 +593,35 @@
     grid-template-columns: minmax(0, 1fr);
   }
 }
+.service-purpose-note {
+  margin-block: 18px;
+  padding: 16px;
+  border: 1px solid #d4e1d8;
+  border-radius: 12px;
+  background: #fcfbf7;
+  min-width: 0;
+}
+.service-purpose-note .service-record-action-note {
+  margin-top: 0;
+}
+.service-purpose-note .service-record-actions {
+  justify-content: start;
+  margin-bottom: 0;
+}
+.service-purpose-note .service-record-actions > button,
+.service-private-notes article > button {
+  min-height: 44px;
+  white-space: normal;
+}
+.service-private-notes article {
+  border-top: 1px solid #d4e1d8;
+  padding-block: 8px;
+}
+.service-private-notes .service-private-note-text {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: #173f37;
+}
+.service-purpose-note textarea {
+  box-sizing: border-box;
+}

@@ -17,7 +17,7 @@ import {
   saveServiceQuote,
   saveServiceRequest,
   serviceRequestView,
-  updateServiceActionNote,
+  updateServiceActionNoteDraft,
   updateServiceQuoteDraft,
   updateServiceRequestDraft,
   updateServiceRequestView,
@@ -124,12 +124,13 @@ function quote(state: ServiceRequestState, id: string, minute: number) {
 
 // Initial sample requests and retained private work do not fabricate new local activity.
 assert.equal(reconcileServiceNotifications(seeds, initial), seeds);
-const draftsOnly = updateServiceActionNote(
+const draftsOnly = updateServiceActionNoteDraft(
   updateServiceQuoteDraft(initial, "provider", sampleTenant.id, {
     scope: privateScope,
   }),
   "provider",
   sampleTenant.id,
+  { type: "decline-request" },
   privateReason,
 );
 assert.equal(reconcileServiceNotifications(seeds, draftsOnly), seeds);
@@ -424,7 +425,7 @@ for (const [notification, role, id, destination] of [
       assert.equal(opened.state.views[other], obstructed.views[other]);
   assert.equal(opened.state.records, obstructed.records);
   assert.equal(opened.state.quoteDrafts, obstructed.quoteDrafts);
-  assert.equal(opened.state.actionNotes, obstructed.actionNotes);
+  assert.equal(opened.state.actionNoteDrafts, obstructed.actionNoteDrafts);
   assert.equal(opened.state.drafts, obstructed.drafts);
 }
 assert.equal(

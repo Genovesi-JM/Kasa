@@ -18,7 +18,9 @@ import {
   serviceRequestCounts,
   serviceRequestDraft,
   serviceRequestDraftKey,
-  updateServiceActionNote,
+  serviceActionNoteDraft,
+  hasServiceActionNoteDraft,
+  updateServiceActionNoteDraft,
   updateServiceQuoteDraft,
   updateServiceRequestDraft,
   validateServiceQuote,
@@ -722,32 +724,68 @@ for (const state of [saved.state, quoted, declined, accepted]) {
     "Cancellation retains the quote history",
   );
 }
-const noted = updateServiceActionNote(
+const noted = updateServiceActionNoteDraft(
   quoted,
   "tenant",
   id,
+  { type: "decline", quoteId: quote.id },
   "Need a different day",
 );
-assert.equal(noted.actionNotes.tenant[id], "Need a different day");
-assert.equal(noted.actionNotes.provider[id], undefined);
-assert.equal(quoted.actionNotes.tenant[id], undefined);
 assert.equal(
-  updateServiceActionNote(noted, "landlord", id, "Foreign note"),
+  serviceActionNoteDraft(noted, "tenant", id, {
+    type: "decline",
+    quoteId: quote.id,
+  })?.note,
+  "Need a different day",
+);
+assert.equal(
+  hasServiceActionNoteDraft(noted, "provider", id, {
+    type: "decline",
+    quoteId: quote.id,
+  }),
+  false,
+);
+assert.equal(
+  hasServiceActionNoteDraft(quoted, "tenant", id, {
+    type: "decline",
+    quoteId: quote.id,
+  }),
+  false,
+);
+assert.equal(
+  updateServiceActionNoteDraft(
+    noted,
+    "landlord",
+    id,
+    { type: "decline", quoteId: quote.id },
+    "Foreign note",
+  ),
   noted,
 );
 assert.equal(
-  updateServiceActionNote(noted, "tenant", id, "x".repeat(2001)),
-  noted,
-);
-assert.equal(
-  actOnServiceRequest(
+  updateServiceActionNoteDraft(
     noted,
     "tenant",
     id,
-    { type: "decline", quoteId: quote.id, note: "Need a different day" },
-    later,
-  ).actionNotes.tenant[id],
-  "",
+    { type: "decline", quoteId: quote.id },
+    "x".repeat(2001),
+  ),
+  noted,
+);
+assert.equal(
+  hasServiceActionNoteDraft(
+    actOnServiceRequest(
+      noted,
+      "tenant",
+      id,
+      { type: "decline", quoteId: quote.id, note: "Need a different day" },
+      later,
+    ),
+    "tenant",
+    id,
+    { type: "decline", quoteId: quote.id },
+  ),
+  false,
 );
 const ownerCreate = saveServiceRequest(
   updateServiceRequestDraft(saved.state, "landlord", completeDraft),
@@ -866,20 +904,23 @@ assert.equal(
 );
 
 const otherRequestId = ownerCreate.requestId!;
-const privateDeclineDraft = updateServiceActionNote(
-  updateServiceActionNote(
-    updateServiceActionNote(
+const privateDeclineDraft = updateServiceActionNoteDraft(
+  updateServiceActionNoteDraft(
+    updateServiceActionNoteDraft(
       updateServiceQuoteDraft(ownerCreate.state, "provider", id, quoteDraft),
       "provider",
       id,
+      { type: "decline-request" },
       "PRIVATE: a different unsent internal reason",
     ),
     "tenant",
     id,
+    { type: "cancel" },
     "Customer's independent unsent note",
   ),
   "provider",
   otherRequestId,
+  { type: "decline-request" },
   "Other request's private note",
 );
 assert.equal(record(privateDeclineDraft), record(ownerCreate.state));
@@ -892,7 +933,9 @@ assert.equal(
   false,
 );
 assert.equal(
-  privateDeclineDraft.actionNotes.provider[id],
+  serviceActionNoteDraft(privateDeclineDraft, "provider", id, {
+    type: "decline-request",
+  })?.note,
   "PRIVATE: a different unsent internal reason",
 );
 for (const note of ["", "  ", "ab", " ab ", "x".repeat(2001)]) {
@@ -986,17 +1029,26 @@ assert.equal(
 );
 assert.equal(providerDeclined.quoteDrafts, privateDeclineDraft.quoteDrafts);
 assert.equal(providerDeclined.drafts, privateDeclineDraft.drafts);
-assert.equal(providerDeclined.actionNotes.provider[id], "");
 assert.equal(
-  providerDeclined.actionNotes.provider[otherRequestId],
+  serviceActionNoteDraft(providerDeclined, "provider", id, {
+    type: "decline-request",
+  })?.note,
+  "PRIVATE: a different unsent internal reason",
+);
+assert.equal(
+  serviceActionNoteDraft(providerDeclined, "provider", otherRequestId, {
+    type: "decline-request",
+  })?.note,
   "Other request's private note",
 );
 assert.equal(
-  providerDeclined.actionNotes.tenant,
-  privateDeclineDraft.actionNotes.tenant,
+  providerDeclined.actionNoteDrafts?.tenant,
+  privateDeclineDraft.actionNoteDrafts?.tenant,
 );
 assert.equal(
-  privateDeclineDraft.actionNotes.provider[id],
+  serviceActionNoteDraft(privateDeclineDraft, "provider", id, {
+    type: "decline-request",
+  })?.note,
   "PRIVATE: a different unsent internal reason",
 );
 assert.equal(
@@ -1103,10 +1155,11 @@ const terminalActions: ServiceRequestAction[] = [
 ];
 for (const role of roles) {
   assert.equal(
-    updateServiceActionNote(
+    updateServiceActionNoteDraft(
       providerDeclined,
       role,
       id,
+      { type: "decline-request" },
       "Cannot edit terminal notes",
     ),
     providerDeclined,

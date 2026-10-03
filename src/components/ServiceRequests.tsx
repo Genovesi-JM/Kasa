@@ -42,7 +42,11 @@ import {
   serviceRequestCounts,
   serviceRequestDraft,
   serviceRequestView,
-  updateServiceActionNote,
+  serviceActionNoteDraft,
+  serviceActionNoteDrafts,
+  hasServiceActionNoteDraft,
+  updateServiceActionNoteDraft,
+  discardServiceActionNoteDraft,
   updateServiceQuoteDraft,
   updateServiceRequestDraft,
   updateServiceRequestView,
@@ -50,6 +54,7 @@ import {
   workspaceServiceProvider,
   type ServiceIssue,
   type ServiceActionCommand,
+  type ServiceNoteTarget,
   type ServiceQuote,
   type ServiceQuoteDraft,
   type ServiceQuoteErrors,
@@ -76,6 +81,8 @@ interface PendingServiceAction {
   command: ServiceActionCommand;
   trigger: HTMLButtonElement;
 }
+type ServiceFeedback =
+  "noteDiscarded" | "quoteDiscarded" | "requestSaved" | "quoteSaved";
 type Copy = (en: string, pt: string) => string;
 function useServiceCopy() {
   const { i18n } = useTranslation();
@@ -793,13 +800,68 @@ function historyText(
   }[action];
 }
 
+function noteTargetKey(target: ServiceNoteTarget | null): string {
+  return target?.type === "decline"
+    ? `decline:${target.quoteId}`
+    : (target?.type ?? "unassigned");
+}
+function captureServiceActionCommand(
+  role: Role,
+  requestId: string,
+  action: ServiceRequestAction,
+): ServiceActionCommand {
+  return Object.freeze({
+    token: crypto.randomUUID(),
+    role,
+    requestId,
+    action: Object.freeze({ ...action }),
+    at: Date.now(),
+  });
+}
+function noteTargetForAction(
+  action: ServiceRequestAction,
+): ServiceNoteTarget | null {
+  if (action.type === "accept" || action.type === "start") return null;
+  return action.type === "decline"
+    ? { type: "decline", quoteId: action.quoteId }
+    : { type: action.type };
+}
+function noteTargetLabel(
+  target: ServiceNoteTarget | null,
+  record: ServiceRequestRecord,
+  copy: Copy,
+) {
+  if (!target)
+    return copy(
+      "Unassigned private note",
+      "Nota privada sem finalidade definida",
+    );
+  if (target.type === "decline") {
+    const version = record.quotes.find(
+      (quote) => quote.id === target.quoteId,
+    )?.version;
+    return `${copy("Reason for declining quote", "Motivo da recusa do orçamento")} ${version ?? target.quoteId}`;
+  }
+  return {
+    cancel: copy(
+      "Reason for cancelling the request",
+      "Motivo do cancelamento do pedido",
+    ),
+    "decline-request": copy(
+      "Reason for declining the request",
+      "Motivo da recusa do pedido",
+    ),
+    complete: copy("Completion note", "Nota de conclusão"),
+  }[target.type];
+}
+
 function ServiceRecordBoard({ role, state, setState }: ServiceRecordProps) {
   const { copy, locale } = useServiceCopy();
   const id = useId();
   const { query, filter, selectedId } = serviceRequestView(state, role);
   const [composerOpen, setComposerOpen] = useState(false);
   const [quoteRequestId, setQuoteRequestId] = useState<string | null>(null);
-  const [feedback, setFeedback] = useState("");
+  const [feedback, setFeedback] = useState<ServiceFeedback | null>(null);
   const [pendingAction, setPendingAction] =
     useState<PendingServiceAction | null>(null);
   const pendingActionRef = useRef<PendingServiceAction | null>(null);
@@ -810,7 +872,7 @@ function ServiceRecordBoard({ role, state, setState }: ServiceRecordProps) {
   };
   const heading = useRef<HTMLHeadingElement>(null);
   const detailHeading = useRef<HTMLHeadingElement>(null);
-  const noteInput = useRef<HTMLTextAreaElement>(null);
+  const noteInputs = useRef<Record<string, HTMLTextAreaElement | null>>({});
   const discardFocusFrame = useRef<number | null>(null);
   useEffect(
     () => () => {
@@ -916,8 +978,13 @@ function ServiceRecordBoard({ role, state, setState }: ServiceRecordProps) {
         active !== pendingAction.trigger
       )
         return;
-      const target =
-        committedReceipt.issue === "note" ? noteInput.current : heading;
+      const noteTarget = noteTargetForAction(pendingAction.command.action);
+      const noteInput = noteTarget
+        ? noteInputs.current[
+            `${committedReceipt.requestId}/${noteTargetKey(noteTarget)}`
+          ]
+        : null;
+      const target = committedReceipt.issue === "note" ? noteInput : heading;
       if (
         target?.isConnected &&
         !target.closest('[hidden], [inert], [aria-hidden="true"]') &&
@@ -958,30 +1025,22 @@ function ServiceRecordBoard({ role, state, setState }: ServiceRecordProps) {
           .reverse()
           .find((event) => event.action === "provider-declined")
       : undefined;
-  const note = selected ? (state.actionNotes[role][selected.id] ?? "") : "";
-  const showNote =
-    canCancel ||
-    canDeclineRequest ||
-    (provider && selected?.status === "In progress");
-  const actionNoteLabel = canDeclineRequest
-    ? copy("Reason for declining the request", "Motivo da recusa do pedido")
-    : provider
-      ? copy("Completion note", "Nota de conclusão")
-      : copy(
-          "Reason for declining or cancelling",
-          "Motivo da recusa ou cancelamento",
-        );
-  const discardQuoteDraft = (trigger: HTMLButtonElement) => {
-    if (!selected || !retainedQuoteDraft) return;
-    clearPendingAction();
-    const requestId = selected.id;
-    setState((current) => discardServiceQuoteDraft(current, role, requestId));
-    setFeedback(
-      copy(
-        "Private quote draft discarded. Recorded quotes are unchanged.",
-        "Rascunho privado do orçamento descartado. Os orçamentos registados permanecem inalterados.",
-      ),
-    );
+  const activeNoteTargets: ServiceNoteTarget[] = [
+    ...(canDeclineRequest ? [{ type: "decline-request" as const }] : []),
+    ...(!provider && selected?.status === "Quoted" && quote
+      ? [{ type: "decline" as const, quoteId: quote.id }]
+      : []),
+    ...(canCancel ? [{ type: "cancel" as const }] : []),
+    ...(provider && selected?.status === "In progress"
+      ? [{ type: "complete" as const }]
+      : []),
+  ];
+  const inactiveNoteDrafts = selected
+    ? serviceActionNoteDrafts(state, role, selected.id).filter(
+        (draft) => !draft.editable,
+      )
+    : [];
+  const focusAfterDiscard = (requestId: string, trigger: HTMLButtonElement) => {
     if (discardFocusFrame.current !== null)
       cancelAnimationFrame(discardFocusFrame.current);
     discardFocusFrame.current = requestAnimationFrame(() => {
@@ -1006,22 +1065,41 @@ function ServiceRecordBoard({ role, state, setState }: ServiceRecordProps) {
         target.focus();
     });
   };
+  const discardNoteDraft = (
+    target: ServiceNoteTarget | null,
+    trigger: HTMLButtonElement,
+  ) => {
+    if (
+      !selected ||
+      !hasServiceActionNoteDraft(state, role, selected.id, target)
+    )
+      return;
+    const requestId = selected.id;
+    clearPendingAction();
+    setState((current) =>
+      discardServiceActionNoteDraft(current, role, requestId, target),
+    );
+    setFeedback("noteDiscarded");
+    focusAfterDiscard(requestId, trigger);
+  };
+  const discardQuoteDraft = (trigger: HTMLButtonElement) => {
+    if (!selected || !retainedQuoteDraft) return;
+    clearPendingAction();
+    const requestId = selected.id;
+    setState((current) => discardServiceQuoteDraft(current, role, requestId));
+    setFeedback("quoteDiscarded");
+    focusAfterDiscard(requestId, trigger);
+  };
   const perform = (
     action: ServiceRequestAction,
     trigger: HTMLButtonElement,
   ) => {
     if (!selected) return;
-    const command: ServiceActionCommand = Object.freeze({
-      token: crypto.randomUUID(),
-      role,
-      requestId: selected.id,
-      action: Object.freeze({ ...action }),
-      at: Date.now(),
-    });
+    const command = captureServiceActionCommand(role, selected.id, action);
     const pending = { command, trigger };
     pendingActionRef.current = pending;
     setPendingAction(pending);
-    setFeedback("");
+    setFeedback(null);
     setState((current) => applyServiceActionCommand(current, command));
   };
   const completed: Record<ServiceRequestAction["type"], string> = {
@@ -1048,6 +1126,24 @@ function ServiceRecordBoard({ role, state, setState }: ServiceRecordProps) {
     complete: copy(
       "Completion and your note recorded in this tab. History is open with this request.",
       "Conclusão e nota registadas neste separador. O histórico está aberto com este pedido.",
+    ),
+  };
+  const feedbackText: Record<ServiceFeedback, string> = {
+    noteDiscarded: copy(
+      "Private note draft discarded. The service record is unchanged.",
+      "Rascunho privado da nota descartado. O registo do serviço permanece inalterado.",
+    ),
+    quoteDiscarded: copy(
+      "Private quote draft discarded. Recorded quotes are unchanged.",
+      "Rascunho privado do orçamento descartado. Os orçamentos registados permanecem inalterados.",
+    ),
+    requestSaved: copy(
+      "Service request recorded in this tab.",
+      "Pedido de serviço registado neste separador.",
+    ),
+    quoteSaved: copy(
+      "Quote recorded in this tab. The customer must explicitly accept it.",
+      "Orçamento registado neste separador. O cliente tem de o aceitar explicitamente.",
     ),
   };
   if (!isServiceCustomer(role) && !provider)
@@ -1183,7 +1279,9 @@ function ServiceRecordBoard({ role, state, setState }: ServiceRecordProps) {
       <p className="service-record-feedback" role="status">
         {actionSucceeded && committedReceipt
           ? completed[committedReceipt.actionType]
-          : feedback}
+          : feedback
+            ? feedbackText[feedback]
+            : ""}
       </p>
       {visible.length === 0 ? (
         <div className="card service-record-empty">
@@ -1232,7 +1330,7 @@ function ServiceRecordBoard({ role, state, setState }: ServiceRecordProps) {
                     }),
                   );
                   clearPendingAction();
-                  setFeedback("");
+                  setFeedback(null);
                   if (selectedId === record.id)
                     requestAnimationFrame(() => detailHeading.current?.focus());
                 }}
@@ -1446,146 +1544,30 @@ function ServiceRecordBoard({ role, state, setState }: ServiceRecordProps) {
                   {issueText(acceptIssue, copy)}
                 </p>
               )}
-              {showNote && (
-                <label
-                  className="service-record-action-note"
-                  htmlFor={`${id}-action-note`}
-                >
-                  {actionNoteLabel}
-                  <textarea
-                    id={`${id}-action-note`}
-                    aria-label={actionNoteLabel}
-                    aria-required={provider}
-                    ref={noteInput}
-                    rows={3}
-                    maxLength={2000}
-                    value={note}
-                    onInput={(event) => {
-                      const value = event.currentTarget.value;
-                      setState((current) =>
-                        updateServiceActionNote(
-                          current,
-                          role,
-                          selected.id,
-                          value,
-                        ),
-                      );
-                      clearPendingAction();
-                    }}
-                    onChange={(event) => {
-                      const value = event.target.value;
-                      setState((current) =>
-                        updateServiceActionNote(
-                          current,
-                          role,
-                          selected.id,
-                          value,
-                        ),
-                      );
-                      clearPendingAction();
-                    }}
-                    aria-invalid={actionError === "note"}
-                    aria-describedby={`${id}-action-help${actionError === "note" ? ` ${id}-action-error` : ""}`}
-                  />
-                  <small id={`${id}-action-help`}>
-                    {canDeclineRequest
-                      ? copy(
-                          "Use 3–2,000 characters. The reason is recorded in the customer's History only when you decline.",
-                          "Use entre 3 e 2 000 caracteres. O motivo só fica no histórico do cliente quando recusar.",
-                        )
-                      : provider
-                        ? copy(
-                            "Required to record completion.",
-                            "Obrigatória para registar a conclusão.",
-                          )
-                        : copy(
-                            "Required only for declining or cancelling. Accepting a quote needs no note.",
-                            "Obrigatório apenas para recusar ou cancelar. Aceitar um orçamento não exige uma nota.",
-                          )}
-                  </small>
-                </label>
-              )}
               {actionError && (
                 <p
                   id={`${id}-action-error`}
                   className="service-field-error"
                   role="alert"
                 >
-                  {actionError === "note" && canDeclineRequest
-                    ? copy(
-                        "Give a reason between 3 and 2,000 characters to decline this request.",
-                        "Indique um motivo entre 3 e 2 000 caracteres para recusar este pedido.",
-                      )
-                    : issueText(actionError, copy)}
+                  {issueText(actionError, copy)}
                 </p>
               )}
               <div className="service-record-actions">
-                {canDeclineRequest && (
-                  <button
-                    type="button"
-                    className="button button-secondary"
-                    onClick={(event) =>
-                      perform(
-                        {
-                          type: "decline-request",
-                          note: noteInput.current?.value ?? note,
-                        },
-                        event.currentTarget,
-                      )
-                    }
-                  >
-                    {copy("Decline request", "Recusar pedido")}
-                  </button>
-                )}
                 {!provider && selected.status === "Quoted" && quote && (
-                  <>
-                    <button
-                      type="button"
-                      className="button"
-                      disabled={Boolean(acceptIssue)}
-                      onClick={(event) =>
-                        perform(
-                          { type: "accept", quoteId: quote.id },
-                          event.currentTarget,
-                        )
-                      }
-                    >
-                      <Check size={16} aria-hidden="true" />
-                      {copy("Accept this quote", "Aceitar este orçamento")}
-                    </button>
-                    <button
-                      type="button"
-                      className="button button-secondary"
-                      onClick={(event) =>
-                        perform(
-                          {
-                            type: "decline",
-                            quoteId: quote.id,
-                            note: noteInput.current?.value ?? note,
-                          },
-                          event.currentTarget,
-                        )
-                      }
-                    >
-                      {copy("Decline quote", "Recusar orçamento")}
-                    </button>
-                  </>
-                )}
-                {canCancel && (
                   <button
                     type="button"
-                    className="text-button"
+                    className="button"
+                    disabled={Boolean(acceptIssue)}
                     onClick={(event) =>
                       perform(
-                        {
-                          type: "cancel",
-                          note: noteInput.current?.value ?? note,
-                        },
+                        { type: "accept", quoteId: quote.id },
                         event.currentTarget,
                       )
                     }
                   >
-                    {copy("Cancel request", "Cancelar pedido")}
+                    <Check size={16} aria-hidden="true" />
+                    {copy("Accept this quote", "Aceitar este orçamento")}
                   </button>
                 )}
                 {provider && selected.status === "Accepted" && (
@@ -1599,24 +1581,178 @@ function ServiceRecordBoard({ role, state, setState }: ServiceRecordProps) {
                     {copy("Record work started", "Registar início do trabalho")}
                   </button>
                 )}
-                {provider && selected.status === "In progress" && (
-                  <button
-                    type="button"
-                    className="button"
-                    onClick={(event) =>
-                      perform(
-                        {
-                          type: "complete",
-                          note: noteInput.current?.value ?? note,
-                        },
-                        event.currentTarget,
-                      )
-                    }
-                  >
-                    {copy("Record completion", "Registar conclusão")}
-                  </button>
-                )}
               </div>
+              {activeNoteTargets.map((target) => {
+                const draft = serviceActionNoteDraft(
+                  state,
+                  role,
+                  selected.id,
+                  target,
+                );
+                if (!draft?.editable) return null;
+                const key = noteTargetKey(target);
+                const inputKey = `${selected.id}/${key}`;
+                const inputId = `${id}-${selected.id}-${key}-note`;
+                const hasDraft = hasServiceActionNoteDraft(
+                  state,
+                  role,
+                  selected.id,
+                  target,
+                );
+                const invalid =
+                  actionError === "note" &&
+                  pendingAction &&
+                  noteTargetKey(
+                    noteTargetForAction(pendingAction.command.action),
+                  ) === key;
+                const saveLabel = {
+                  "decline-request": copy("Decline request", "Recusar pedido"),
+                  decline: copy("Decline quote", "Recusar orçamento"),
+                  cancel: copy("Cancel request", "Cancelar pedido"),
+                  complete: copy("Record completion", "Registar conclusão"),
+                }[target.type];
+                const update = (value: string) => {
+                  setState((current) =>
+                    updateServiceActionNoteDraft(
+                      current,
+                      role,
+                      selected.id,
+                      target,
+                      value,
+                    ),
+                  );
+                  clearPendingAction();
+                };
+                return (
+                  <section
+                    className="service-purpose-note"
+                    key={inputKey}
+                    aria-labelledby={`${inputId}-label`}
+                  >
+                    <label
+                      className="service-record-action-note"
+                      htmlFor={inputId}
+                    >
+                      <span id={`${inputId}-label`}>
+                        {noteTargetLabel(target, selected, copy)}
+                      </span>
+                      <textarea
+                        id={inputId}
+                        name={`note-${key}`}
+                        data-note-purpose={key}
+                        data-request-id={selected.id}
+                        dir="auto"
+                        ref={(node) => {
+                          if (node) noteInputs.current[inputKey] = node;
+                          else delete noteInputs.current[inputKey];
+                        }}
+                        rows={3}
+                        maxLength={2000}
+                        value={draft.note}
+                        aria-required="true"
+                        aria-invalid={Boolean(invalid)}
+                        aria-describedby={`${inputId}-help${invalid ? ` ${id}-action-error` : ""}`}
+                        onInput={(event) => update(event.currentTarget.value)}
+                        onChange={(event) => update(event.currentTarget.value)}
+                      />
+                      <small id={`${inputId}-help`}>
+                        {copy(
+                          "Private until you use the action below. Use 3–2,000 characters. Leaving this page keeps the draft; reloading clears it.",
+                          "Privada até usar a ação abaixo. Use entre 3 e 2 000 caracteres. Sair desta página mantém o rascunho; recarregar apaga-o.",
+                        )}
+                      </small>
+                    </label>
+                    <div className="service-record-actions">
+                      <button
+                        type="button"
+                        className={
+                          target.type === "complete"
+                            ? "button"
+                            : "button button-secondary"
+                        }
+                        onClick={(event) =>
+                          perform(
+                            {
+                              ...target,
+                              note:
+                                noteInputs.current[inputKey]?.value ??
+                                draft.note,
+                            },
+                            event.currentTarget,
+                          )
+                        }
+                      >
+                        {saveLabel}
+                      </button>
+                      {hasDraft && (
+                        <button
+                          type="button"
+                          className="text-button"
+                          aria-describedby={`${inputId}-label`}
+                          onClick={(event) =>
+                            discardNoteDraft(target, event.currentTarget)
+                          }
+                        >
+                          {copy(
+                            "Discard note draft",
+                            "Descartar rascunho da nota",
+                          )}
+                        </button>
+                      )}
+                    </div>
+                  </section>
+                );
+              })}
+              {inactiveNoteDrafts.length > 0 && (
+                <section
+                  className="service-private-quote service-private-notes"
+                  aria-labelledby={`${id}-private-notes`}
+                >
+                  <h4 id={`${id}-private-notes`}>
+                    {copy(
+                      "Unfinished private notes",
+                      "Notas privadas por concluir",
+                    )}
+                  </h4>
+                  <p>
+                    {copy(
+                      "These notes are kept for you to inspect, copy or discard. They cannot be submitted at the current stage and will not be used for another action. Reloading clears them.",
+                      "Estas notas ficam disponíveis para consultar, copiar ou descartar. Não podem ser enviadas na fase atual nem serão usadas para outra ação. Recarregar a página apaga-as.",
+                    )}
+                  </p>
+                  {inactiveNoteDrafts.map((draft) => {
+                    const key = noteTargetKey(draft.target);
+                    const labelId = `${id}-${selected.id}-${key}-private-label`;
+                    return (
+                      <article key={key}>
+                        <details>
+                          <summary id={labelId}>
+                            {noteTargetLabel(draft.target, selected, copy)}
+                          </summary>
+                          <p className="service-private-note-text" dir="auto">
+                            {draft.note === ""
+                              ? copy("Not entered", "Por preencher")
+                              : draft.note}
+                          </p>
+                        </details>
+                        <button
+                          type="button"
+                          className="text-button"
+                          aria-describedby={labelId}
+                          onClick={(event) =>
+                            discardNoteDraft(draft.target, event.currentTarget)
+                          }
+                        >
+                          {copy(
+                            "Discard note draft",
+                            "Descartar rascunho da nota",
+                          )}
+                        </button>
+                      </article>
+                    );
+                  })}
+                </section>
+              )}
               {selected.quotes.length > 1 && (
                 <details className="service-record-older-quotes">
                   <summary>
@@ -1678,12 +1814,7 @@ function ServiceRecordBoard({ role, state, setState }: ServiceRecordProps) {
           onClose={() => setComposerOpen(false)}
           onSaved={() => {
             setComposerOpen(false);
-            setFeedback(
-              copy(
-                "Service request recorded in this tab.",
-                "Pedido de serviço registado neste separador.",
-              ),
-            );
+            setFeedback("requestSaved");
           }}
         />
       )}
@@ -1697,12 +1828,7 @@ function ServiceRecordBoard({ role, state, setState }: ServiceRecordProps) {
           onClose={() => setQuoteRequestId(null)}
           onSaved={() => {
             setQuoteRequestId(null);
-            setFeedback(
-              copy(
-                "Quote recorded in this tab. The customer must explicitly accept it.",
-                "Orçamento registado neste separador. O cliente tem de o aceitar explicitamente.",
-              ),
-            );
+            setFeedback("quoteSaved");
             requestAnimationFrame(() => detailHeading.current?.focus());
           }}
         />

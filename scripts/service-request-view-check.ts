@@ -7,7 +7,8 @@ import {
   saveServiceRequest,
   selectServiceRequest,
   serviceRequestView,
-  updateServiceActionNote,
+  serviceActionNoteDraft,
+  updateServiceActionNoteDraft,
   updateServiceQuoteDraft,
   updateServiceRequestDraft,
   updateServiceRequestView,
@@ -80,7 +81,7 @@ assert.deepEqual(serviceRequestView(tenantView, "tenant"), {
 assert.equal(tenantView.records, initial.records);
 assert.equal(tenantView.drafts, initial.drafts);
 assert.equal(tenantView.quoteDrafts, initial.quoteDrafts);
-assert.equal(tenantView.actionNotes, initial.actionNotes);
+assert.equal(tenantView.actionNoteDrafts, initial.actionNoteDrafts);
 assert.equal(tenantView.views.provider, initial.views.provider);
 assert.equal(tenantView.views.landlord, initial.views.landlord);
 assert.deepEqual(serviceRequestView(initial, "tenant"), defaultView);
@@ -252,10 +253,11 @@ const quoteDraft = {
   time: "10:00",
   validUntil: "2032-05-13",
 };
-const withPrivateDrafts = updateServiceActionNote(
+const withPrivateDrafts = updateServiceActionNoteDraft(
   updateServiceQuoteDraft(allViews, "provider", own.id, quoteDraft),
   "provider",
   own.id,
+  { type: "decline-request" },
   "Private provider note",
 );
 const navigationOnly = selectServiceRequest(
@@ -268,11 +270,16 @@ const navigationOnly = selectServiceRequest(
   own.id,
 );
 assert.equal(navigationOnly.quoteDrafts, withPrivateDrafts.quoteDrafts);
-assert.equal(navigationOnly.actionNotes, withPrivateDrafts.actionNotes);
+assert.equal(
+  navigationOnly.actionNoteDrafts,
+  withPrivateDrafts.actionNoteDrafts,
+);
 assert.equal(navigationOnly.drafts, withPrivateDrafts.drafts);
 assert.equal(navigationOnly.quoteDrafts[own.id].amount, quoteDraft.amount);
 assert.equal(
-  navigationOnly.actionNotes.provider[own.id],
+  serviceActionNoteDraft(navigationOnly, "provider", own.id, {
+    type: "decline-request",
+  })?.note,
   "Private provider note",
 );
 
@@ -429,7 +436,7 @@ for (const role of ["tenant", "landlord"] as const) {
   for (const otherRole of scopedRoles.filter((candidate) => candidate !== role))
     assert.equal(result.state.views[otherRole], pending.views[otherRole]);
   assert.equal(result.state.quoteDrafts, pending.quoteDrafts);
-  assert.equal(result.state.actionNotes, pending.actionNotes);
+  assert.equal(result.state.actionNoteDrafts, pending.actionNoteDrafts);
   assert.equal(getRecord(result.state, result.requestId).customerRole, role);
   assert.equal(
     saveServiceRequest(result.state, role, workspaceServiceProvider, later)
