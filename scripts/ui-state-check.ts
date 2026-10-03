@@ -45,6 +45,7 @@ import "./service-action-note-check";
 import "./service-request-view-check";
 import "./service-notification-check";
 import "./work-state-check";
+import "./work-review-command-check";
 import "./work-notification-check";
 import "./operations-localization-check";
 

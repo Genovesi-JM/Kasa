@@ -17,12 +17,12 @@ import { matchesSearch } from "../search";
 import { useDialogFocus } from "./useDialogFocus";
 import { useWorkCopy } from "./workCopy";
 import {
+  applyWorkReviewCommand,
   closeWorkOpportunity,
   copyWorkOpportunityToDraft,
   createWorkPostDraft,
   discardWorkPostDraft,
   editWorkPostDraft,
-  markWorkApplicationReviewed,
   ownedWorkOpportunities,
   publishWorkPost,
   removedWorkPostDraft,
@@ -38,6 +38,7 @@ import {
   type WorkPostDraft,
   type WorkPostErrors,
   type WorkPostFields,
+  type WorkReviewCommand,
   type WorkState,
 } from "./workState";
 import "./workHiringWorkspace.css";
@@ -604,10 +605,12 @@ function ApplicationContent({
   application,
   text,
   onMarkReviewed,
+  reviewPending = false,
 }: {
   application: WorkApplication;
   text: WorkCopy;
   onMarkReviewed: () => void;
+  reviewPending?: boolean;
 }) {
   const { copy, date } = text;
   const heading = useRef<HTMLHeadingElement>(null);
@@ -694,6 +697,7 @@ function ApplicationContent({
             <button
               type="button"
               className="button"
+              disabled={reviewPending}
               onClick={() => {
                 heading.current?.focus();
                 onMarkReviewed();
@@ -708,6 +712,18 @@ function ApplicationContent({
   );
 }
 
+function captureWorkReviewCommand(
+  role: Role,
+  applicationId: string,
+): WorkReviewCommand {
+  return Object.freeze({
+    token: crypto.randomUUID(),
+    role,
+    applicationId,
+    at: Date.now(),
+  });
+}
+
 export function WorkHiringWorkspace({
   role,
   state,
@@ -717,6 +733,9 @@ export function WorkHiringWorkspace({
   const text = useWorkCopy();
   const { copy, date } = text;
   const [notice, setNotice] = useState("");
+  const [pendingReview, setPendingReview] = useState<WorkReviewCommand | null>(
+    null,
+  );
   const postHeading = useRef<HTMLHeadingElement>(null);
   const newOpportunityButton = useRef<HTMLButtonElement>(null);
   const view = workHiringView(state, role);
@@ -729,20 +748,62 @@ export function WorkHiringWorkspace({
   const application = applications.find(
     (record) => record.id === view.selectedApplicationId,
   );
+  const reviewCommand =
+    !draft &&
+    !post &&
+    pendingReview?.role === role &&
+    pendingReview.applicationId === application?.id
+      ? pendingReview
+      : null;
+  const reviewReceipt =
+    reviewCommand &&
+    state.reviewReceipt?.token === reviewCommand.token &&
+    state.reviewReceipt.role === reviewCommand.role &&
+    state.reviewReceipt.applicationId === reviewCommand.applicationId
+      ? state.reviewReceipt
+      : null;
+  const reviewRecorded =
+    reviewCommand &&
+    reviewReceipt?.issue === null &&
+    application?.history.some(
+      (event) =>
+        event.id === reviewReceipt.eventId &&
+        event.action === "reviewed" &&
+        event.actor === role &&
+        Date.parse(event.at) === reviewCommand.at &&
+        application.reviewedAt === event.at,
+    );
+  const reviewFeedback = !reviewCommand
+    ? null
+    : !reviewReceipt
+      ? copy("Recording review…", "A registar a revisão…")
+      : reviewRecorded
+        ? copy(
+            "Application marked reviewed.",
+            "Candidatura marcada como revista.",
+          )
+        : copy(
+            "This application can no longer be marked as reviewed.",
+            "Esta candidatura já não pode ser marcada como revista.",
+          );
   const updateView = (patch: Partial<HiringView>) =>
     setState((current) => updateWorkHiringView(current, role, patch));
-  const close = () =>
+  const close = () => {
+    setPendingReview(null);
     updateView({
       selectedPostId: null,
       selectedDraftId: null,
       selectedApplicationId: null,
     });
-  const select = (kind: "draft" | "post" | "application", id: string) =>
+  };
+  const select = (kind: "draft" | "post" | "application", id: string) => {
+    setPendingReview(null);
     updateView({
       selectedDraftId: kind === "draft" ? id : null,
       selectedPostId: kind === "post" ? id : null,
       selectedApplicationId: kind === "application" ? id : null,
     });
+  };
   const filteredPosts = posts.filter(
     (record) =>
       (view.filter === "All" || record.status === view.filter) &&
@@ -1121,19 +1182,20 @@ export function WorkHiringWorkspace({
           focusFallbackRef={newOpportunityButton}
         >
           <div className="modal-body">
+            {reviewFeedback && (
+              <p className="work-hiring-notice" role="status">
+                {reviewFeedback}
+              </p>
+            )}
             <ApplicationContent
               application={application}
               text={text}
+              reviewPending={Boolean(reviewCommand && !reviewReceipt)}
               onMarkReviewed={() => {
-                setState((current) =>
-                  markWorkApplicationReviewed(current, role, application.id),
-                );
-                setNotice(
-                  copy(
-                    "Application marked reviewed.",
-                    "Candidatura marcada como revista.",
-                  ),
-                );
+                const command = captureWorkReviewCommand(role, application.id);
+                setNotice("");
+                setPendingReview(command);
+                setState((current) => applyWorkReviewCommand(current, command));
               }}
             />
           </div>

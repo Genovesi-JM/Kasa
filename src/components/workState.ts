@@ -94,6 +94,19 @@ export interface WorkApplication {
     at: string;
   }[];
 }
+export interface WorkReviewCommand {
+  readonly token: string;
+  readonly role: Role;
+  readonly applicationId: string;
+  readonly at: number;
+}
+export interface WorkReviewReceipt {
+  readonly token: string;
+  readonly role: Role;
+  readonly applicationId: string;
+  readonly issue: "unavailable" | null;
+  readonly eventId: string | null;
+}
 export interface WorkHiringView {
   section: "posts" | "drafts" | "applications";
   filter: "All" | "Open" | "Closed";
@@ -119,6 +132,7 @@ export interface WorkState {
   postDrafts: WorkPostDraft[];
   removedPostDraft: WorkPostDraft | null;
   applications: WorkApplication[];
+  reviewReceipt?: WorkReviewReceipt;
   applicationDrafts: Record<string, WorkApplicationDraft>;
   hiringView: WorkHiringView;
   applicantView: WorkApplicantView;
@@ -826,6 +840,47 @@ export function markWorkApplicationReviewed(
         : item,
     ),
   };
+}
+
+/** Records the outcome against queued state using one captured review time. */
+export function applyWorkReviewCommand(
+  state: WorkState,
+  command: WorkReviewCommand,
+): WorkState {
+  const { token, role, applicationId, at } = command;
+  if (state.reviewReceipt?.token === token) return state;
+  const receipt = (
+    next: WorkState,
+    issue: WorkReviewReceipt["issue"],
+    eventId: string | null = null,
+  ): WorkState => ({
+    ...next,
+    reviewReceipt: { token, role, applicationId, issue, eventId },
+  });
+  if (typeof at !== "number" || !Number.isSafeInteger(at))
+    return receipt(state, "unavailable");
+  const now = new Date(at);
+  if (!Number.isFinite(now.getTime())) return receipt(state, "unavailable");
+  const before = state.applications.find((item) => item.id === applicationId);
+  const next = markWorkApplicationReviewed(state, role, applicationId, now);
+  const after = next.applications.find((item) => item.id === applicationId);
+  const event = after?.history.at(-1);
+  if (
+    next === state ||
+    !before ||
+    !after ||
+    !event ||
+    after.history.length !== before.history.length + 1 ||
+    !before.history.every((entry, index) => after.history[index] === entry) ||
+    before.history.some((entry) => entry.id === event.id) ||
+    event.action !== "reviewed" ||
+    event.actor !== "provider" ||
+    event.at !== now.toISOString() ||
+    after.reviewedAt !== event.at ||
+    after.status !== "Submitted"
+  )
+    return receipt(state, "unavailable");
+  return receipt(next, null, event.id);
 }
 
 export function workHiringView(state: WorkState, role: Role): WorkHiringView {
