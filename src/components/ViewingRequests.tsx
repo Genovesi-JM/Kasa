@@ -7,7 +7,7 @@ import {
   type SetStateAction,
 } from "react";
 import { createPortal } from "react-dom";
-import { CalendarDays, ChevronRight, Plus } from "lucide-react";
+import { CalendarDays, ChevronRight, Download, Plus } from "lucide-react";
 import { properties } from "../data";
 import type { Role } from "../types";
 import {
@@ -40,6 +40,7 @@ import {
 } from "./ViewingActionDialog";
 import { ViewingRequestDialog } from "./ViewingRequestDialog";
 import { useViewingCopy } from "./viewingCopy";
+import { viewingCalendarFile } from "./viewingCalendar";
 import { useDialogFocus } from "./useDialogFocus";
 import "./viewings.css";
 
@@ -132,6 +133,93 @@ function UnavailableViewingAction({ onClose }: { onClose: () => void }) {
       </section>
     </div>,
     document.body,
+  );
+}
+
+function ViewingCalendarDownload({
+  role,
+  state,
+  requestId,
+}: {
+  role: Role;
+  state: PropertyRequestState;
+  requestId: string;
+}) {
+  const { calendar } = useViewingCopy();
+  const hintId = useId();
+  const [feedback, setFeedback] = useState<
+    "started" | "failed" | "unavailable" | null
+  >(null);
+  const labels = {
+    summary: (propertyTitle: string) =>
+      `${calendar.summary} · ${propertyTitle}`,
+    description: calendar.description,
+  };
+  const available = viewingCalendarFile(
+    state,
+    role,
+    requestId,
+    labels,
+    new Date(),
+  );
+  if (!available && !feedback) return null;
+  function download() {
+    const clickedAt = new Date();
+    let url: string | null = null;
+    let link: HTMLAnchorElement | null = null;
+    try {
+      const file = viewingCalendarFile(
+        state,
+        role,
+        requestId,
+        labels,
+        clickedAt,
+      );
+      if (!file) {
+        setFeedback("unavailable");
+        return;
+      }
+      url = URL.createObjectURL(
+        new Blob([file.content], { type: "text/calendar;charset=utf-8" }),
+      );
+      link = document.createElement("a");
+      link.href = url;
+      link.download = file.fileName;
+      link.hidden = true;
+      document.body.append(link);
+      link.click();
+      setFeedback("started");
+    } catch {
+      setFeedback("failed");
+    } finally {
+      link?.remove();
+      if (url) {
+        const downloadUrl = url;
+        window.setTimeout(() => URL.revokeObjectURL(downloadUrl), 1000);
+      }
+    }
+  }
+  return (
+    <div className="viewing-note">
+      <div className="viewing-buttons">
+        <button
+          type="button"
+          className="button button-secondary"
+          disabled={!available}
+          aria-describedby={hintId}
+          onClick={download}
+        >
+          <Download size={17} aria-hidden="true" />
+          {calendar.download}
+        </button>
+      </div>
+      <p className="viewing-explanation" id={hintId}>
+        {calendar.hint}
+      </p>
+      <p className="viewing-feedback" role="status">
+        {feedback && calendar[feedback]}
+      </p>
+    </div>
   );
 }
 
@@ -634,6 +722,18 @@ function ViewingInbox({
                         "Horário pedido · por acordar",
                       )
                 }
+              />
+              <ViewingCalendarDownload
+                key={JSON.stringify([
+                  role,
+                  selected.id,
+                  selected.status,
+                  selected.agreedTerms?.date,
+                  selected.agreedTerms?.time,
+                ])}
+                role={role}
+                state={state}
+                requestId={selected.id}
               />
               {pastAgreement && (
                 <p className="viewing-explanation">

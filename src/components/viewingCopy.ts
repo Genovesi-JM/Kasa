@@ -1,7 +1,89 @@
 import { useTranslation } from "react-i18next";
+import { displayTranslation, type LanguageCode } from "../i18n";
+
+const calendarCopy = {
+  en: {
+    download: "Download appointment (.ics)",
+    hint: "Uses local time. Check that your calendar’s time zone matches this device. After changes, download again and update your calendar manually.",
+    summary: "Property viewing",
+    description:
+      "Viewing time agreed locally in Kasa. This file is a snapshot, not a calendar connection. Check your calendar’s local time zone. After changes, download again and update your calendar manually.",
+    started: "Appointment download started.",
+    failed: "The appointment could not be downloaded. Try again.",
+    unavailable:
+      "A future agreed viewing time is no longer available for download.",
+  },
+  pt: {
+    download: "Descarregar visita (.ics)",
+    hint: "Usa a hora local. Verifique se o fuso horário do calendário corresponde ao deste dispositivo. Após alterações, descarregue novamente e atualize o calendário manualmente.",
+    summary: "Visita ao imóvel",
+    description:
+      "Horário de visita acordado localmente no Kasa. Este ficheiro é uma cópia do registo, não uma ligação ao calendário. Verifique o fuso horário local do calendário. Após alterações, descarregue novamente e atualize o calendário manualmente.",
+    started: "Transferência do ficheiro da visita iniciada.",
+    failed: "Não foi possível descarregar a visita. Tente novamente.",
+    unavailable: "Já não existe um horário futuro acordado para descarregar.",
+  },
+  es: {
+    download: "Descargar visita (.ics)",
+    hint: "Usa la hora local. Compruebe que la zona horaria de su calendario coincide con la de este dispositivo. Tras cualquier cambio, descargue de nuevo y actualice el calendario manualmente.",
+    summary: "Visita al inmueble",
+    description:
+      "Horario de visita acordado localmente en Kasa. Este archivo es una copia del registro, no una conexión al calendario. Compruebe la zona horaria local del calendario. Tras cualquier cambio, descargue de nuevo y actualice el calendario manualmente.",
+    started: "Descarga de la visita iniciada.",
+    failed: "No se ha podido descargar la visita. Inténtelo de nuevo.",
+    unavailable: "Ya no hay un horario futuro acordado para descargar.",
+  },
+  fr: {
+    download: "Télécharger la visite (.ics)",
+    hint: "Utilise l’heure locale. Vérifiez que le fuseau horaire du calendrier correspond à celui de cet appareil. Après une modification, téléchargez à nouveau et mettez le calendrier à jour manuellement.",
+    summary: "Visite du logement",
+    description:
+      "Horaire de visite convenu localement dans Kasa. Ce fichier est une copie du dossier, pas une connexion au calendrier. Vérifiez le fuseau horaire local du calendrier. Après une modification, téléchargez à nouveau et mettez le calendrier à jour manuellement.",
+    started: "Téléchargement de la visite lancé.",
+    failed: "Impossible de télécharger la visite. Réessayez.",
+    unavailable:
+      "Plus aucun horaire de visite futur convenu n’est disponible au téléchargement.",
+  },
+  ar: {
+    download: "تنزيل موعد الزيارة (.ics)",
+    hint: "يستخدم التوقيت المحلي. تأكد من أن المنطقة الزمنية لتقويمك تطابق هذا الجهاز. بعد أي تغيير، نزّل الملف مجددًا وحدّث التقويم يدويًا.",
+    summary: "زيارة العقار",
+    description:
+      "موعد زيارة متفق عليه محليًا في Kasa. هذا الملف نسخة من السجل وليس اتصالًا بالتقويم. تحقق من المنطقة الزمنية المحلية لتقويمك. بعد أي تغيير، نزّل الملف مجددًا وحدّث التقويم يدويًا.",
+    started: "بدأ تنزيل موعد الزيارة.",
+    failed: "تعذّر تنزيل موعد الزيارة. حاول مرة أخرى.",
+    unavailable: "لم يعد هناك موعد زيارة مستقبلي متفق عليه متاح للتنزيل.",
+  },
+  zh: {
+    download: "下载看房预约 (.ics)",
+    hint: "使用本地时间。请确认日历时区与此设备一致。预约变更后，请重新下载并手动更新日历。",
+    summary: "看房预约",
+    description:
+      "在 Kasa 中本地确认的看房时间。此文件是记录副本，并未连接日历。请检查日历的本地时区。预约变更后，请重新下载并手动更新日历。",
+    started: "已开始下载看房预约。",
+    failed: "无法下载看房预约。请重试。",
+    unavailable: "已无可下载的未来已确认看房时间。",
+  },
+} satisfies Record<LanguageCode, Record<string, string>>;
 
 export function useViewingCopy() {
   const { i18n } = useTranslation();
+  const language = (i18n.resolvedLanguage ?? i18n.language ?? "pt").split(
+    "-",
+  )[0];
+  const calendarLanguage: LanguageCode = Object.hasOwn(calendarCopy, language)
+    ? (language as LanguageCode)
+    : "en";
+  const calendar = Object.fromEntries(
+    Object.entries(calendarCopy[calendarLanguage]).map(([key, value]) => [
+      key,
+      displayTranslation(
+        value,
+        calendarCopy.en[key as keyof typeof calendarCopy.en],
+        calendarLanguage,
+      ),
+    ]),
+  ) as Record<keyof typeof calendarCopy.en, string>;
   const portuguese = (
     i18n.resolvedLanguage ??
     i18n.language ??
@@ -140,6 +222,7 @@ export function useViewingCopy() {
   );
   return {
     text,
+    calendar,
     date,
     status,
     proposalStatus,

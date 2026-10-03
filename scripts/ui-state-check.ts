@@ -24,6 +24,7 @@ import "./property-request-check";
 import "./viewing-selection-check";
 import "./viewing-action-draft-check";
 import "./viewing-notification-check";
+import "./viewing-calendar-check";
 import "./maintenance-state-check";
 import "./document-state-check";
 import "./document-view-check";
