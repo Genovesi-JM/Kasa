@@ -30,8 +30,19 @@
 .expense-heading p {
   max-width: 700px;
 }
-.expense-heading > button {
-  flex-shrink: 0;
+.expense-heading-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: end;
+  gap: 10px;
+  flex: 0 1 350px;
+  min-width: 0;
+}
+.expense-heading-actions > button {
+  min-height: 44px;
+  white-space: normal;
+  max-width: 100%;
 }
 .expense-totals {
   display: grid;
@@ -307,8 +318,9 @@
     flex-direction: column;
     padding: 19px;
   }
-  .expense-heading > button {
-    align-self: start;
+  .expense-heading-actions {
+    flex-basis: auto;
+    justify-content: start;
   }
   .expense-records {
     grid-template-columns: minmax(0, 1fr);

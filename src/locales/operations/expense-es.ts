@@ -91,4 +91,22 @@ export const expenseEs = {
   expenses_before: "Antes",
   expenses_after: "Después",
   expenses_removedAt: "Eliminado el",
+  expenses_download: "Descargar gastos",
+  expenses_downloadHint:
+    "El CSV incluye solo los gastos guardados que muestran estos filtros. Excluye borradores privados y registros eliminados.",
+  expenses_downloadStarted:
+    "Se ha iniciado la descarga del CSV de los gastos mostrados.",
+  expenses_downloadFailed:
+    "No se ha podido iniciar la descarga del CSV. Inténtalo de nuevo.",
+  expenses_csvScope: "Ámbito",
+  expenses_csvScopeValue: "Registro local de gasto del inmueble",
+  expenses_csvRecord: "Registro",
+  expenses_csvDate: "Fecha",
+  expenses_csvAmount: "Importe EUR",
+  expenses_csvPayee: "Destinatario",
+  expenses_csvReference: "Referencia",
+  expenses_csvNote: "Nota",
+  expenses_csvCreatedAt: "Creado el",
+  expenses_csvUpdatedAt: "Actualizado el",
+  expenses_csvRevision: "Revisión",
 } satisfies ExpenseDictionary;

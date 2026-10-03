@@ -87,4 +87,21 @@ export const expenseEn = {
   expenses_before: "Before",
   expenses_after: "After",
   expenses_removedAt: "Removed on",
+  expenses_download: "Download expenses",
+  expenses_downloadHint:
+    "The CSV includes only saved expenses shown by these filters. Private drafts and removed records are excluded.",
+  expenses_downloadStarted: "CSV download started for the expenses shown.",
+  expenses_downloadFailed:
+    "The CSV download could not be started. Please try again.",
+  expenses_csvScope: "Scope",
+  expenses_csvScopeValue: "Local property expense record",
+  expenses_csvRecord: "Record",
+  expenses_csvDate: "Date",
+  expenses_csvAmount: "Amount EUR",
+  expenses_csvPayee: "Payee",
+  expenses_csvReference: "Reference",
+  expenses_csvNote: "Note",
+  expenses_csvCreatedAt: "Created at",
+  expenses_csvUpdatedAt: "Updated at",
+  expenses_csvRevision: "Revision",
 };

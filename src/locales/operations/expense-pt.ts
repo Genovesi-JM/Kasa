@@ -91,4 +91,22 @@ export const expensePt = {
   expenses_before: "Antes",
   expenses_after: "Depois",
   expenses_removedAt: "Removida em",
+  expenses_download: "Descarregar despesas",
+  expenses_downloadHint:
+    "O CSV inclui apenas as despesas guardadas apresentadas por estes filtros. Exclui rascunhos privados e registos removidos.",
+  expenses_downloadStarted:
+    "A descarga do CSV das despesas apresentadas foi iniciada.",
+  expenses_downloadFailed:
+    "Não foi possível iniciar a descarga do CSV. Tente novamente.",
+  expenses_csvScope: "Âmbito",
+  expenses_csvScopeValue: "Registo local de despesa do imóvel",
+  expenses_csvRecord: "Registo",
+  expenses_csvDate: "Data",
+  expenses_csvAmount: "Valor EUR",
+  expenses_csvPayee: "Destinatário",
+  expenses_csvReference: "Referência",
+  expenses_csvNote: "Nota",
+  expenses_csvCreatedAt: "Criado em",
+  expenses_csvUpdatedAt: "Atualizado em",
+  expenses_csvRevision: "Revisão",
 } satisfies ExpenseDictionary;

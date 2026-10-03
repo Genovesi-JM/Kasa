@@ -752,3 +752,83 @@ export function restoreExpenseRecord(
   });
   return revealExpense({ ...next, lastUndo: null }, role);
 }
+
+export interface ExpenseCsvLabels {
+  headers: readonly [
+    string,
+    string,
+    string,
+    string,
+    string,
+    string,
+    string,
+    string,
+    string,
+    string,
+    string,
+    string,
+  ];
+  scope: string;
+  category: (value: ExpenseCategory) => string;
+}
+
+const defaultExpenseCsvLabels: ExpenseCsvLabels = {
+  headers: [
+    "Scope",
+    "Record",
+    "Property",
+    "Date",
+    "Category",
+    "Amount EUR",
+    "Payee",
+    "Reference",
+    "Note",
+    "Created at",
+    "Updated at",
+    "Revision",
+  ],
+  scope: "Local session expense record; not payment confirmation",
+  category: (value) =>
+    ({
+      repairs: "Repairs",
+      utilities: "Utilities",
+      insurance: "Insurance",
+      supplies: "Supplies",
+      other: "Other",
+    })[value],
+};
+
+function expenseCsvCell(value: string): string {
+  const safe =
+    /^[\t\r\n]/.test(value) || /^\s*[=+@-]/.test(value) ? `'${value}` : value;
+  return `"${safe.replaceAll('"', '""')}"`;
+}
+
+/** Export only the owner's visible saved values, with the same translated search labels. */
+export function expenseRecordsCsv(
+  state: ExpenseState,
+  role: Role,
+  labels: ExpenseCsvLabels = defaultExpenseCsvLabels,
+): string {
+  const records = visibleExpenseRecords(state, role, labels.category);
+  const rows = [
+    labels.headers,
+    ...records.map((record) => [
+      labels.scope,
+      record.id,
+      record.propertyTitle,
+      record.date,
+      labels.category(record.category),
+      (record.amountCents / 100).toFixed(2),
+      record.payee,
+      record.reference,
+      record.note,
+      record.createdAt,
+      record.updatedAt,
+      String(record.revision),
+    ]),
+  ];
+  return (
+    rows.map((row) => row.map(expenseCsvCell).join(",")).join("\r\n") + "\r\n"
+  );
+}

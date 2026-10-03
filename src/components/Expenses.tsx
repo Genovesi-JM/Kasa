@@ -7,7 +7,7 @@ import {
   type SetStateAction,
 } from "react";
 import { createPortal } from "react-dom";
-import { Plus, Pencil, Trash2, RotateCcw, X } from "lucide-react";
+import { Download, Plus, Pencil, Trash2, RotateCcw, X } from "lucide-react";
 import type { Role } from "../types";
 import type { OperationsKey } from "../locales/operations/types";
 import { useOperationsI18n } from "./useOperationsI18n";
@@ -35,6 +35,7 @@ import {
   expenseUndo,
   restoreExpenseRecord,
   expenseToday,
+  expenseRecordsCsv,
   type ExpenseState,
   type ExpenseDraft,
   type ExpenseErrors,
@@ -223,6 +224,49 @@ function ExpenseWorkspace({ role, state, setState }: Props) {
     setFeedback("expenses_discarded");
     focusHeading(trigger);
   };
+  const downloadExpenses = () => {
+    if (role !== "landlord" || records.length === 0) return;
+    let url: string | undefined;
+    let link: HTMLAnchorElement | undefined;
+    try {
+      const csv = expenseRecordsCsv(state, role, {
+        headers: [
+          tr("expenses_csvScope"),
+          tr("expenses_csvRecord"),
+          tr("expenses_property"),
+          tr("expenses_csvDate"),
+          tr("expenses_category"),
+          tr("expenses_csvAmount"),
+          tr("expenses_csvPayee"),
+          tr("expenses_csvReference"),
+          tr("expenses_csvNote"),
+          tr("expenses_csvCreatedAt"),
+          tr("expenses_csvUpdatedAt"),
+          tr("expenses_csvRevision"),
+        ],
+        scope: tr("expenses_csvScopeValue"),
+        category: categoryText,
+      });
+      url = URL.createObjectURL(
+        new Blob(["\uFEFF", csv], { type: "text/csv;charset=utf-8" }),
+      );
+      link = document.createElement("a");
+      link.href = url;
+      link.download = `kasa-local-expenses-${expenseToday()}.csv`;
+      link.hidden = true;
+      document.body.append(link);
+      link.click();
+      setFeedback("expenses_downloadStarted");
+    } catch {
+      setFeedback("expenses_downloadFailed");
+    } finally {
+      link?.remove();
+      if (url) {
+        const downloadUrl = url;
+        window.setTimeout(() => URL.revokeObjectURL(downloadUrl), 1000);
+      }
+    }
+  };
   if (role !== "landlord") return <p>{tr("expenses_ownerOnly")}</p>;
   return (
     <section className="expense-workspace" aria-labelledby={`${id}-title`}>
@@ -233,15 +277,30 @@ function ExpenseWorkspace({ role, state, setState }: Props) {
           </h2>
           <p>{tr("expenses_scope")}</p>
         </div>
-        <button
-          type="button"
-          className="button"
-          onClick={(event) => open({ kind: "create" }, event.currentTarget)}
-        >
-          <Plus size={17} aria-hidden="true" />
-          {tr(createDraft ? "expenses_resume" : "expenses_add")}
-        </button>
+        <div className="expense-heading-actions">
+          <button
+            type="button"
+            className="button"
+            onClick={(event) => open({ kind: "create" }, event.currentTarget)}
+          >
+            <Plus size={17} aria-hidden="true" />
+            {tr(createDraft ? "expenses_resume" : "expenses_add")}
+          </button>
+          <button
+            type="button"
+            className="button button-secondary"
+            disabled={records.length === 0}
+            aria-describedby={`${id}-download-hint`}
+            onClick={downloadExpenses}
+          >
+            <Download size={17} aria-hidden="true" />
+            {tr("expenses_download")}
+          </button>
+        </div>
       </header>
+      <p id={`${id}-download-hint`} className="expense-scope">
+        {tr("expenses_downloadHint")}
+      </p>
       <div className="expense-totals">
         <div>
           <span>{tr("expenses_visibleCount")}</span>

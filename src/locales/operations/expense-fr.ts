@@ -91,4 +91,22 @@ export const expenseFr = {
   expenses_before: "Avant",
   expenses_after: "Après",
   expenses_removedAt: "Supprimée le",
+  expenses_download: "Télécharger les dépenses",
+  expenses_downloadHint:
+    "Le CSV contient uniquement les dépenses enregistrées affichées par ces filtres. Les brouillons privés et les données supprimées sont exclus.",
+  expenses_downloadStarted:
+    "Le téléchargement du CSV des dépenses affichées a démarré.",
+  expenses_downloadFailed:
+    "Le téléchargement du CSV n’a pas pu démarrer. Veuillez réessayer.",
+  expenses_csvScope: "Périmètre",
+  expenses_csvScopeValue: "Dépense immobilière enregistrée localement",
+  expenses_csvRecord: "Enregistrement",
+  expenses_csvDate: "Date",
+  expenses_csvAmount: "Montant EUR",
+  expenses_csvPayee: "Bénéficiaire",
+  expenses_csvReference: "Référence",
+  expenses_csvNote: "Note",
+  expenses_csvCreatedAt: "Créé le",
+  expenses_csvUpdatedAt: "Modifié le",
+  expenses_csvRevision: "Révision",
 } satisfies ExpenseDictionary;
