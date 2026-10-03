@@ -684,6 +684,344 @@ assert.equal(
   false,
 );
 
+// Recorded work progress targets only the canonical customer and never exposes the completion note.
+const progressKinds = ["service-started", "service-completed"];
+const progressEvents = (state: NotificationState) =>
+  activity(state).filter((item) =>
+    progressKinds.includes(item.serviceEvent!.kind),
+  );
+const ownerQuoted = quote(landlord.state, landlord.id, 4);
+const ownerAccepted = actOnServiceRequest(
+  ownerQuoted.state,
+  "landlord",
+  landlord.id,
+  { type: "accept", quoteId: ownerQuoted.id },
+  time(8),
+);
+for (const [beforeStart, targetId, customerRole] of [
+  [accepted, tenant.id, "tenant"],
+  [ownerAccepted, landlord.id, "landlord"],
+] as const) {
+  assert.equal(
+    progressEvents(reconcileServiceNotifications(seeds, beforeStart)).length,
+    0,
+  );
+  const premature = actOnServiceRequest(
+    beforeStart,
+    "provider",
+    targetId,
+    { type: "complete", note: privateReason },
+    time(12),
+  );
+  assert.equal(premature, beforeStart);
+  assert.equal(
+    progressEvents(reconcileServiceNotifications(seeds, premature)).length,
+    0,
+  );
+  const wrongActor = actOnServiceRequest(
+    beforeStart,
+    customerRole,
+    targetId,
+    { type: "start" },
+    time(13),
+  );
+  assert.equal(wrongActor, beforeStart);
+  const started = actOnServiceRequest(
+    beforeStart,
+    "provider",
+    targetId,
+    { type: "start" },
+    time(13),
+  );
+  const startAlerts = reconcileServiceNotifications(seeds, started);
+  const startNotice = eventOf(startAlerts, targetId, "service-started");
+  assert.equal(startNotice.role, customerRole);
+  assert.equal(startNotice.destination, "services");
+  assert.equal(startNotice.serviceMode, "tasks");
+  assert.equal(startNotice.serviceEvent!.occurredAt, time(13).toISOString());
+  assert.equal(progressEvents(startAlerts).length, 1);
+  assert.equal(
+    actOnServiceRequest(
+      started,
+      "provider",
+      targetId,
+      { type: "start" },
+      time(14),
+    ),
+    started,
+  );
+  const progressRead = markAllNotificationsRead(startAlerts, customerRole);
+  const privateCompletion =
+    "PRIVATE_COMPLETION: specific access and inspection details remain in the service record.";
+  const completed = actOnServiceRequest(
+    started,
+    "provider",
+    targetId,
+    { type: "complete", note: privateCompletion },
+    time(14),
+  );
+  const completedAlerts = reconcileServiceNotifications(
+    progressRead,
+    completed,
+  );
+  const completionNotice = eventOf(
+    completedAlerts,
+    targetId,
+    "service-completed",
+  );
+  assert.equal(completionNotice.role, customerRole);
+  assert.equal(
+    completionNotice.serviceEvent!.occurredAt,
+    time(14).toISOString(),
+  );
+  assert.equal(completionNotice.read, false);
+  assert.equal(
+    eventOf(completedAlerts, targetId, "service-started").id,
+    startNotice.id,
+  );
+  assert.equal(
+    eventOf(completedAlerts, targetId, "service-started").read,
+    true,
+  );
+  assert.equal(
+    completedAlerts.items.filter(
+      (item) => item.role === customerRole && !item.read,
+    ).length,
+    1,
+  );
+  assert.equal(progressEvents(completedAlerts).length, 2);
+  assert.equal(
+    reconcileServiceNotifications(completedAlerts, completed),
+    completedAlerts,
+  );
+  assert.equal(
+    actOnServiceRequest(
+      completed,
+      "provider",
+      targetId,
+      { type: "complete", note: "Repeated completion" },
+      time(15),
+    ),
+    completed,
+  );
+  assert.equal(
+    record(completed, targetId).quotes,
+    record(beforeStart, targetId).quotes,
+  );
+  assert.equal(
+    latestServiceQuote(record(completed, targetId))!.decision,
+    "Accepted",
+  );
+  assert.equal(
+    record(completed, targetId).history.at(-1)!.note,
+    privateCompletion,
+  );
+  for (const notification of progressEvents(completedAlerts)) {
+    assert.deepEqual(
+      Object.keys(notification.serviceEvent!).sort(),
+      ["kind", "requestId", "requestTitle", "occurredAt"].sort(),
+    );
+    assert.equal(
+      JSON.stringify(notification).includes(privateCompletion),
+      false,
+    );
+    assert.equal(JSON.stringify(notification).includes(privateScope), false);
+    for (const role of [
+      "tenant",
+      "landlord",
+      "provider",
+      "spaceOperator",
+      "admin",
+    ] as const)
+      if (role !== customerRole)
+        assert.equal(
+          openServiceNotification(completed, role, notification),
+          null,
+        );
+  }
+  const hidden = updateServiceRequestView(completed, customerRole, {
+    query: "unrelated",
+    filter: "active",
+    selectedId: null,
+  });
+  for (const notification of [startNotice, completionNotice]) {
+    const opened = openServiceNotification(hidden, customerRole, notification);
+    assert.ok(opened);
+    assert.deepEqual(serviceRequestView(opened.state, customerRole), {
+      query: "",
+      filter: "history",
+      selectedId: targetId,
+    });
+    assert.equal(opened.state.records, hidden.records);
+    assert.equal(
+      record(opened.state, targetId).quotes,
+      record(completed, targetId).quotes,
+    );
+    assert.equal(
+      record(opened.state, targetId).history,
+      record(completed, targetId).history,
+    );
+    assert.equal(opened.state.views.provider, hidden.views.provider);
+  }
+  const completedRecord = record(completed, targetId);
+  const isolated = (candidate: ServiceRequestRecord): ServiceRequestState => ({
+    ...completed,
+    records: [candidate],
+  });
+  const repeatedProgress = isolated({
+    ...completedRecord,
+    history: [
+      ...completedRecord.history,
+      ...completedRecord.history.map((event) => ({ ...event })),
+    ],
+  });
+  assert.equal(
+    progressEvents(
+      reconcileServiceNotifications(completedAlerts, repeatedProgress),
+    ).length,
+    2,
+  );
+  for (const invalid of [
+    { ...completedRecord, customerName: "Different customer" },
+    { ...completedRecord, propertyId: 999 },
+    { ...completedRecord, providerName: "Casa Clara" },
+    { ...completedRecord, quotes: [] },
+    {
+      ...completedRecord,
+      quotes: [
+        ...completedRecord.quotes,
+        {
+          ...latestServiceQuote(completedRecord)!,
+          id: "another-accepted-quote",
+        },
+      ],
+    },
+    {
+      ...completedRecord,
+      quotes: [
+        ...completedRecord.quotes,
+        {
+          ...latestServiceQuote(completedRecord)!,
+          id: "later-pending-quote",
+          decision: "Pending" as const,
+        },
+      ],
+    },
+    {
+      ...completedRecord,
+      quotes: completedRecord.quotes.map((item) => ({
+        ...item,
+        decision: "Pending" as const,
+      })),
+    },
+    {
+      ...completedRecord,
+      history: completedRecord.history.filter(
+        (event) => event.action !== "accepted",
+      ),
+    },
+    {
+      ...completedRecord,
+      history: completedRecord.history.map((event) =>
+        event.action === "started"
+          ? { ...event, actor: "Forged provider" }
+          : event,
+      ),
+    },
+    {
+      ...completedRecord,
+      history: completedRecord.history.map((event) =>
+        event.action === "started" ? { ...event, at: "not-a-date" } : event,
+      ),
+    },
+    {
+      ...completedRecord,
+      history: [
+        completedRecord.history.find((event) => event.action === "started")!,
+        ...completedRecord.history.filter(
+          (event) => event.action !== "started",
+        ),
+      ],
+    },
+    {
+      ...completedRecord,
+      history: completedRecord.history.filter(
+        (event) => event.action !== "quoted",
+      ),
+    },
+    {
+      ...completedRecord,
+      history: [
+        ...completedRecord.history,
+        {
+          ...completedRecord.history.find(
+            (event) => event.action === "started",
+          )!,
+          id: "ambiguous-second-start",
+        },
+      ],
+    },
+  ]) {
+    const invalidState = isolated(invalid);
+    assert.equal(
+      progressEvents(reconcileServiceNotifications(seeds, invalidState)).length,
+      0,
+    );
+    assert.equal(
+      openServiceNotification(invalidState, customerRole, startNotice),
+      null,
+    );
+    assert.equal(
+      openServiceNotification(invalidState, customerRole, completionNotice),
+      null,
+    );
+  }
+  for (const invalid of [
+    { ...completedRecord, status: "In progress" as const },
+    { ...completedRecord, updatedAt: time(15).toISOString() },
+    {
+      ...completedRecord,
+      history: completedRecord.history.filter(
+        (event) => event.action !== "started",
+      ),
+    },
+    {
+      ...completedRecord,
+      history: completedRecord.history.map((event) =>
+        event.action === "completed"
+          ? { ...event, actor: completedRecord.customerName }
+          : event,
+      ),
+    },
+    {
+      ...completedRecord,
+      history: completedRecord.history.map((event) =>
+        event.action === "completed"
+          ? { ...event, at: time(14).toISOString().replace(".000Z", "Z") }
+          : event,
+      ),
+    },
+    {
+      ...completedRecord,
+      history: completedRecord.history.map((event) =>
+        event.action === "completed" ? { ...event, id: "" } : event,
+      ),
+    },
+  ]) {
+    const invalidState = isolated(invalid);
+    assert.equal(
+      activity(reconcileServiceNotifications(seeds, invalidState)).some(
+        (item) => item.serviceEvent!.kind === "service-completed",
+      ),
+      false,
+    );
+    assert.equal(
+      openServiceNotification(invalidState, customerRole, completionNotice),
+      null,
+    );
+  }
+}
+
 console.log(
-  "Service notification checks passed: dual scope, genuine historical events, sample suppression, private payloads, read/dedup/pruning, mixed Work chronology and exact guarded historical request navigation.",
+  "Service notification checks passed: dual scope, genuine historical and progress events, sample suppression, private payloads, read/dedup/pruning, mixed Work chronology and exact guarded historical request navigation.",
 );

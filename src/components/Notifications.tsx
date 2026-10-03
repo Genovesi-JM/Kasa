@@ -47,6 +47,8 @@ const controls = {
     serviceQuoteAccepted: "Service quote accepted",
     serviceQuoteDeclined: "Service quote declined",
     serviceRequestCancelled: "Service request cancelled",
+    serviceStarted: "Service work started",
+    serviceCompleted: "Service completion recorded",
   },
   pt: {
     unread: "por ler",
@@ -65,6 +67,8 @@ const controls = {
     serviceQuoteAccepted: "Orçamento de serviço aceite",
     serviceQuoteDeclined: "Orçamento de serviço recusado",
     serviceRequestCancelled: "Pedido de serviço cancelado",
+    serviceStarted: "Serviço iniciado",
+    serviceCompleted: "Conclusão do serviço registada",
   },
   es: {
     unread: "sin leer",
@@ -83,6 +87,8 @@ const controls = {
     serviceQuoteAccepted: "Presupuesto de servicio aceptado",
     serviceQuoteDeclined: "Presupuesto de servicio rechazado",
     serviceRequestCancelled: "Solicitud de servicio cancelada",
+    serviceStarted: "Servicio iniciado",
+    serviceCompleted: "Finalización del servicio registrada",
   },
   fr: {
     unread: "non lues",
@@ -101,6 +107,8 @@ const controls = {
     serviceQuoteAccepted: "Devis de service accepté",
     serviceQuoteDeclined: "Devis de service refusé",
     serviceRequestCancelled: "Demande de service annulée",
+    serviceStarted: "Prestation commencée",
+    serviceCompleted: "Fin de prestation enregistrée",
   },
   ar: {
     unread: "غير مقروءة",
@@ -119,6 +127,8 @@ const controls = {
     serviceQuoteAccepted: "تم قبول عرض سعر الخدمة",
     serviceQuoteDeclined: "تم رفض عرض سعر الخدمة",
     serviceRequestCancelled: "تم إلغاء طلب الخدمة",
+    serviceStarted: "بدأ تنفيذ الخدمة",
+    serviceCompleted: "تم تسجيل اكتمال الخدمة",
   },
   zh: {
     unread: "未读",
@@ -136,6 +146,8 @@ const controls = {
     serviceQuoteAccepted: "服务报价已接受",
     serviceQuoteDeclined: "服务报价已拒绝",
     serviceRequestCancelled: "服务请求已取消",
+    serviceStarted: "服务工作已开始",
+    serviceCompleted: "已记录服务完成",
   },
 };
 
@@ -205,6 +217,8 @@ const serviceTitleKeys = {
   "quote-accepted": "serviceQuoteAccepted",
   "quote-declined": "serviceQuoteDeclined",
   "request-cancelled": "serviceRequestCancelled",
+  "service-started": "serviceStarted",
+  "service-completed": "serviceCompleted",
 } as const satisfies Record<
   NonNullable<KasaNotification["serviceEvent"]>["kind"],
   keyof typeof controls.en

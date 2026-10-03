@@ -15,7 +15,9 @@ export interface ServiceNotificationEvent {
     | "request-declined"
     | "quote-accepted"
     | "quote-declined"
-    | "request-cancelled";
+    | "request-cancelled"
+    | "service-started"
+    | "service-completed";
   requestId: string;
   requestTitle: string;
   occurredAt: string;

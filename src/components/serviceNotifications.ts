@@ -26,6 +26,81 @@ function validTimestamp(value: unknown): boolean {
   return Number.isFinite(date.getTime()) && date.toISOString() === value;
 }
 
+function validHistoryEvent(event: ServiceRequestHistory): boolean {
+  return (
+    typeof event.id === "string" &&
+    Boolean(event.id.trim()) &&
+    validTimestamp(event.at)
+  );
+}
+
+/** Start/completion have no quote ID; only an unambiguous accepted lifecycle can link them. */
+function recordedLifecycle(record: ServiceRequestRecord): {
+  started: ServiceRequestHistory;
+  completed?: ServiceRequestHistory;
+} | null {
+  if (record.status !== "In progress" && record.status !== "Completed")
+    return null;
+  const acceptedQuotes = record.quotes.filter(
+    (quote) => quote.decision === "Accepted",
+  );
+  if (acceptedQuotes.length !== 1 || acceptedQuotes[0] !== record.quotes.at(-1))
+    return null;
+  const quote = acceptedQuotes[0];
+  const distinct = new Map<string, ServiceRequestHistory>();
+  for (const event of record.history) {
+    const previous = distinct.get(event.id);
+    if (
+      previous &&
+      (previous.action !== event.action ||
+        previous.actor !== event.actor ||
+        previous.at !== event.at ||
+        previous.quoteId !== event.quoteId)
+    )
+      return null;
+    if (!previous) distinct.set(event.id, event);
+  }
+  const history = [...distinct.values()];
+  const quoted = history.filter(
+    (event) => event.action === "quoted" && event.quoteId === quote.id,
+  );
+  const accepted = history.filter((event) => event.action === "accepted");
+  const started = history.filter((event) => event.action === "started");
+  const completed = history.filter((event) => event.action === "completed");
+  if (quoted.length !== 1 || accepted.length !== 1 || started.length !== 1)
+    return null;
+  const [quoteEvent] = quoted;
+  const [acceptEvent] = accepted;
+  const [startEvent] = started;
+  if (
+    ![quoteEvent, acceptEvent, startEvent].every(validHistoryEvent) ||
+    quoteEvent.actor !== record.providerName ||
+    quoteEvent.at !== quote.recordedAt ||
+    acceptEvent.actor !== record.customerName ||
+    acceptEvent.quoteId !== quote.id ||
+    acceptEvent.at !== quote.decidedAt ||
+    startEvent.actor !== record.providerName ||
+    (startEvent.quoteId !== undefined && startEvent.quoteId !== quote.id) ||
+    history.indexOf(quoteEvent) >= history.indexOf(acceptEvent) ||
+    history.indexOf(acceptEvent) >= history.indexOf(startEvent)
+  )
+    return null;
+  if (record.status === "In progress")
+    return completed.length === 0 && record.updatedAt === startEvent.at
+      ? { started: startEvent }
+      : null;
+  if (completed.length !== 1) return null;
+  const [completeEvent] = completed;
+  return validHistoryEvent(completeEvent) &&
+    completeEvent.actor === record.providerName &&
+    completeEvent.at === record.updatedAt &&
+    (completeEvent.quoteId === undefined ||
+      completeEvent.quoteId === quote.id) &&
+    history.indexOf(startEvent) < history.indexOf(completeEvent)
+    ? { started: startEvent, completed: completeEvent }
+    : null;
+}
+
 function recordedEvent(
   record: ServiceRequestRecord,
   event: ServiceRequestHistory,
@@ -33,12 +108,7 @@ function recordedEvent(
   role: ServiceCustomerRole | "provider";
   kind: ServiceNotificationEvent["kind"];
 } | null {
-  if (
-    typeof event.id !== "string" ||
-    !event.id.trim() ||
-    !validTimestamp(event.at)
-  )
-    return null;
+  if (!validHistoryEvent(event)) return null;
   const customer = event.actor === record.customerName;
   const provider = event.actor === record.providerName;
   if (
@@ -83,6 +153,17 @@ function recordedEvent(
     record.updatedAt === event.at
   )
     return { role: "provider", kind: "request-cancelled" };
+  if (event.action === "started" || event.action === "completed") {
+    const lifecycle = recordedLifecycle(record);
+    const source =
+      event.action === "started" ? lifecycle?.started : lifecycle?.completed;
+    if (!source || source.id !== event.id) return null;
+    return {
+      role: record.customerRole,
+      kind:
+        event.action === "started" ? "service-started" : "service-completed",
+    };
+  }
   return null;
 }
 
