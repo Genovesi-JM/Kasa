@@ -27,11 +27,18 @@ export interface ChatConversation {
   propertyContext?: { propertyId: number; landlord: string };
 }
 
+export interface MessageView {
+  query: string;
+  context: "All conversations" | "Unread" | ConversationCategory;
+  sort: "Most recent" | "Unread first";
+}
+
 export interface MessageState {
   role: Role;
   conversations: ChatConversation[];
   selectedId: string;
   conversationOpen: boolean;
+  view?: MessageView;
 }
 
 export type WorkspaceMessageState = Record<Role, MessageState>;
@@ -45,6 +52,61 @@ export const messageWorkspaceLabels: Record<Role, string> = {
   spaceOperator: "Venue operations",
   admin: "Platform operations",
 };
+
+function createMessageView(): MessageView {
+  return {
+    query: "",
+    context: "All conversations",
+    sort: "Most recent",
+  };
+}
+
+export function messageView(state: MessageState): MessageView {
+  if (!Object.hasOwn(messageWorkspaceLabels, state.role))
+    return createMessageView();
+  return { ...(state.view ?? createMessageView()) };
+}
+
+export function updateMessageView(
+  state: MessageState,
+  patch: Partial<MessageView>,
+): MessageState {
+  if (
+    !Object.hasOwn(messageWorkspaceLabels, state.role) ||
+    !patch ||
+    typeof patch !== "object"
+  )
+    return state;
+  const current = messageView(state);
+  const next = { ...current };
+  if (typeof patch.query === "string") next.query = patch.query.slice(0, 200);
+  if (
+    patch.context === "All conversations" ||
+    patch.context === "Unread" ||
+    ((patch.context === "Property" ||
+      patch.context === "Maintenance" ||
+      patch.context === "Services" ||
+      patch.context === "Spaces" ||
+      patch.context === "Platform") &&
+      state.conversations.some(
+        (conversation) => conversation.category === patch.context,
+      ))
+  )
+    next.context = patch.context;
+  if (patch.sort === "Most recent" || patch.sort === "Unread first")
+    next.sort = patch.sort;
+  if (
+    next.query === current.query &&
+    next.context === current.context &&
+    next.sort === current.sort
+  )
+    return state;
+  return { ...state, view: next };
+}
+
+export function resetMessageView(state: MessageState): MessageState {
+  return updateMessageView(state, createMessageView());
+}
 
 type SeedMessage = [ChatMessage["direction"], string, string];
 interface ConversationSeed {
@@ -369,6 +431,7 @@ export function createInitialMessageState(
     role,
     selectedId: `${role}:conversation-1`,
     conversationOpen: false,
+    view: createMessageView(),
     conversations: seeds.map((conversation, index) => ({
       ...conversation,
       ...(conversation.propertyContext
@@ -417,6 +480,10 @@ export function openPropertyConversation(
   now = new Date(),
 ): MessageState {
   if (isWorkspaceListingOwner(state.role, property.id)) return state;
+  const revealed = updateMessageView(state, {
+    query: "",
+    context: "All conversations",
+  });
   const existing = state.conversations.find(
     (conversation) =>
       conversation.propertyContext?.propertyId === property.id &&
@@ -424,7 +491,7 @@ export function openPropertyConversation(
   );
   if (existing) {
     return {
-      ...updateConversation(state, existing.id, (conversation) => ({
+      ...updateConversation(revealed, existing.id, (conversation) => ({
         ...conversation,
         property: property.title,
         unread: 0,
@@ -456,7 +523,7 @@ export function openPropertyConversation(
     propertyContext: { propertyId: property.id, landlord: property.landlord },
   };
   return {
-    ...state,
+    ...revealed,
     conversations: [...state.conversations, conversation],
     selectedId: id,
     conversationOpen: true,

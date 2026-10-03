@@ -1,6 +1,7 @@
 import "./navigation-check";
 import "./search-check";
 import "./messages-check";
+import "./message-view-check";
 import "./application-state-check";
 import "./rental-application-draft-check";
 import "./application-view-check";

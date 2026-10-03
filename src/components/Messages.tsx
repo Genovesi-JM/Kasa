@@ -1,4 +1,5 @@
 import {
+  useCallback,
   useEffect,
   useRef,
   useState,
@@ -10,16 +11,21 @@ import {
   LockKeyhole,
   MessageCircle,
   Paperclip,
+  RotateCcw,
   Search,
   Send,
 } from "lucide-react";
 import { matchesSearch } from "../search";
 import {
   appendLocalMessage,
+  messageView,
   messageWorkspaceLabels,
+  resetMessageView,
   updateConversation,
+  updateMessageView,
   type ChatConversation,
   type MessageState,
+  type MessageView,
 } from "./messageState";
 import "./messages.css";
 import { useMediaQuery } from "./useMediaQuery";
@@ -30,21 +36,115 @@ interface MessagesProps {
   notify: (message: string) => void;
 }
 
+function isVisibleFocusTarget(
+  target: HTMLElement | null,
+): target is HTMLElement {
+  return Boolean(
+    target?.isConnected &&
+    !target.matches(":disabled") &&
+    !target.closest("[hidden], [inert], [aria-hidden='true']") &&
+    target.getClientRects().length > 0 &&
+    window.getComputedStyle(target).visibility === "visible",
+  );
+}
+
 export function Messages({ state, setState, notify }: MessagesProps) {
-  const [conversationQuery, setConversationQuery] = useState("");
-  const [conversationContext, setConversationContext] =
-    useState("All conversations");
-  const [conversationSort, setConversationSort] = useState("Most recent");
+  const {
+    query: conversationQuery,
+    context: conversationContext,
+    sort: conversationSort,
+  } = messageView(state);
+  const hasFilters =
+    conversationQuery !== "" ||
+    conversationContext !== "All conversations" ||
+    conversationSort !== "Most recent";
   const [status, setStatus] = useState("");
+  const messagesRoot = useRef<HTMLElement>(null);
   const composer = useRef<HTMLInputElement>(null);
   const inboxSearch = useRef<HTMLInputElement>(null);
   const transcript = useRef<HTMLDivElement>(null);
   const conversationHeading = useRef<HTMLElement>(null);
   const conversationButtons = useRef(new Map<string, HTMLButtonElement>());
+  const pendingFocus = useRef<number | null>(null);
   const selectedConversation = state.conversations.find(
     (item) => item.id === state.selectedId,
   );
   const isMobileInbox = useMediaQuery("(max-width: 720px)");
+  const selectedConversationId = selectedConversation?.id;
+  const scheduleFocus = useCallback(
+    (
+      target: "conversation" | "inbox",
+      role: MessageState["role"],
+      id: string,
+    ) => {
+      if (pendingFocus.current !== null)
+        cancelAnimationFrame(pendingFocus.current);
+      const previousFocus = document.activeElement;
+      const frame = requestAnimationFrame(() => {
+        if (pendingFocus.current !== frame) return;
+        pendingFocus.current = null;
+        const root = messagesRoot.current;
+        if (
+          !root?.isConnected ||
+          root.dataset.messageRole !== role ||
+          root.dataset.conversationId !== id ||
+          root.dataset.conversationOpen !== String(target === "conversation")
+        )
+          return;
+        const heading = conversationHeading.current;
+        const row = conversationButtons.current.get(id) ?? null;
+        const destination =
+          target === "conversation"
+            ? heading?.dataset.conversationId === id
+              ? heading
+              : null
+            : isVisibleFocusTarget(row)
+              ? row
+              : inboxSearch.current;
+        if (!isVisibleFocusTarget(destination)) return;
+        const active = document.activeElement;
+        if (
+          active !== previousFocus &&
+          active instanceof HTMLElement &&
+          active !== document.body &&
+          active !== document.documentElement &&
+          isVisibleFocusTarget(active)
+        )
+          return;
+        destination.focus({ preventScroll: true });
+      });
+      pendingFocus.current = frame;
+      return frame;
+    },
+    [],
+  );
+  useEffect(() => {
+    if (
+      !state.conversationOpen ||
+      !selectedConversationId ||
+      document.activeElement === composer.current
+    )
+      return;
+    const frame = scheduleFocus(
+      "conversation",
+      state.role,
+      selectedConversationId,
+    );
+    // Cancel this handoff only; Back may already have scheduled a newer one.
+    return () => cancelAnimationFrame(frame);
+  }, [
+    state.role,
+    selectedConversationId,
+    state.conversationOpen,
+    scheduleFocus,
+  ]);
+  useEffect(
+    () => () => {
+      if (pendingFocus.current !== null)
+        cancelAnimationFrame(pendingFocus.current);
+    },
+    [],
+  );
   const selectedUnread = selectedConversation?.unread ?? 0;
   useEffect(() => {
     if (!selectedUnread || (isMobileInbox && !state.conversationOpen)) return;
@@ -110,9 +210,7 @@ export function Messages({ state, setState, notify }: MessagesProps) {
       conversationOpen: true,
     }));
     setStatus("");
-    requestAnimationFrame(() =>
-      conversationHeading.current?.focus({ preventScroll: true }),
-    );
+    scheduleFocus("conversation", state.role, id);
   }
 
   function send() {
@@ -127,17 +225,17 @@ export function Messages({ state, setState, notify }: MessagesProps) {
 
   function returnToInbox() {
     setState((current) => ({ ...current, conversationOpen: false }));
-    requestAnimationFrame(() =>
-      (
-        conversationButtons.current.get(state.selectedId) ?? inboxSearch.current
-      )?.focus({ preventScroll: true }),
-    );
+    scheduleFocus("inbox", state.role, state.selectedId);
   }
 
   return (
     <section
+      ref={messagesRoot}
       className={`messages-layout card ${state.conversationOpen ? "chat-open" : ""}`}
       aria-label="Messages"
+      data-message-role={state.role}
+      data-conversation-id={state.selectedId}
+      data-conversation-open={state.conversationOpen}
     >
       <aside className="conversation-list" aria-label="Conversations">
         <div className="conversation-search">
@@ -147,14 +245,22 @@ export function Messages({ state, setState, notify }: MessagesProps) {
             placeholder="Search messages"
             aria-label="Search messages"
             value={conversationQuery}
-            onChange={(event) => setConversationQuery(event.target.value)}
+            maxLength={200}
+            onChange={(event) => {
+              const query = event.currentTarget.value;
+              setState((current) => updateMessageView(current, { query }));
+            }}
           />
         </div>
         <div className="conversation-filters">
           <select
             aria-label="Conversation type"
             value={conversationContext}
-            onChange={(event) => setConversationContext(event.target.value)}
+            onChange={(event) => {
+              const context = event.currentTarget
+                .value as MessageView["context"];
+              setState((current) => updateMessageView(current, { context }));
+            }}
           >
             <option>All conversations</option>
             <option>Unread</option>
@@ -165,11 +271,26 @@ export function Messages({ state, setState, notify }: MessagesProps) {
           <select
             aria-label="Sort messages"
             value={conversationSort}
-            onChange={(event) => setConversationSort(event.target.value)}
+            onChange={(event) => {
+              const sort = event.currentTarget.value as MessageView["sort"];
+              setState((current) => updateMessageView(current, { sort }));
+            }}
           >
             <option>Most recent</option>
             <option>Unread first</option>
           </select>
+          <button
+            type="button"
+            className="conversation-reset"
+            aria-label="Reset message search, conversation type and sort"
+            disabled={!hasFilters}
+            onClick={() => {
+              setState((current) => resetMessageView(current));
+              inboxSearch.current?.focus({ preventScroll: true });
+            }}
+          >
+            <RotateCcw size={13} aria-hidden="true" /> Reset filters
+          </button>
         </div>
         {visibleConversations.map((conversation) => (
           <button
@@ -219,7 +340,11 @@ export function Messages({ state, setState, notify }: MessagesProps) {
               {selectedConversation.initials}
             </span>
             <div>
-              <strong ref={conversationHeading} tabIndex={-1}>
+              <strong
+                ref={conversationHeading}
+                tabIndex={-1}
+                data-conversation-id={selectedConversation.id}
+              >
                 {selectedConversation.name}
               </strong>
               <small>{selectedConversation.property}</small>

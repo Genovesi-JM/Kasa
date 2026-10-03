@@ -18,6 +18,30 @@
 .messages-layout .chat-body {
   min-height: 0;
 }
+.messages-layout .conversation-reset {
+  grid-column: 1 / -1;
+  justify-self: end;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 32px;
+  padding: 4px 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--green);
+  font-size: 11px;
+  cursor: pointer;
+}
+.messages-layout .conversation-reset:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+.messages-layout .conversation-reset:focus-visible,
+.messages-layout .chat-panel header strong[tabindex]:focus-visible {
+  outline: 2px solid var(--green);
+  outline-offset: 2px;
+}
 .messages-status {
   position: absolute;
   width: 1px;
