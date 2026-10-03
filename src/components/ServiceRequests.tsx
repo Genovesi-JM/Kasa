@@ -24,7 +24,7 @@ import type { Role } from "../types";
 import { matchesSearch } from "../search";
 import { useDialogFocus } from "./useDialogFocus";
 import {
-  actOnServiceRequest,
+  applyServiceActionCommand,
   canQuoteServiceRequest,
   discardServiceQuoteDraft,
   hasServiceQuoteDraft,
@@ -49,6 +49,7 @@ import {
   visibleServiceRequests,
   workspaceServiceProvider,
   type ServiceIssue,
+  type ServiceActionCommand,
   type ServiceQuote,
   type ServiceQuoteDraft,
   type ServiceQuoteErrors,
@@ -70,6 +71,10 @@ interface ServiceRequestComposerProps extends ServiceRecordProps {
   providerName?: string;
   onClose: () => void;
   onSaved: (requestId: string) => void;
+}
+interface PendingServiceAction {
+  command: ServiceActionCommand;
+  trigger: HTMLButtonElement;
 }
 type Copy = (en: string, pt: string) => string;
 function useServiceCopy() {
@@ -795,7 +800,14 @@ function ServiceRecordBoard({ role, state, setState }: ServiceRecordProps) {
   const [composerOpen, setComposerOpen] = useState(false);
   const [quoteRequestId, setQuoteRequestId] = useState<string | null>(null);
   const [feedback, setFeedback] = useState("");
-  const [actionError, setActionError] = useState<ServiceIssue | null>(null);
+  const [pendingAction, setPendingAction] =
+    useState<PendingServiceAction | null>(null);
+  const pendingActionRef = useRef<PendingServiceAction | null>(null);
+  const focusedReceipt = useRef<string | null>(null);
+  const clearPendingAction = () => {
+    pendingActionRef.current = null;
+    setPendingAction(null);
+  };
   const heading = useRef<HTMLHeadingElement>(null);
   const detailHeading = useRef<HTMLHeadingElement>(null);
   const noteInput = useRef<HTMLTextAreaElement>(null);
@@ -808,7 +820,11 @@ function ServiceRecordBoard({ role, state, setState }: ServiceRecordProps) {
     [],
   );
   useEffect(() => {
-    if (!selectedId) return;
+    if (
+      !selectedId ||
+      pendingActionRef.current?.command.requestId === selectedId
+    )
+      return;
     const frame = requestAnimationFrame(() => {
       const target = detailHeading.current;
       if (target?.dataset.requestId === selectedId) target.focus();
@@ -844,6 +860,74 @@ function ServiceRecordBoard({ role, state, setState }: ServiceRecordProps) {
     );
   const selected =
     visible.find((record) => record.id === selectedId) ?? visible[0];
+  useEffect(() => {
+    const pending = pendingActionRef.current;
+    if (
+      pending &&
+      (pending.command.role !== role ||
+        pending.command.requestId !== selected?.id ||
+        composerOpen ||
+        quoteRequestId)
+    ) {
+      pendingActionRef.current = null;
+      setPendingAction(null);
+    }
+  }, [role, selected?.id, composerOpen, quoteRequestId]);
+  const receipt = state.actionReceipt;
+  const committedReceipt =
+    pendingAction &&
+    !composerOpen &&
+    !quoteRequestId &&
+    pendingAction.command.role === role &&
+    pendingAction.command.requestId === selected?.id &&
+    receipt?.token === pendingAction.command.token &&
+    receipt.role === role &&
+    receipt.requestId === selected.id &&
+    receipt.actionType === pendingAction.command.action.type
+      ? receipt
+      : null;
+  const actionError = committedReceipt?.issue ?? null;
+  const actionSucceeded = Boolean(
+    committedReceipt &&
+    !committedReceipt.issue &&
+    committedReceipt.eventId &&
+    selected?.history.some((event) => event.id === committedReceipt.eventId),
+  );
+  useEffect(() => {
+    if (
+      !committedReceipt ||
+      !pendingAction ||
+      focusedReceipt.current === committedReceipt.token
+    )
+      return;
+    const frame = requestAnimationFrame(() => {
+      focusedReceipt.current = committedReceipt.token;
+      const heading = detailHeading.current;
+      if (
+        heading?.dataset.requestId !== committedReceipt.requestId ||
+        document.querySelector('[role="dialog"], dialog[open]')
+      )
+        return;
+      const active = document.activeElement;
+      if (
+        active &&
+        active !== document.body &&
+        active !== document.documentElement &&
+        active !== pendingAction.trigger
+      )
+        return;
+      const target =
+        committedReceipt.issue === "note" ? noteInput.current : heading;
+      if (
+        target?.isConnected &&
+        !target.closest('[hidden], [inert], [aria-hidden="true"]') &&
+        target.getClientRects().length > 0 &&
+        getComputedStyle(target).visibility === "visible"
+      )
+        target.focus();
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [committedReceipt, pendingAction]);
   const quoteRecord = records.find(
     (record) =>
       record.id === quoteRequestId && canQuoteServiceRequest(record, role),
@@ -889,6 +973,7 @@ function ServiceRecordBoard({ role, state, setState }: ServiceRecordProps) {
         );
   const discardQuoteDraft = (trigger: HTMLButtonElement) => {
     if (!selected || !retainedQuoteDraft) return;
+    clearPendingAction();
     const requestId = selected.id;
     setState((current) => discardServiceQuoteDraft(current, role, requestId));
     setFeedback(
@@ -921,50 +1006,49 @@ function ServiceRecordBoard({ role, state, setState }: ServiceRecordProps) {
         target.focus();
     });
   };
-  const perform = (action: ServiceRequestAction) => {
+  const perform = (
+    action: ServiceRequestAction,
+    trigger: HTMLButtonElement,
+  ) => {
     if (!selected) return;
-    const issue = serviceRequestActionIssue(state, role, selected.id, action);
-    setActionError(issue);
-    if (issue) {
-      if (issue === "note") noteInput.current?.focus();
-      return;
-    }
-    setState((current) =>
-      actOnServiceRequest(current, role, selected.id, action),
-    );
-    const completed: Record<ServiceRequestAction["type"], string> = {
-      accept: copy(
-        "Quote acceptance recorded in this tab.",
-        "Aceitação do orçamento registada neste separador.",
-      ),
-      decline: copy(
-        "Quote declined in this tab. The provider can record a revised quote.",
-        "Orçamento recusado neste separador. O prestador pode registar uma revisão.",
-      ),
-      "decline-request": copy(
-        "Request declined in this tab. History is open with the recorded reason.",
-        "Pedido recusado neste separador. O histórico está aberto com o motivo registado.",
-      ),
-      cancel: copy(
-        "Request cancelled in this tab. History is open with the recorded reason.",
-        "Pedido cancelado neste separador. O histórico está aberto com o motivo registado.",
-      ),
-      start: copy(
-        "Work marked in progress in this tab.",
-        "Trabalho marcado como em curso neste separador.",
-      ),
-      complete: copy(
-        "Completion and your note recorded in this tab. History is open with this request.",
-        "Conclusão e nota registadas neste separador. O histórico está aberto com este pedido.",
-      ),
-    };
-    setFeedback(completed[action.type]);
-    const opensHistory =
-      action.type === "cancel" ||
-      action.type === "complete" ||
-      action.type === "decline-request";
-    if (!opensHistory || selectedId === selected.id)
-      requestAnimationFrame(() => detailHeading.current?.focus());
+    const command: ServiceActionCommand = Object.freeze({
+      token: crypto.randomUUID(),
+      role,
+      requestId: selected.id,
+      action: Object.freeze({ ...action }),
+      at: Date.now(),
+    });
+    const pending = { command, trigger };
+    pendingActionRef.current = pending;
+    setPendingAction(pending);
+    setFeedback("");
+    setState((current) => applyServiceActionCommand(current, command));
+  };
+  const completed: Record<ServiceRequestAction["type"], string> = {
+    accept: copy(
+      "Quote acceptance recorded in this tab.",
+      "Aceitação do orçamento registada neste separador.",
+    ),
+    decline: copy(
+      "Quote declined in this tab. The provider can record a revised quote.",
+      "Orçamento recusado neste separador. O prestador pode registar uma revisão.",
+    ),
+    "decline-request": copy(
+      "Request declined in this tab. History is open with the recorded reason.",
+      "Pedido recusado neste separador. O histórico está aberto com o motivo registado.",
+    ),
+    cancel: copy(
+      "Request cancelled in this tab. History is open with the recorded reason.",
+      "Pedido cancelado neste separador. O histórico está aberto com o motivo registado.",
+    ),
+    start: copy(
+      "Work marked in progress in this tab.",
+      "Trabalho marcado como em curso neste separador.",
+    ),
+    complete: copy(
+      "Completion and your note recorded in this tab. History is open with this request.",
+      "Conclusão e nota registadas neste separador. O histórico está aberto com este pedido.",
+    ),
   };
   if (!isServiceCustomer(role) && !provider)
     return (
@@ -1007,7 +1091,10 @@ function ServiceRecordBoard({ role, state, setState }: ServiceRecordProps) {
           <button
             type="button"
             className="button"
-            onClick={() => setComposerOpen(true)}
+            onClick={() => {
+              clearPendingAction();
+              setComposerOpen(true);
+            }}
           >
             <Plus size={17} aria-hidden="true" />
             {copy("New service request", "Novo pedido de serviço")}
@@ -1054,7 +1141,7 @@ function ServiceRecordBoard({ role, state, setState }: ServiceRecordProps) {
               setState((current) =>
                 updateServiceRequestView(current, role, { query: value }),
               );
-              setActionError(null);
+              clearPendingAction();
             }}
           />
         </label>
@@ -1075,7 +1162,7 @@ function ServiceRecordBoard({ role, state, setState }: ServiceRecordProps) {
                 setState((current) =>
                   updateServiceRequestView(current, role, { filter: value }),
                 );
-                setActionError(null);
+                clearPendingAction();
               }}
             >
               {value === "active"
@@ -1094,7 +1181,9 @@ function ServiceRecordBoard({ role, state, setState }: ServiceRecordProps) {
         </div>
       </div>
       <p className="service-record-feedback" role="status">
-        {feedback}
+        {actionSucceeded && committedReceipt
+          ? completed[committedReceipt.actionType]
+          : feedback}
       </p>
       {visible.length === 0 ? (
         <div className="card service-record-empty">
@@ -1142,7 +1231,7 @@ function ServiceRecordBoard({ role, state, setState }: ServiceRecordProps) {
                       selectedId: record.id,
                     }),
                   );
-                  setActionError(null);
+                  clearPendingAction();
                   setFeedback("");
                   if (selectedId === record.id)
                     requestAnimationFrame(() => detailHeading.current?.focus());
@@ -1336,7 +1425,10 @@ function ServiceRecordBoard({ role, state, setState }: ServiceRecordProps) {
                 <button
                   type="button"
                   className="button"
-                  onClick={() => setQuoteRequestId(selected.id)}
+                  onClick={() => {
+                    clearPendingAction();
+                    setQuoteRequestId(selected.id);
+                  }}
                 >
                   <FileText size={17} aria-hidden="true" />
                   {retainedQuoteDraft
@@ -1378,7 +1470,7 @@ function ServiceRecordBoard({ role, state, setState }: ServiceRecordProps) {
                           value,
                         ),
                       );
-                      setActionError(null);
+                      clearPendingAction();
                     }}
                     onChange={(event) => {
                       const value = event.target.value;
@@ -1390,7 +1482,7 @@ function ServiceRecordBoard({ role, state, setState }: ServiceRecordProps) {
                           value,
                         ),
                       );
-                      setActionError(null);
+                      clearPendingAction();
                     }}
                     aria-invalid={actionError === "note"}
                     aria-describedby={`${id}-action-help${actionError === "note" ? ` ${id}-action-error` : ""}`}
@@ -1432,11 +1524,14 @@ function ServiceRecordBoard({ role, state, setState }: ServiceRecordProps) {
                   <button
                     type="button"
                     className="button button-secondary"
-                    onClick={() =>
-                      perform({
-                        type: "decline-request",
-                        note: noteInput.current?.value ?? note,
-                      })
+                    onClick={(event) =>
+                      perform(
+                        {
+                          type: "decline-request",
+                          note: noteInput.current?.value ?? note,
+                        },
+                        event.currentTarget,
+                      )
                     }
                   >
                     {copy("Decline request", "Recusar pedido")}
@@ -1448,8 +1543,11 @@ function ServiceRecordBoard({ role, state, setState }: ServiceRecordProps) {
                       type="button"
                       className="button"
                       disabled={Boolean(acceptIssue)}
-                      onClick={() =>
-                        perform({ type: "accept", quoteId: quote.id })
+                      onClick={(event) =>
+                        perform(
+                          { type: "accept", quoteId: quote.id },
+                          event.currentTarget,
+                        )
                       }
                     >
                       <Check size={16} aria-hidden="true" />
@@ -1458,12 +1556,15 @@ function ServiceRecordBoard({ role, state, setState }: ServiceRecordProps) {
                     <button
                       type="button"
                       className="button button-secondary"
-                      onClick={() =>
-                        perform({
-                          type: "decline",
-                          quoteId: quote.id,
-                          note: noteInput.current?.value ?? note,
-                        })
+                      onClick={(event) =>
+                        perform(
+                          {
+                            type: "decline",
+                            quoteId: quote.id,
+                            note: noteInput.current?.value ?? note,
+                          },
+                          event.currentTarget,
+                        )
                       }
                     >
                       {copy("Decline quote", "Recusar orçamento")}
@@ -1474,11 +1575,14 @@ function ServiceRecordBoard({ role, state, setState }: ServiceRecordProps) {
                   <button
                     type="button"
                     className="text-button"
-                    onClick={() =>
-                      perform({
-                        type: "cancel",
-                        note: noteInput.current?.value ?? note,
-                      })
+                    onClick={(event) =>
+                      perform(
+                        {
+                          type: "cancel",
+                          note: noteInput.current?.value ?? note,
+                        },
+                        event.currentTarget,
+                      )
                     }
                   >
                     {copy("Cancel request", "Cancelar pedido")}
@@ -1488,7 +1592,9 @@ function ServiceRecordBoard({ role, state, setState }: ServiceRecordProps) {
                   <button
                     type="button"
                     className="button"
-                    onClick={() => perform({ type: "start" })}
+                    onClick={(event) =>
+                      perform({ type: "start" }, event.currentTarget)
+                    }
                   >
                     {copy("Record work started", "Registar início do trabalho")}
                   </button>
@@ -1497,11 +1603,14 @@ function ServiceRecordBoard({ role, state, setState }: ServiceRecordProps) {
                   <button
                     type="button"
                     className="button"
-                    onClick={() =>
-                      perform({
-                        type: "complete",
-                        note: noteInput.current?.value ?? note,
-                      })
+                    onClick={(event) =>
+                      perform(
+                        {
+                          type: "complete",
+                          note: noteInput.current?.value ?? note,
+                        },
+                        event.currentTarget,
+                      )
                     }
                   >
                     {copy("Record completion", "Registar conclusão")}

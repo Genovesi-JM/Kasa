@@ -99,6 +99,7 @@ export interface ServiceRequestState {
   actionNotes: Record<Role, Record<string, string>>;
   views: Record<ServiceRequestWorkspaceRole, ServiceRequestView>;
   nextId: number;
+  actionReceipt?: ServiceActionReceipt;
 }
 export type ServiceIssue =
   | "unavailable"
@@ -130,6 +131,35 @@ export type ServiceRequestAction =
   | { type: "cancel"; note: string }
   | { type: "start" }
   | { type: "complete"; note: string };
+
+export interface ServiceActionCommand {
+  readonly token: string;
+  readonly role: Role;
+  readonly requestId: string;
+  readonly action: Readonly<ServiceRequestAction>;
+  readonly at: number;
+}
+
+export interface ServiceActionReceipt {
+  readonly token: string;
+  readonly role: Role;
+  readonly requestId: string;
+  readonly actionType: ServiceRequestAction["type"];
+  readonly issue: ServiceIssue | null;
+  readonly eventId: string | null;
+}
+
+const serviceActionHistory: Record<
+  ServiceRequestAction["type"],
+  ServiceRequestHistory["action"]
+> = {
+  accept: "accepted",
+  decline: "declined",
+  "decline-request": "provider-declined",
+  cancel: "cancelled",
+  start: "started",
+  complete: "completed",
+};
 
 export function isServiceCustomer(role: Role): role is ServiceCustomerRole {
   return role === "tenant" || role === "landlord";
@@ -740,21 +770,17 @@ export function actOnServiceRequest(
     start: "In progress",
     complete: "Completed",
   };
-  const actions: Record<
-    ServiceRequestAction["type"],
-    ServiceRequestHistory["action"]
-  > = {
-    accept: "accepted",
-    decline: "declined",
-    "decline-request": "provider-declined",
-    cancel: "cancelled",
-    start: "started",
-    complete: "completed",
-  };
   const note = "note" in action ? action.note : undefined;
   const quoteId = "quoteId" in action ? action.quoteId : undefined;
   const updated = {
-    ...withHistory(record, actions[action.type], actor, now, note, quoteId),
+    ...withHistory(
+      record,
+      serviceActionHistory[action.type],
+      actor,
+      now,
+      note,
+      quoteId,
+    ),
     status: statuses[action.type],
   };
   if (action.type === "accept" || action.type === "decline")
@@ -783,6 +809,74 @@ export function actOnServiceRequest(
       })
     : next;
 }
+
+/** A pure queued update: one captured time and a committed, payload-free result. */
+export function applyServiceActionCommand(
+  state: ServiceRequestState,
+  command: ServiceActionCommand,
+): ServiceRequestState {
+  if (state.actionReceipt?.token === command.token) return state;
+  const action = { ...command.action };
+  const receipt = (
+    next: ServiceRequestState,
+    issue: ServiceIssue | null,
+    eventId: string | null = null,
+  ): ServiceRequestState => ({
+    ...next,
+    actionReceipt: {
+      token: command.token,
+      role: command.role,
+      requestId: command.requestId,
+      actionType: action.type,
+      issue,
+      eventId,
+    },
+  });
+  if (typeof command.at !== "number" || !Number.isFinite(command.at))
+    return receipt(state, "unavailable");
+  const now = new Date(command.at);
+  if (!Number.isFinite(now.getTime())) return receipt(state, "unavailable");
+  const issue = serviceRequestActionIssue(
+    state,
+    command.role,
+    command.requestId,
+    action,
+    now,
+  );
+  if (issue) return receipt(state, issue);
+  const before = state.records.find(
+    (record) => record.id === command.requestId,
+  );
+  const next = actOnServiceRequest(
+    state,
+    command.role,
+    command.requestId,
+    action,
+    now,
+  );
+  const after = next.records.find((record) => record.id === command.requestId);
+  const event = after?.history.at(-1);
+  if (
+    next === state ||
+    !before ||
+    !after ||
+    !event ||
+    after.history.length !== before.history.length + 1 ||
+    !before.history.every((entry, index) => after.history[index] === entry) ||
+    before.history.some((entry) => entry.id === event.id) ||
+    event.action !== serviceActionHistory[action.type] ||
+    event.at !== now.toISOString() ||
+    event.actor !==
+      (command.role === "provider"
+        ? workspaceServiceProvider
+        : customerName(command.role as ServiceCustomerRole)) ||
+    event.quoteId !== ("quoteId" in action ? action.quoteId : undefined) ||
+    (event.note ?? "") !== ("note" in action ? action.note.trim() : "")
+  )
+    return receipt(state, "unavailable");
+  return receipt(next, null, event.id);
+}
+
 export function updateServiceActionNote(
   state: ServiceRequestState,
   role: Role,
