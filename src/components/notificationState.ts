@@ -46,6 +46,20 @@ export interface RentalApplicationNotificationEvent {
   occurredAt: string;
 }
 
+export interface ViewingNotificationEvent {
+  kind:
+    | "request-submitted"
+    | "request-accepted"
+    | "request-declined"
+    | "proposal-recorded"
+    | "proposal-accepted"
+    | "proposal-declined"
+    | "request-cancelled";
+  requestId: string;
+  propertyTitle: string;
+  occurredAt: string;
+}
+
 export interface KasaNotification {
   id: string;
   role: Role;
@@ -66,6 +80,7 @@ export interface KasaNotification {
   serviceEvent?: ServiceNotificationEvent;
   spaceBookingEvent?: SpaceBookingNotificationEvent;
   rentalApplicationEvent?: RentalApplicationNotificationEvent;
+  viewingEvent?: ViewingNotificationEvent;
   read: boolean;
 }
 
@@ -80,6 +95,7 @@ export function sortNotificationActivity(
   const ordered = state.items
     .map((item, index) => {
       const value =
+        item.viewingEvent?.occurredAt ??
         item.rentalApplicationEvent?.occurredAt ??
         item.spaceBookingEvent?.occurredAt ??
         item.serviceEvent?.occurredAt ??

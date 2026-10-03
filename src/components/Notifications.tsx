@@ -31,6 +31,13 @@ import "./notifications.css";
 
 const controls = {
   en: {
+    viewingRequestSubmitted: "Viewing request recorded",
+    viewingRequestAccepted: "Viewing time agreed locally",
+    viewingRequestDeclined: "Viewing request declined",
+    viewingProposalRecorded: "Viewing time proposed",
+    viewingProposalAccepted: "Proposed viewing time accepted",
+    viewingProposalDeclined: "Proposed viewing time declined",
+    viewingRequestCancelled: "Viewing request cancelled",
     unread: "unread",
     read: "Read",
     markRead: "Mark as read",
@@ -61,6 +68,13 @@ const controls = {
     spaceBookingCompleted: "Space completion recorded",
   },
   pt: {
+    viewingRequestSubmitted: "Pedido de visita registado",
+    viewingRequestAccepted: "Horário da visita acordado localmente",
+    viewingRequestDeclined: "Pedido de visita recusado",
+    viewingProposalRecorded: "Horário de visita proposto",
+    viewingProposalAccepted: "Horário proposto para a visita aceite",
+    viewingProposalDeclined: "Horário proposto para a visita recusado",
+    viewingRequestCancelled: "Pedido de visita cancelado",
     unread: "por ler",
     read: "Lida",
     markRead: "Marcar como lida",
@@ -93,6 +107,13 @@ const controls = {
     spaceBookingCompleted: "Conclusão da utilização do espaço registada",
   },
   es: {
+    viewingRequestSubmitted: "Solicitud de visita registrada",
+    viewingRequestAccepted: "Horario de visita acordado localmente",
+    viewingRequestDeclined: "Solicitud de visita rechazada",
+    viewingProposalRecorded: "Horario de visita propuesto",
+    viewingProposalAccepted: "Horario propuesto para la visita aceptado",
+    viewingProposalDeclined: "Horario propuesto para la visita rechazado",
+    viewingRequestCancelled: "Solicitud de visita cancelada",
     unread: "sin leer",
     read: "Leída",
     markRead: "Marcar como leída",
@@ -124,6 +145,13 @@ const controls = {
     spaceBookingCompleted: "Finalización del uso del espacio registrada",
   },
   fr: {
+    viewingRequestSubmitted: "Demande de visite enregistrée",
+    viewingRequestAccepted: "Horaire de visite convenu localement",
+    viewingRequestDeclined: "Demande de visite refusée",
+    viewingProposalRecorded: "Horaire de visite proposé",
+    viewingProposalAccepted: "Horaire proposé pour la visite accepté",
+    viewingProposalDeclined: "Horaire proposé pour la visite refusé",
+    viewingRequestCancelled: "Demande de visite annulée",
     unread: "non lues",
     read: "Lue",
     markRead: "Marquer comme lue",
@@ -155,6 +183,13 @@ const controls = {
     spaceBookingCompleted: "Fin d’utilisation de l’espace enregistrée",
   },
   ar: {
+    viewingRequestSubmitted: "تم تسجيل طلب المعاينة",
+    viewingRequestAccepted: "تم الاتفاق محليًا على موعد المعاينة",
+    viewingRequestDeclined: "تم رفض طلب المعاينة",
+    viewingProposalRecorded: "تم اقتراح موعد للمعاينة",
+    viewingProposalAccepted: "تم قبول موعد المعاينة المقترح",
+    viewingProposalDeclined: "تم رفض موعد المعاينة المقترح",
+    viewingRequestCancelled: "تم إلغاء طلب المعاينة",
     unread: "غير مقروءة",
     read: "مقروءة",
     markRead: "تحديد كمقروءة",
@@ -185,6 +220,13 @@ const controls = {
     spaceBookingCompleted: "تم تسجيل انتهاء استخدام المساحة",
   },
   zh: {
+    viewingRequestSubmitted: "已记录看房请求",
+    viewingRequestAccepted: "已在本地约定看房时间",
+    viewingRequestDeclined: "看房请求已被拒绝",
+    viewingProposalRecorded: "已提出看房时间",
+    viewingProposalAccepted: "已接受拟议看房时间",
+    viewingProposalDeclined: "已拒绝拟议看房时间",
+    viewingRequestCancelled: "看房请求已取消",
     unread: "未读",
     read: "已读",
     markRead: "标为已读",
@@ -310,6 +352,19 @@ const rentalApplicationTitleKeys = {
   keyof typeof controls.en
 >;
 
+const viewingTitleKeys = {
+  "request-submitted": "viewingRequestSubmitted",
+  "request-accepted": "viewingRequestAccepted",
+  "request-declined": "viewingRequestDeclined",
+  "proposal-recorded": "viewingProposalRecorded",
+  "proposal-accepted": "viewingProposalAccepted",
+  "proposal-declined": "viewingProposalDeclined",
+  "request-cancelled": "viewingRequestCancelled",
+} as const satisfies Record<
+  NonNullable<KasaNotification["viewingEvent"]>["kind"],
+  keyof typeof controls.en
+>;
+
 interface NotificationsProps {
   state: NotificationState;
   setState: Dispatch<SetStateAction<NotificationState>>;
@@ -329,34 +384,42 @@ function NotificationList({
   return (
     <div className="kasa-notification-list">
       {items.map((item) => {
-        const Icon = item.rentalApplicationEvent
-          ? icons.document
-          : icons[item.icon];
+        const Icon = item.viewingEvent
+          ? icons.calendar
+          : item.rentalApplicationEvent
+            ? icons.document
+            : icons[item.icon];
         const workEvent = item.workEvent;
         const serviceEvent = item.serviceEvent;
         const spaceBookingEvent = item.spaceBookingEvent;
         const rentalApplicationEvent = item.rentalApplicationEvent;
+        const viewingEvent = item.viewingEvent;
         const event =
+          viewingEvent ??
           rentalApplicationEvent ??
           spaceBookingEvent ??
           serviceEvent ??
           workEvent;
-        const title = rentalApplicationEvent
-          ? labels[rentalApplicationTitleKeys[rentalApplicationEvent.kind]]
-          : spaceBookingEvent
-            ? labels[spaceBookingTitleKeys[spaceBookingEvent.kind]]
-            : serviceEvent
-              ? labels[serviceTitleKeys[serviceEvent.kind]]
-              : workEvent
-                ? labels[workTitleKeys[workEvent.kind]]
-                : tr(item.titleKey);
-        const note = rentalApplicationEvent
-          ? rentalApplicationEvent.propertyTitle
-          : spaceBookingEvent
-            ? `${spaceBookingEvent.venueName} · ${spaceBookingEvent.spaceName}`
-            : (serviceEvent?.requestTitle ??
-              workEvent?.opportunityTitle ??
-              tr(item.noteKey));
+        const title = viewingEvent
+          ? labels[viewingTitleKeys[viewingEvent.kind]]
+          : rentalApplicationEvent
+            ? labels[rentalApplicationTitleKeys[rentalApplicationEvent.kind]]
+            : spaceBookingEvent
+              ? labels[spaceBookingTitleKeys[spaceBookingEvent.kind]]
+              : serviceEvent
+                ? labels[serviceTitleKeys[serviceEvent.kind]]
+                : workEvent
+                  ? labels[workTitleKeys[workEvent.kind]]
+                  : tr(item.titleKey);
+        const note = viewingEvent
+          ? viewingEvent.propertyTitle
+          : rentalApplicationEvent
+            ? rentalApplicationEvent.propertyTitle
+            : spaceBookingEvent
+              ? `${spaceBookingEvent.venueName} · ${spaceBookingEvent.spaceName}`
+              : (serviceEvent?.requestTitle ??
+                workEvent?.opportunityTitle ??
+                tr(item.noteKey));
         const source = event ? labels.local : labels.sample;
         const timestamp = event
           ? formatTime(event.occurredAt)

@@ -146,6 +146,11 @@ import {
   visibleApplicationRecords,
 } from "./components/applicationState";
 import type { ApplicationOpenRequest } from "./components/Applications";
+import type { ViewingOpenRequest } from "./components/ViewingRequests";
+import {
+  openViewingNotification,
+  reconcileViewingNotifications,
+} from "./components/viewingNotifications";
 import {
   createInitialPropertyRequestState,
   selectViewingRequest,
@@ -5039,15 +5044,18 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
   );
   const notificationState = useMemo(
     () =>
-      reconcileRentalApplicationNotifications(
-        reconcileSpaceBookingNotifications(
-          reconcileServiceNotifications(
-            reconcileWorkNotifications(savedNotificationState, workState),
-            serviceRequestState,
+      reconcileViewingNotifications(
+        reconcileRentalApplicationNotifications(
+          reconcileSpaceBookingNotifications(
+            reconcileServiceNotifications(
+              reconcileWorkNotifications(savedNotificationState, workState),
+              serviceRequestState,
+            ),
+            bookingsState,
           ),
-          bookingsState,
+          applicationState,
         ),
-        applicationState,
+        propertyRequestState,
       ),
     [
       savedNotificationState,
@@ -5055,25 +5063,35 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
       serviceRequestState,
       bookingsState,
       applicationState,
+      propertyRequestState,
     ],
   );
   const setNotificationState = useCallback(
     (update: SetStateAction<NotificationState>) => {
       setSavedNotificationState((current) => {
-        const reconciled = reconcileRentalApplicationNotifications(
-          reconcileSpaceBookingNotifications(
-            reconcileServiceNotifications(
-              reconcileWorkNotifications(current, workState),
-              serviceRequestState,
+        const reconciled = reconcileViewingNotifications(
+          reconcileRentalApplicationNotifications(
+            reconcileSpaceBookingNotifications(
+              reconcileServiceNotifications(
+                reconcileWorkNotifications(current, workState),
+                serviceRequestState,
+              ),
+              bookingsState,
             ),
-            bookingsState,
+            applicationState,
           ),
-          applicationState,
+          propertyRequestState,
         );
         return typeof update === "function" ? update(reconciled) : update;
       });
     },
-    [workState, serviceRequestState, bookingsState, applicationState],
+    [
+      workState,
+      serviceRequestState,
+      bookingsState,
+      applicationState,
+      propertyRequestState,
+    ],
   );
   const [mobileOpen, setMobileOpen] = useState(false);
   const [workspaceTool, setWorkspaceTool] = useState<
@@ -5185,6 +5203,22 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
         : current,
     );
   }, []);
+  const [viewingEntry, setViewingEntry] = useState<{
+    revision: number;
+    request: ViewingOpenRequest | null;
+  }>({ revision: 0, request: null });
+  const clearViewingOpenRequest = useCallback(() => {
+    setViewingEntry((current) =>
+      current.request ? { ...current, request: null } : current,
+    );
+  }, []);
+  const consumeViewingOpenRequest = useCallback((revision: number) => {
+    setViewingEntry((current) =>
+      current.request?.revision === revision
+        ? { ...current, request: null }
+        : current,
+    );
+  }, []);
   const [propertyReturnTo, setPropertyReturnTo] = useState<
     AppRoute["returnTo"]
   >(initialRoute.returnTo);
@@ -5255,6 +5289,7 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
       restoringHistory.current = true;
       clearApplicationOpenRequest();
       clearMaintenanceOpenRequest();
+      clearViewingOpenRequest();
       setRole(route.role);
       setView(route.view);
       setSelectedVenueId(route.venueId);
@@ -5306,7 +5341,12 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
     };
     window.addEventListener("popstate", restore);
     return () => window.removeEventListener("popstate", restore);
-  }, [demoTarget, clearApplicationOpenRequest, clearMaintenanceOpenRequest]);
+  }, [
+    demoTarget,
+    clearApplicationOpenRequest,
+    clearMaintenanceOpenRequest,
+    clearViewingOpenRequest,
+  ]);
 
   const updateServiceArea = useCallback(
     (area: "discover" | "tasks" | "work", mode: "jobs" | "hire") => {
@@ -5602,6 +5642,7 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
     (next: View, query?: string) => {
       if (next !== "applications") clearApplicationOpenRequest();
       if (next !== "maintenance") clearMaintenanceOpenRequest();
+      if (next !== "viewings") clearViewingOpenRequest();
       setView(canonicalRoleView(role, next));
       if (next === "spaces" && query !== undefined) {
         setSpacesDiscovery((current) =>
@@ -5635,6 +5676,7 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
       systemReduceMotion,
       clearApplicationOpenRequest,
       clearMaintenanceOpenRequest,
+      clearViewingOpenRequest,
     ],
   );
   const openRentalApplication = (applicationId: number) => {
@@ -5676,10 +5718,17 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
     go("spaceVenue");
   };
   const openViewings = (id?: string) => {
-    if (id)
+    if (role !== "tenant" && role !== "landlord") return;
+    if (id) {
+      // A newly saved request can be queued before this handoff runs.
       setPropertyRequestState((current) =>
         selectViewingRequest(current, role, id),
       );
+      setViewingEntry((current) => {
+        const revision = current.revision + 1;
+        return { revision, request: { role, requestId: id, revision } };
+      });
+    } else clearViewingOpenRequest();
     go("viewings");
   };
   const openProperty = (
@@ -5731,6 +5780,15 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
   };
   const openNotification = (notification: KasaNotification) => {
     setNotificationsOpen(false);
+    if (notification.viewingEvent) {
+      const target = openViewingNotification(
+        propertyRequestState,
+        role,
+        notification,
+      );
+      if (target) openViewings(target.requestId);
+      return;
+    }
     if (notification.rentalApplicationEvent) {
       const target = openRentalApplicationNotification(
         applicationState,
@@ -5779,6 +5837,7 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
   const selectWorkspace = (next: Role) => {
     clearApplicationOpenRequest();
     clearMaintenanceOpenRequest();
+    clearViewingOpenRequest();
     const labels: Record<Role, string> = {
       landlord: tr("shell.propertyOwner"),
       tenant: `Inês Duarte · ${tr("shell.tenant")}`,
@@ -5808,6 +5867,7 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
   ) => {
     clearApplicationOpenRequest();
     clearMaintenanceOpenRequest();
+    clearViewingOpenRequest();
     setRole(nextRole);
     setView(canonicalRoleView(nextRole, nextView));
     setSearchQuery("");
@@ -6079,7 +6139,10 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
       case "viewings":
         return role === "tenant" || role === "landlord" ? (
           <ViewingRequests
+            key={`${role}-${viewingEntry.revision}`}
             role={role}
+            openRequest={viewingEntry.request}
+            onOpenHandled={consumeViewingOpenRequest}
             state={propertyRequestState}
             setState={setPropertyRequestState}
             onOpenProperty={(id) => {

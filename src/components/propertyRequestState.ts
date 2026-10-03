@@ -38,6 +38,7 @@ export interface ViewingProposal {
 }
 export interface ViewingHistoryEvent {
   id: string;
+  source?: "local" | "sample";
   action:
     | "requested"
     | "accepted"
@@ -389,6 +390,7 @@ export function createViewingRequest(
     history: [
       {
         id: `${id}-event-1`,
+        source: "local",
         action: "requested",
         actor: role,
         at,
@@ -748,6 +750,7 @@ export function saveViewingProposal(
       ...request.history,
       {
         id: `${id}-event-${request.history.length + 1}`,
+        source: "local",
         action: "proposed",
         actor: role,
         at,
@@ -839,6 +842,7 @@ export function actOnViewingRequest(
   const at = now.toISOString();
   const event: ViewingHistoryEvent = {
     id: `${id}-event-${request.history.length + 1}`,
+    source: "local",
     action: "accepted",
     actor: role,
     at,

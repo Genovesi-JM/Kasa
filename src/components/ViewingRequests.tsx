@@ -43,12 +43,20 @@ import { useViewingCopy } from "./viewingCopy";
 import { useDialogFocus } from "./useDialogFocus";
 import "./viewings.css";
 
+export interface ViewingOpenRequest {
+  role: Role;
+  requestId: string;
+  revision: number;
+}
+
 interface ViewingRequestsProps {
   role: Role;
   state: PropertyRequestState;
   setState: Dispatch<SetStateAction<PropertyRequestState>>;
   onOpenProperty: (propertyId: number) => void;
   onBrowseHomes?: () => void;
+  openRequest?: ViewingOpenRequest | null;
+  onOpenHandled?: (revision: number) => void;
 }
 
 function ViewingTermsDisplay({
@@ -133,11 +141,14 @@ function ViewingInbox({
   setState,
   onOpenProperty,
   onBrowseHomes,
+  openRequest,
+  onOpenHandled,
 }: ViewingRequestsProps) {
   const { text, date, status, proposalStatus, issueText, history, scope } =
     useViewingCopy();
   const id = useId();
   const detailHeading = useRef<HTMLHeadingElement>(null);
+  const handledOpenRevision = useRef<number | null>(null);
   const draftsHeading = useRef<HTMLHeadingElement>(null);
   const [feedback, setFeedback] = useState<
     string | { type: "responseDiscarded" }
@@ -169,6 +180,62 @@ function ViewingInbox({
   const view = viewingView(state, role);
   const requests = visibleViewingRequests(state, role, renderedAt);
   const selected = selectedViewingRequest(state, role, renderedAt);
+  const openRole = openRequest?.role;
+  const openId = openRequest?.requestId;
+  const openRevision = openRequest?.revision;
+  const selectedId = selected?.id;
+  const hasDialog = actionDialog !== null || draftPropertyId !== null;
+  useEffect(() => {
+    if (
+      openRevision === undefined ||
+      handledOpenRevision.current === openRevision
+    )
+      return;
+    const acknowledge = () => {
+      handledOpenRevision.current = openRevision;
+      onOpenHandled?.(openRevision);
+    };
+    if (
+      openRole !== role ||
+      !openId ||
+      selectedId !== openId ||
+      view.selectedId !== openId ||
+      hasDialog
+    ) {
+      acknowledge();
+      return;
+    }
+    const initialFocus = document.activeElement;
+    const frame = requestAnimationFrame(() => {
+      const heading = detailHeading.current;
+      const active = document.activeElement;
+      if (
+        heading?.isConnected &&
+        heading.dataset.viewingId === openId &&
+        heading.getClientRects().length &&
+        !heading.closest('[hidden], [inert], [aria-hidden="true"]') &&
+        getComputedStyle(heading).visibility === "visible" &&
+        !document.querySelector('[role="dialog"], dialog[open]') &&
+        (!active ||
+          active === document.body ||
+          active === document.documentElement ||
+          active === initialFocus ||
+          active === heading)
+      )
+        heading.focus();
+      acknowledge();
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [
+    openRole,
+    openId,
+    openRevision,
+    selectedId,
+    view.selectedId,
+    role,
+    hasDialog,
+    onOpenHandled,
+  ]);
   const actionRequest = actionDialog
     ? scopedViewingRequests(state, role).find(
         (request) => request.id === actionDialog.requestId,
