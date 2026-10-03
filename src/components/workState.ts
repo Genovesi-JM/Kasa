@@ -254,6 +254,40 @@ export function createWorkPostDraft(
   };
 }
 
+export function copyWorkOpportunityToDraft(
+  state: WorkState,
+  role: Role,
+  opportunityId: string,
+  now = new Date(),
+): { state: WorkState; draftId: string | null; issue: WorkIssue | null } {
+  const opportunity = ownedWorkOpportunities(state, role).find(
+    (post) => post.id === opportunityId,
+  );
+  if (!opportunity)
+    return { state, draftId: null, issue: { code: "unavailable" } };
+  const result = createWorkPostDraft(state, role, now);
+  if (!result.draftId) return result;
+  return {
+    ...result,
+    state: {
+      ...result.state,
+      postDrafts: result.state.postDrafts.map((draft) =>
+        draft.id === result.draftId
+          ? {
+              ...draft,
+              title: opportunity.title,
+              type: opportunity.type,
+              location: opportunity.location,
+              pay: opportunity.pay,
+              description: opportunity.description,
+              skills: opportunity.skills.join(", "),
+            }
+          : draft,
+      ),
+    },
+  };
+}
+
 export function updateWorkPostDraft(
   state: WorkState,
   role: Role,

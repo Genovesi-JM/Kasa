@@ -18,6 +18,7 @@ import { useDialogFocus } from "./useDialogFocus";
 import { useWorkCopy } from "./workCopy";
 import {
   closeWorkOpportunity,
+  copyWorkOpportunityToDraft,
   createWorkPostDraft,
   discardWorkPostDraft,
   editWorkPostDraft,
@@ -1199,35 +1200,57 @@ export function WorkHiringWorkspace({
               </p>
             )}
             {post.status === "Open" && (
-              <>
-                <p className="work-hiring-muted work-hiring-notice">
-                  {copy(
-                    "Closing stops new applications. Existing applications and their history remain available.",
-                    "Encerrar impede novas candidaturas. As candidaturas existentes e o seu histórico continuam disponíveis.",
-                  )}
-                </p>
-                <div className="work-hiring-actions">
-                  <button
-                    type="button"
-                    className="button button-secondary"
-                    onClick={() => {
-                      postHeading.current?.focus();
-                      setState((current) =>
-                        closeWorkOpportunity(current, role, post.id),
-                      );
-                      setNotice(
-                        copy(
-                          "Opportunity closed; application history retained.",
-                          "Oportunidade encerrada; histórico de candidaturas mantido.",
-                        ),
-                      );
-                    }}
-                  >
-                    {copy("Close opportunity", "Encerrar oportunidade")}
-                  </button>
-                </div>
-              </>
+              <p className="work-hiring-muted work-hiring-notice">
+                {copy(
+                  "Closing stops new applications. Existing applications and their history remain available.",
+                  "Encerrar impede novas candidaturas. As candidaturas existentes e o seu histórico continuam disponíveis.",
+                )}
+              </p>
             )}
+            <div className="work-hiring-actions">
+              <button
+                type="button"
+                className="button"
+                onClick={() => {
+                  const result = copyWorkOpportunityToDraft(
+                    state,
+                    role,
+                    post.id,
+                  );
+                  setState(result.state);
+                  setNotice(
+                    result.issue
+                      ? issueText(result.issue, copy)
+                      : copy(
+                          "New private draft created from this opportunity.",
+                          "Novo rascunho privado criado a partir desta oportunidade.",
+                        ),
+                  );
+                }}
+              >
+                {copy("Copy to new draft", "Copiar para novo rascunho")}
+              </button>
+              {post.status === "Open" && (
+                <button
+                  type="button"
+                  className="button button-secondary"
+                  onClick={() => {
+                    postHeading.current?.focus();
+                    setState((current) =>
+                      closeWorkOpportunity(current, role, post.id),
+                    );
+                    setNotice(
+                      copy(
+                        "Opportunity closed; application history retained.",
+                        "Oportunidade encerrada; histórico de candidaturas mantido.",
+                      ),
+                    );
+                  }}
+                >
+                  {copy("Close opportunity", "Encerrar oportunidade")}
+                </button>
+              )}
+            </div>
           </div>
         </HiringDialog>
       )}

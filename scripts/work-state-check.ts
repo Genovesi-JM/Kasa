@@ -3,6 +3,7 @@ import { workOpportunities } from "../src/data";
 import {
   activeWorkApplication,
   closeWorkOpportunity,
+  copyWorkOpportunityToDraft,
   createInitialWorkState,
   createWorkPostDraft,
   discardWorkApplicationDraft,
@@ -877,6 +878,230 @@ assert.equal(
   new Set(application(withdrawn, appId).history.map((event) => event.id)).size,
   application(withdrawn, appId).history.length,
 );
+
+// Reusing a post copies only editable listing content into a fresh private draft.
+for (const [sourceState, sourceId] of [
+  [initial, sharedId],
+  [closeWorkOpportunity(initial, "provider", sharedId, now), sharedId],
+  [published.state, localId],
+  [closed, localId],
+] as const) {
+  const original = post(sourceState, sourceId);
+  const copy = copyWorkOpportunityToDraft(
+    sourceState,
+    "provider",
+    sourceId,
+    later,
+  );
+  assert.equal(copy.issue, null);
+  assert.ok(copy.draftId);
+  const copiedDraft = workPostDrafts(copy.state, "provider").find(
+    (item) => item.id === copy.draftId,
+  )!;
+  assert.deepEqual(
+    {
+      title: copiedDraft.title,
+      type: copiedDraft.type,
+      location: copiedDraft.location,
+      pay: copiedDraft.pay,
+      description: copiedDraft.description,
+      skills: copiedDraft.skills,
+    },
+    {
+      title: original.title,
+      type: original.type,
+      location: original.location,
+      pay: original.pay,
+      description: original.description,
+      skills: original.skills.join(", "),
+    },
+  );
+  assert.equal(copiedDraft.revision, 0);
+  assert.equal(copiedDraft.stage, "editing");
+  assert.equal(copiedDraft.reviewedRevision, null);
+  assert.equal(copiedDraft.createdAt, later.toISOString());
+  assert.equal(copiedDraft.updatedAt, later.toISOString());
+  assert.equal(copiedDraft.businessId, workspaceWorkBusiness.id);
+  assert.equal(copy.state.hiringView.section, "drafts");
+  assert.equal(copy.state.hiringView.selectedDraftId, copy.draftId);
+  assert.equal(copy.state.hiringView.selectedPostId, null);
+  assert.equal(copy.state.hiringView.selectedApplicationId, null);
+  assert.equal(copy.state.postDrafts.length, sourceState.postDrafts.length + 1);
+  for (const existing of sourceState.postDrafts)
+    assert.equal(
+      copy.state.postDrafts.find((item) => item.id === existing.id),
+      existing,
+    );
+  assert.equal(copy.state.removedPostDraft, sourceState.removedPostDraft);
+  assert.equal(copy.state.opportunities, sourceState.opportunities);
+  assert.equal(copy.state.applications, sourceState.applications);
+  assert.equal(copy.state.applicationDrafts, sourceState.applicationDrafts);
+  assert.equal(copy.state.nextPostId, sourceState.nextPostId);
+  assert.equal(copy.state.nextApplicationId, sourceState.nextApplicationId);
+  assert.equal(post(copy.state, sourceId), original);
+  assert.equal(
+    publishWorkPost(
+      copy.state,
+      "provider",
+      copy.draftId,
+      copiedDraft.revision,
+      later,
+    ).issue?.code,
+    "notReviewed",
+  );
+
+  const reviewedCopy = reviewWorkPostDraft(
+    copy.state,
+    "provider",
+    copy.draftId,
+    later,
+  );
+  assert.deepEqual(reviewedCopy.errors, {});
+  assert.equal(reviewedCopy.issue, null);
+  const newPost = publishWorkPost(
+    reviewedCopy.state,
+    "provider",
+    copy.draftId,
+    copiedDraft.revision,
+    later,
+  );
+  assert.equal(newPost.issue, null);
+  assert.ok(newPost.opportunityId);
+  assert.notEqual(newPost.opportunityId, sourceId);
+  const newRecord = post(newPost.state, newPost.opportunityId);
+  assert.equal(newRecord.status, "Open");
+  assert.equal(newRecord.source, "local");
+  assert.equal(newRecord.closedAt, undefined);
+  assert.equal(newRecord.createdAt, later.toISOString());
+  assert.deepEqual(newRecord.skills, original.skills);
+  assert.notEqual(newRecord.skills, original.skills);
+  assert.equal(post(newPost.state, sourceId), original);
+  assert.equal(newPost.state.applications, sourceState.applications);
+  assert.equal(newPost.state.applicationDrafts, sourceState.applicationDrafts);
+  assert.ok(
+    newPost.state.applications.every(
+      (item) => item.opportunityId !== newPost.opportunityId,
+    ),
+  );
+}
+for (const role of ["tenant", "landlord", "spaceOperator", "admin"] as const) {
+  const copy = copyWorkOpportunityToDraft(closed, role, localId, later);
+  assert.equal(copy.state, closed);
+  assert.equal(copy.draftId, null);
+  assert.equal(copy.issue?.code, "unavailable");
+}
+for (const id of [foreignId, "unknown", "__proto__"]) {
+  const copy = copyWorkOpportunityToDraft(
+    renamedForeign,
+    "provider",
+    id,
+    later,
+  );
+  assert.equal(copy.state, renamedForeign);
+  assert.equal(copy.draftId, null);
+  assert.equal(copy.issue?.code, "unavailable");
+}
+assert.ok(
+  copyWorkOpportunityToDraft(renamedOwn, "provider", sharedId, later).draftId,
+);
+const copyFromApplication = copyWorkOpportunityToDraft(
+  hiringFiltered,
+  "provider",
+  localId,
+  later,
+);
+assert.equal(copyFromApplication.state.hiringView.selectedApplicationId, null);
+assert.equal(copyFromApplication.state.hiringView.selectedPostId, null);
+assert.equal(
+  copyFromApplication.state.hiringView.selectedDraftId,
+  copyFromApplication.draftId,
+);
+
+const firstCopy = copyWorkOpportunityToDraft(
+  closed,
+  "provider",
+  localId,
+  later,
+);
+const secondCopy = copyWorkOpportunityToDraft(
+  firstCopy.state,
+  "provider",
+  localId,
+  later,
+);
+assert.ok(firstCopy.draftId && secondCopy.draftId);
+assert.notEqual(firstCopy.draftId, secondCopy.draftId);
+const copyRemoved = discardWorkPostDraft(
+  secondCopy.state,
+  "provider",
+  firstCopy.draftId,
+);
+const collisionCopy = copyWorkOpportunityToDraft(
+  { ...copyRemoved, nextDraftId: 1 },
+  "provider",
+  localId,
+  later,
+);
+assert.ok(collisionCopy.draftId);
+assert.notEqual(collisionCopy.draftId, firstCopy.draftId);
+assert.notEqual(collisionCopy.draftId, secondCopy.draftId);
+assert.equal(collisionCopy.state.removedPostDraft?.id, firstCopy.draftId);
+const reviewedReuse = reviewWorkPostDraft(
+  secondCopy.state,
+  "provider",
+  secondCopy.draftId,
+  later,
+);
+const editedReuse = updateWorkPostDraft(
+  reviewedReuse.state,
+  "provider",
+  secondCopy.draftId,
+  { skills: "Independent new requirement", title: "Revised electrical role" },
+  later,
+);
+const editedReuseDraft = workPostDrafts(editedReuse, "provider").find(
+  (item) => item.id === secondCopy.draftId,
+)!;
+assert.equal(editedReuseDraft.revision, 1);
+assert.equal(editedReuseDraft.reviewedRevision, null);
+assert.equal(editedReuseDraft.stage, "editing");
+assert.equal(
+  publishWorkPost(editedReuse, "provider", secondCopy.draftId, 0, later).issue
+    ?.code,
+  "staleDraft",
+);
+assert.equal(
+  publishWorkPost(editedReuse, "provider", secondCopy.draftId, 1, later).issue
+    ?.code,
+  "notReviewed",
+);
+assert.equal(post(editedReuse, localId), post(closed, localId));
+assert.equal(editedReuse.applications, closed.applications);
+assert.equal(
+  application(editedReuse, appId).history,
+  application(closed, appId).history,
+);
+assert.equal(
+  application(editedReuse, appId).opportunity,
+  application(closed, appId).opportunity,
+);
+assert.equal(
+  application(editedReuse, appId).submission,
+  application(closed, appId).submission,
+);
+const invalidReuse = updateWorkPostDraft(
+  editedReuse,
+  "provider",
+  secondCopy.draftId,
+  { title: "" },
+  later,
+);
+assert.equal(
+  reviewWorkPostDraft(invalidReuse, "provider", secondCopy.draftId, later)
+    .errors.title,
+  "required",
+);
+assert.equal(post(invalidReuse, localId).status, "Closed");
 console.log(
-  "Work state checks passed: canonical business/applicant scope, private retained drafts, validated review/publish revisions, immutable opportunity/application snapshots, dated availability, explicit review/withdrawal, reapplication history, closed-post guards and scoped retained views.",
+  "Work state checks passed: canonical business/applicant scope, private retained drafts, validated review/publish revisions, immutable opportunity/application snapshots, dated availability, explicit review/withdrawal, reapplication history, closed-post guards, scoped retained views and independent post reuse.",
 );
