@@ -82,7 +82,8 @@ for (const role of roles) {
             ? "overview"
             : view === "spaceOnboarding" && role !== "spaceOperator"
               ? "overview"
-              : view === "expenses" && role !== "landlord"
+              : (view === "expenses" || view === "insights") &&
+                  role !== "landlord"
                 ? "overview"
                 : view,
       },
@@ -111,7 +112,7 @@ for (const role of roles) {
     readAppRoute(`?role=${role}`, { view: "spaceOnboarding" }).view,
     expected,
   );
-  const serialized = new URLSearchParams(
+  const serialized: URLSearchParams = new URLSearchParams(
     appRouteUrl(
       { ...initial, role, view: "spaceOnboarding" },
       "?app=1&campaign=phone&service=hire&property=1&from=viewings",
@@ -158,6 +159,40 @@ for (const role of roles) {
   assert.equal(readAppRoute(`?${serialized}`).view, expected);
 }
 assert.equal(readAppRoute("?role=unknown&view=expenses").view, "overview");
+
+const ownerInsights = readAppRoute("?app=1&role=landlord&view=insights");
+for (const role of roles) {
+  const expected = role === "landlord" ? "insights" : "overview";
+  assert.equal(canonicalRoleView(role, "insights"), expected);
+  const direct = readAppRoute(`?app=1&role=${role}&view=insights`);
+  assert.equal(direct.view, expected);
+  assert.equal(direct.role, role, "Insights links never change workspace");
+  assert.deepEqual(readAppRoute(appRouteUrl(direct, "")), direct);
+  assert.equal(
+    readAppRoute(`?role=${role}`, ownerInsights).view,
+    expected,
+    "An inherited owner Insights route is scoped to the next workspace",
+  );
+  const switched = new URLSearchParams(
+    appRouteUrl(
+      { ...ownerInsights, role },
+      "?app=1&campaign=phone&property=1&from=insights&service=hire&venue=1&space=11",
+    ),
+  );
+  assert.equal(switched.get("view"), expected);
+  assert.equal(switched.get("role"), role);
+  assert.equal(switched.get("campaign"), "phone");
+  for (const key of ["property", "from", "service", "venue", "space"])
+    assert.equal(switched.has(key), false);
+  assert.deepEqual(readAppRoute(`?${switched}`), direct);
+  for (const malformed of ["Insights", "insights/", " insights", "insights "])
+    assert.equal(
+      readAppRoute(`?role=${role}&view=${encodeURIComponent(malformed)}`).view,
+      "overview",
+      `Malformed Insights link ${malformed} falls back for ${role}`,
+    );
+}
+assert.equal(readAppRoute("?role=unknown&view=insights").view, "overview");
 
 for (const property of properties) {
   const route = readAppRoute(
@@ -223,7 +258,7 @@ for (const role of ["provider", "spaceOperator", "admin"] as const) {
   });
   assert.equal(defaultRoute.view, "overview");
   assert.equal(defaultRoute.returnTo, "discover");
-  const serialized = new URLSearchParams(
+  const serialized: URLSearchParams = new URLSearchParams(
     appRouteUrl(
       { ...initial, role, view: "viewings", returnTo: "viewings" },
       "?property=1&from=viewings&service=hire&campaign=phone",
@@ -377,7 +412,7 @@ for (const propertyId of [
     propertyId: propertyId as number,
   });
   assert.equal(defaultsRoute.view, "discover");
-  const serialized = new URLSearchParams(
+  const serialized: URLSearchParams = new URLSearchParams(
     appRouteUrl(
       {
         ...initial,
@@ -514,7 +549,7 @@ for (const original of [
   "?app=0",
 ]) {
   const before = new URLSearchParams(original);
-  const after = new URLSearchParams(
+  const after: URLSearchParams = new URLSearchParams(
     appRouteUrl({ ...initial, view: "messages" }, original),
   );
   for (const [key, value] of before) assert.equal(after.get(key), value);
@@ -726,7 +761,7 @@ for (const venueId of [
   99999,
   Number.MAX_SAFE_INTEGER + 1,
 ]) {
-  const serialized = new URLSearchParams(
+  const serialized: URLSearchParams = new URLSearchParams(
     appRouteUrl(
       {
         ...initial,
@@ -770,7 +805,7 @@ for (const original of [
   "?app=0",
 ]) {
   const before = new URLSearchParams(original);
-  const after = new URLSearchParams(
+  const after: URLSearchParams = new URLSearchParams(
     appRouteUrl(
       {
         ...initial,
@@ -787,5 +822,5 @@ for (const original of [
 }
 
 console.log(
-  `Application navigation passed: ${roles.length * views.length} role/view routes, every canonical venue/unit and property, invalid/legacy property and venue fallbacks, scoped owner expenses, venue setup and viewing inbox/return, all valid property return origins, all service modes, strict catalogue IDs, query limits, defaults and entry-mode preservation.`,
+  `Application navigation passed: ${roles.length * views.length} role/view routes, every canonical venue/unit and property, invalid/legacy property and venue fallbacks, scoped owner expenses/Insights, venue setup and viewing inbox/return, all valid property return origins, all service modes, strict catalogue IDs, query limits, defaults and entry-mode preservation.`,
 );
