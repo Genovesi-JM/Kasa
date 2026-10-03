@@ -79,8 +79,10 @@ import {
 } from "./components/rentRecordState";
 import {
   createInitialMaintenanceState,
+  revealMaintenanceRecord,
   visibleMaintenanceRecords,
 } from "./components/maintenanceState";
+import type { MaintenanceOpenRequest } from "./components/Maintenance";
 import { createInitialDocumentState } from "./components/documentState";
 import { readPreference, writePreference } from "./platform/preferences";
 import { isWorkspaceListingOwner, ownsProperty } from "./propertyScope";
@@ -1282,6 +1284,7 @@ function PropertyCard({
 
 function UniversalHome({
   go,
+  onOpenMaintenance,
   openServices,
   setDiscoveryIntent,
   onSearch,
@@ -1292,6 +1295,7 @@ function UniversalHome({
   workCatalogue,
 }: {
   go: (view: View) => void;
+  onOpenMaintenance: (recordId: number) => void;
   openServices: (mode: ServiceLaunchMode) => void;
   setDiscoveryIntent: (intent: "Rent" | "Buy") => void;
   onSearch: (
@@ -1527,7 +1531,13 @@ function UniversalHome({
             </span>
             <ChevronRight />
           </button>
-          <button onClick={() => go("maintenance")}>
+          <button
+            onClick={() =>
+              summary.recentMaintenance
+                ? onOpenMaintenance(summary.recentMaintenance.id)
+                : go("maintenance")
+            }
+          >
             <span className="continue-icon gold">
               <Wrench />
             </span>
@@ -5138,6 +5148,22 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
         : current,
     );
   }, []);
+  const [maintenanceEntry, setMaintenanceEntry] = useState<{
+    revision: number;
+    request: MaintenanceOpenRequest | null;
+  }>({ revision: 0, request: null });
+  const clearMaintenanceOpenRequest = useCallback(() => {
+    setMaintenanceEntry((current) =>
+      current.request ? { ...current, request: null } : current,
+    );
+  }, []);
+  const consumeMaintenanceOpenRequest = useCallback((revision: number) => {
+    setMaintenanceEntry((current) =>
+      current.request?.revision === revision
+        ? { ...current, request: null }
+        : current,
+    );
+  }, []);
   const [propertyReturnTo, setPropertyReturnTo] = useState<
     AppRoute["returnTo"]
   >(initialRoute.returnTo);
@@ -5207,6 +5233,7 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
       const route = readAppRoute(window.location.search);
       restoringHistory.current = true;
       clearApplicationOpenRequest();
+      clearMaintenanceOpenRequest();
       setRole(route.role);
       setView(route.view);
       setSelectedVenueId(route.venueId);
@@ -5251,7 +5278,7 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
     };
     window.addEventListener("popstate", restore);
     return () => window.removeEventListener("popstate", restore);
-  }, [demoTarget, clearApplicationOpenRequest]);
+  }, [demoTarget, clearApplicationOpenRequest, clearMaintenanceOpenRequest]);
 
   const updateServiceArea = useCallback(
     (area: "discover" | "tasks" | "work", mode: "jobs" | "hire") => {
@@ -5545,6 +5572,7 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
   const go = useCallback(
     (next: View, query?: string) => {
       if (next !== "applications") clearApplicationOpenRequest();
+      if (next !== "maintenance") clearMaintenanceOpenRequest();
       setView(canonicalRoleView(role, next));
       if (next === "spaces" && query !== undefined) {
         setSpacesDiscovery((current) =>
@@ -5577,6 +5605,7 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
       reduceMotion,
       systemReduceMotion,
       clearApplicationOpenRequest,
+      clearMaintenanceOpenRequest,
     ],
   );
   const openRentalApplication = (applicationId: number) => {
@@ -5593,6 +5622,22 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
       };
     });
     go("applications");
+  };
+  const openMaintenanceRecord = (recordId: number) => {
+    if (
+      !visibleMaintenanceRecords(maintenanceState, role).some(
+        (record) => record.id === recordId,
+      )
+    )
+      return;
+    setMaintenanceState((current) =>
+      revealMaintenanceRecord(current, role, recordId),
+    );
+    setMaintenanceEntry((current) => {
+      const revision = current.revision + 1;
+      return { revision, request: { role, recordId, revision } };
+    });
+    go("maintenance");
   };
   const openSpaceVenue = (venue: SpaceVenue) => {
     const canonical = spaceVenues.find((item) => item.id === venue.id);
@@ -5704,6 +5749,7 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
   };
   const selectWorkspace = (next: Role) => {
     clearApplicationOpenRequest();
+    clearMaintenanceOpenRequest();
     const labels: Record<Role, string> = {
       landlord: tr("shell.propertyOwner"),
       tenant: `Inês Duarte · ${tr("shell.tenant")}`,
@@ -5732,6 +5778,7 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
     nextDiscoveryIntent?: "Rent" | "Buy",
   ) => {
     clearApplicationOpenRequest();
+    clearMaintenanceOpenRequest();
     setRole(nextRole);
     setView(canonicalRoleView(nextRole, nextView));
     setSearchQuery("");
@@ -5780,6 +5827,8 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
             maintenanceState={maintenanceState}
             viewingPanel={viewingPanel}
             go={go}
+            onOpenApplication={openRentalApplication}
+            onOpenMaintenance={openMaintenanceRecord}
             onOpenProperty={(property) => openProperty(property, "overview")}
           />
         ) : role === "tenant" ? (
@@ -5788,6 +5837,7 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
             workCatalogue={workCatalogue}
             viewingPanel={viewingPanel}
             go={go}
+            onOpenMaintenance={openMaintenanceRecord}
             openServices={openServices}
             setDiscoveryIntent={setDiscoveryIntent}
             initialQuery={searchQuery}
@@ -5976,6 +6026,8 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
             maintenanceState={maintenanceState}
             viewingPanel={viewingPanel}
             go={go}
+            onOpenApplication={openRentalApplication}
+            onOpenMaintenance={openMaintenanceRecord}
             onOpenProperty={(property) => openProperty(property, "portfolio")}
           />
         ) : (
@@ -6072,10 +6124,12 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
       case "maintenance":
         return (
           <Maintenance
-            key={role}
+            key={`${role}-${maintenanceEntry.revision}`}
             role={role}
             state={maintenanceState}
             setState={setMaintenanceState}
+            openRequest={maintenanceEntry.request}
+            onOpenRequestHandled={consumeMaintenanceOpenRequest}
           />
         );
       case "documents":

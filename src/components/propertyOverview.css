@@ -275,14 +275,25 @@
   padding: 0;
   list-style: none;
 }
-.operations-visits li {
-  display: flex;
+.operations-visit-link {
+  display: grid;
+  grid-template-columns: 37px minmax(0, 1fr) 17px;
   align-items: start;
   gap: 13px;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
 }
-.operations-visits li > div {
+.operations-visit-copy {
   display: grid;
   gap: 6px;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 .operations-visits time {
   color: #537258;
@@ -448,6 +459,7 @@
   outline-offset: 4px;
 }
 .operations-metric:hover,
+.operations-visit-link:hover,
 .operations-record-link:hover,
 .operations-property-link:hover,
 .operations-history button:hover {

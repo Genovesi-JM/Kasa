@@ -690,6 +690,33 @@ export function resetMaintenanceFilters(
   });
 }
 
+/** Reveal a deliberate record target without resetting unrelated view preferences. */
+export function revealMaintenanceRecord(
+  state: MaintenanceState,
+  role: Role,
+  recordId: number,
+): MaintenanceState {
+  const record = visibleMaintenanceRecords(state, role).find(
+    (item) => item.id === recordId,
+  );
+  if (!record) return state;
+  const { filters } = maintenanceView(state, role);
+  return updateMaintenanceView(state, role, {
+    filters: {
+      query: "",
+      status: "All statuses",
+      priority: "All priorities",
+      category: "All categories",
+      property: "All properties",
+      // This option also hides resolved records, unlike the other sort choices.
+      sort:
+        record.status === "Resolved" && filters.sort === "Oldest unresolved"
+          ? "Urgent first"
+          : filters.sort,
+    },
+  });
+}
+
 export function filterMaintenanceRecords(
   records: MaintenanceRecord[],
   filters: MaintenanceFilters,

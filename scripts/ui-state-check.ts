@@ -22,6 +22,7 @@ import "./maintenance-state-check";
 import "./document-state-check";
 import "./rent-record-state-check";
 import "./property-operations-summary-check";
+import "./operations-record-navigation-check";
 import "./property-insights-check";
 import "./property-listing-state-check";
 import "./space-listing-state-check";

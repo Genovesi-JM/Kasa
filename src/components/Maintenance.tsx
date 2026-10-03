@@ -1,4 +1,5 @@
 import {
+  useEffect,
   useId,
   useLayoutEffect,
   useRef,
@@ -865,24 +866,34 @@ function RequestDetail({
   );
 }
 
+export interface MaintenanceOpenRequest {
+  role: Role;
+  recordId: number;
+  revision: number;
+}
+
 export function Maintenance({
   role,
   state,
   setState,
+  openRequest,
+  onOpenRequestHandled,
 }: {
   role: Role;
   state: MaintenanceState;
   setState: Dispatch<SetStateAction<MaintenanceState>>;
+  openRequest?: MaintenanceOpenRequest | null;
+  onOpenRequestHandled?: (revision: number) => void;
 }) {
   const { tr, locale } = useOperationsI18n();
   const { dateLabel } = maintenanceFormatters(locale);
   const { layout: view, filters } = maintenanceView(state, role);
   const [reporting, setReporting] = useState(false);
-  const [selectedId, setSelectedId] = useState<number | null>(null);
   const [feedback, setFeedback] = useState<OperationsKey | null>(null);
   const base = visibleMaintenanceRecords(state, role);
   const reportActionRef = useRef<HTMLButtonElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
+  const recordRows = useRef<HTMLElement>(null);
   const hasReportDraft = hasMaintenanceReportDraft(state, role);
   const visible = filterMaintenanceRecords(base, filters, (record) =>
     [
@@ -891,8 +902,34 @@ export function Maintenance({
       tr(maintenanceStatusKeys[record.status]),
     ].join(" "),
   );
+  const [selectedId, setSelectedId] = useState<number | null>(() =>
+    openRequest?.role === role &&
+    visible.some((record) => record.id === openRequest.recordId)
+      ? openRequest.recordId
+      : null,
+  );
   const homes = maintenanceHomesForRole(role);
   const selected = base.find((record) => record.id === selectedId);
+  const handledRevision = useRef<number | null>(null);
+  useEffect(() => {
+    if (
+      !openRequest ||
+      openRequest.role !== role ||
+      handledRevision.current === openRequest.revision
+    )
+      return;
+    handledRevision.current = openRequest.revision;
+    onOpenRequestHandled?.(openRequest.revision);
+  }, [onOpenRequestHandled, openRequest, role]);
+  const closeDetails = () => {
+    setSelectedId(null);
+    requestAnimationFrame(() => {
+      const row = recordRows.current?.querySelector<HTMLButtonElement>(
+        `[data-maintenance-id="${selectedId}"]`,
+      );
+      (row ?? searchRef.current)?.focus();
+    });
+  };
   const updateFilter = (key: keyof MaintenanceFilters, value: string) =>
     setState((current) =>
       updateMaintenanceView(current, role, { filters: { [key]: value } }),
@@ -916,6 +953,7 @@ export function Maintenance({
       type="button"
       key={record.id}
       className="maintenance-work-ticket"
+      data-maintenance-id={record.id}
       onClick={() => setSelectedId(record.id)}
       aria-label={tr("maintenance_openRequest", {
         title: record.title,
@@ -1148,6 +1186,7 @@ export function Maintenance({
       </div>
       {view === "Board" ? (
         <section
+          ref={recordRows}
           className="maintenance-work-board"
           aria-label={tr("maintenance_boardLabel")}
         >
@@ -1182,6 +1221,7 @@ export function Maintenance({
         </section>
       ) : (
         <section
+          ref={recordRows}
           className="card maintenance-work-list"
           aria-label={tr("maintenance_listLabel")}
         >
@@ -1189,6 +1229,7 @@ export function Maintenance({
             <button
               type="button"
               key={record.id}
+              data-maintenance-id={record.id}
               onClick={() => setSelectedId(record.id)}
               aria-label={tr("maintenance_openRequest", {
                 title: record.title,
@@ -1260,7 +1301,7 @@ export function Maintenance({
           key={`${role}-${selected.id}`}
           record={selected}
           role={role}
-          onClose={() => setSelectedId(null)}
+          onClose={closeDetails}
           onAction={(action) =>
             setState((current) =>
               changeMaintenanceStatus(current, role, selected.id, action),

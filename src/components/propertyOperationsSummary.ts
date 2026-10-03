@@ -34,13 +34,15 @@ export interface PropertyVisitSummary {
   startsAt: number;
 }
 
-export interface PropertyActivity {
+export type PropertyActivity = {
   id: string;
-  view: "rent" | "applications" | "maintenance";
   property: string;
   label: string;
   at: string;
-}
+} & (
+  | { view: "rent"; recordId: string }
+  | { view: "applications" | "maintenance"; recordId: number }
+);
 
 export interface PropertyOperationsSummary {
   role: PropertyOverviewRole;
@@ -150,6 +152,7 @@ export function buildPropertyOperationsSummary({
       record.activity.map((entry) => ({
         id: `rent-${record.id}-${entry.id}`,
         view: "rent" as const,
+        recordId: record.id,
         property: record.property,
         label: entry.label,
         at: entry.at,
@@ -159,6 +162,7 @@ export function buildPropertyOperationsSummary({
       record.activity.map((entry) => ({
         id: `application-${record.id}-${entry.id}`,
         view: "applications" as const,
+        recordId: record.id,
         property: record.property,
         label: entry.label,
         at: entry.at,
@@ -168,6 +172,7 @@ export function buildPropertyOperationsSummary({
       record.history.map((entry) => ({
         id: `maintenance-${record.id}-${entry.id}`,
         view: "maintenance" as const,
+        recordId: record.id,
         property: record.property,
         label: entry.description,
         at: entry.at,

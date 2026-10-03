@@ -32,6 +32,8 @@ interface PropertyOverviewProps {
   viewingPanel?: ReactNode;
   go: (view: View) => void;
   onOpenProperty: (property: Property) => void;
+  onOpenApplication: (applicationId: number) => void;
+  onOpenMaintenance: (recordId: number) => void;
 }
 
 export function PropertyOverview({
@@ -42,6 +44,8 @@ export function PropertyOverview({
   viewingPanel,
   go,
   onOpenProperty,
+  onOpenApplication,
+  onOpenMaintenance,
 }: PropertyOverviewProps) {
   const { t, i18n } = useTranslation();
   const language = (i18n.resolvedLanguage ||
@@ -362,21 +366,28 @@ export function PropertyOverview({
             <ul className="operations-visits">
               {summary.nextVisits.slice(0, 3).map(({ record, startsAt }) => (
                 <li key={record.id}>
-                  <span className="operations-visit-icon">
-                    <CalendarDays size={20} aria-hidden="true" />
-                  </span>
-                  <div>
-                    <time dateTime={new Date(startsAt).toISOString()}>
-                      {new Date(startsAt).toLocaleString(locale, {
-                        dateStyle: "medium",
-                        timeStyle: "short",
-                      })}
-                    </time>
-                    <strong>{record.title}</strong>
-                    <small>
-                      {record.property} · {record.visit?.provider}
-                    </small>
-                  </div>
+                  <button
+                    type="button"
+                    className="operations-visit-link"
+                    onClick={() => onOpenMaintenance(record.id)}
+                  >
+                    <span className="operations-visit-icon">
+                      <CalendarDays size={20} aria-hidden="true" />
+                    </span>
+                    <span className="operations-visit-copy">
+                      <time dateTime={new Date(startsAt).toISOString()}>
+                        {new Date(startsAt).toLocaleString(locale, {
+                          dateStyle: "medium",
+                          timeStyle: "short",
+                        })}
+                      </time>
+                      <strong>{record.title}</strong>
+                      <small>
+                        {record.property} · {record.visit?.provider}
+                      </small>
+                    </span>
+                    <ChevronRight size={17} aria-hidden="true" />
+                  </button>
                 </li>
               ))}
             </ul>
@@ -417,7 +428,7 @@ export function PropertyOverview({
                 type="button"
                 className="operations-record-link"
                 key={record.id}
-                onClick={() => go("applications")}
+                onClick={() => onOpenApplication(record.id)}
               >
                 <span className="operations-record-icon">
                   <FileCheck2 size={19} aria-hidden="true" />
@@ -461,7 +472,7 @@ export function PropertyOverview({
                 type="button"
                 className="operations-record-link"
                 key={record.id}
-                onClick={() => go("maintenance")}
+                onClick={() => onOpenMaintenance(record.id)}
               >
                 <span className="operations-record-icon">
                   <Wrench size={19} aria-hidden="true" />
@@ -541,7 +552,16 @@ export function PropertyOverview({
           <ol className="operations-history">
             {summary.recentActivity.map((entry) => (
               <li key={entry.id}>
-                <button type="button" onClick={() => go(entry.view)}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (entry.view === "applications")
+                      onOpenApplication(entry.recordId);
+                    else if (entry.view === "maintenance")
+                      onOpenMaintenance(entry.recordId);
+                    else go(entry.view);
+                  }}
+                >
                   <span>
                     <strong>{entry.label}</strong>
                     <small>{entry.property}</small>
