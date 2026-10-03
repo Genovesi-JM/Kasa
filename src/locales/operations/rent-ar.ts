@@ -3,6 +3,22 @@ import type { RentDictionary } from "./rent-types";
 export const rentAr = {
   rent_title: "سجلات الإيجار",
   rent_record: "سجل الإيجار",
+  rent_privateDraft: "مسودة خاصة",
+  rent_transferDraftScope:
+    "تبقى تفاصيل التحويل غير المكتملة خاصة في مساحة عمل المستأجر في علامة التبويب هذه. تُحفظ المسودة عند الإغلاق وتُحذف عند إعادة تحميل الصفحة.",
+  rent_correctionDraftScope:
+    "تبقى ملاحظة التصحيح غير المكتملة هذه خاصة في مساحة عمل المالك في علامة التبويب هذه حتى حفظ الطلب. تُحفظ عند الإغلاق وتُحذف عند إعادة تحميل الصفحة.",
+  rent_resumeTransferDraft: "متابعة مسودة التحويل",
+  rent_resumeCorrectionDraft: "متابعة مسودة التصحيح",
+  rent_inspectDraft: "عرض المسودة غير المكتملة",
+  rent_discardDraft: "حذف المسودة",
+  rent_draftDiscarded: "حُذفت المسودة الخاصة. لم يتغير سجل الإيجار.",
+  rent_backToRecord: "العودة إلى السجل",
+  rent_staleDraft: "تغيّر سجل الإيجار",
+  rent_staleDraftNote:
+    "لا تزال قيمك غير المكتملة متاحة للنسخ. لا يمكنها استبدال السجل الأحدث. احذف هذه المسودة قبل البدء من جديد.",
+  rent_draftUnavailable:
+    "لا يمكن حفظ هذه المسودة للسجل الحالي. راجع أحدث سجل قبل المتابعة.",
   rent_statusAwaitingDetails: "بانتظار تفاصيل التحويل",
   rent_statusAwaitingOwner: "بانتظار تأكيد المالك",
   rent_statusCorrection: "يحتاج إلى تصحيح",

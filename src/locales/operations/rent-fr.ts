@@ -3,6 +3,23 @@ import type { RentDictionary } from "./rent-types";
 export const rentFr = {
   rent_title: "Registres de loyer",
   rent_record: "Registre de loyer",
+  rent_privateDraft: "Brouillon privé",
+  rent_transferDraftScope:
+    "Les détails du virement inachevés restent privés dans votre espace locataire, dans cet onglet. Fermer conserve le brouillon ; recharger la page le supprime.",
+  rent_correctionDraftScope:
+    "Cette note de correction inachevée reste privée dans votre espace propriétaire, dans cet onglet, jusqu’à l’enregistrement de la demande. Fermer la conserve ; recharger la page la supprime.",
+  rent_resumeTransferDraft: "Reprendre le brouillon de virement",
+  rent_resumeCorrectionDraft: "Reprendre le brouillon de correction",
+  rent_inspectDraft: "Voir le brouillon inachevé",
+  rent_discardDraft: "Supprimer le brouillon",
+  rent_draftDiscarded:
+    "Brouillon privé supprimé. Le registre de loyer reste inchangé.",
+  rent_backToRecord: "Revenir au registre",
+  rent_staleDraft: "Le registre de loyer a changé",
+  rent_staleDraftNote:
+    "Vos valeurs inachevées restent disponibles pour être copiées. Elles ne peuvent pas remplacer le registre plus récent. Supprimez ce brouillon avant de recommencer.",
+  rent_draftUnavailable:
+    "Ce brouillon ne peut pas être enregistré dans le registre actuel. Consultez le registre le plus récent avant de continuer.",
   rent_statusAwaitingDetails: "En attente des détails du virement",
   rent_statusAwaitingOwner: "En attente de confirmation du propriétaire",
   rent_statusCorrection: "Correction nécessaire",

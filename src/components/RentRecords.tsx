@@ -37,14 +37,22 @@ import {
   canReviewRentRecord,
   confirmRentRecord,
   createRentRecordFilters,
+  discardRentCorrectionDraft,
+  discardRentTransferDraft,
   filterRentRecords,
-  recordRentTransfer,
+  hasRentCorrectionDraft,
+  hasRentTransferDraft,
+  rentCorrectionDraft,
   rentRecordSummary,
   rentRecordsCsv,
   rentStatuses,
   rentToday,
-  requestRentCorrection,
+  rentTransferDraft,
   rentTransferIssues,
+  submitRentCorrectionDraft,
+  submitRentTransferDraft,
+  updateRentCorrectionDraft,
+  updateRentTransferDraft,
   visibleRentRecords,
   type RentRecord,
   type RentRecordFilters,
@@ -79,23 +87,21 @@ function RentStatus({ record }: { record: RentRecord }) {
 
 function TransferForm({
   record,
+  draft,
+  onChange,
   onSave,
   onCancel,
+  onDiscard,
 }: {
   record: RentRecord;
+  draft: RentTransferDraft;
+  onChange: (patch: Partial<RentTransferDraft>) => void;
   onSave: (draft: RentTransferDraft) => void;
   onCancel: () => void;
+  onDiscard?: () => void;
 }) {
   const { tr } = useOperationsI18n();
   const id = useId();
-  const [draft, setDraft] = useState<RentTransferDraft>(() => ({
-    amount: (
-      (record.transfer?.amountCents ?? record.amountDueCents) / 100
-    ).toFixed(2),
-    transferredOn: record.transfer?.transferredOn ?? rentToday(),
-    reference: record.transfer?.reference ?? "",
-    note: record.transfer?.note ?? "",
-  }));
   const [errors, setErrors] = useState<RentTransferIssues>({});
   const amountRef = useRef<HTMLInputElement>(null);
   const errorRef = useRef<HTMLDivElement>(null);
@@ -106,7 +112,7 @@ function TransferForm({
     if (Object.keys(errors).length) errorRef.current?.focus();
   }, [errors]);
   const change = (field: keyof RentTransferDraft, value: string) =>
-    setDraft((current) => ({ ...current, [field]: value }));
+    onChange({ [field]: value });
   const errorProps = (field: keyof RentTransferDraft) => ({
     "aria-invalid": Boolean(errors[field]),
     "aria-describedby": errors[field] ? `${id}-${field}-error` : undefined,
@@ -130,7 +136,7 @@ function TransferForm({
           reference: String(values.get("reference") ?? ""),
           note: String(values.get("note") ?? ""),
         };
-        setDraft(submitted);
+        onChange(submitted);
         const nextErrors = rentTransferIssues(submitted);
         setErrors(nextErrors);
         if (!Object.keys(nextErrors).length) onSave(submitted);
@@ -140,6 +146,7 @@ function TransferForm({
         {tr(record.transfer ? "rent_editTransfer" : "rent_recordTransfer")}
       </h3>
       <p className="rent-muted">{tr("rent_formScope")}</p>
+      <p className="rent-muted">{tr("rent_transferDraftScope")}</p>
       {Object.keys(errors).length > 0 && (
         <div
           className="rent-form-errors"
@@ -237,8 +244,13 @@ function TransferForm({
           className="button button-secondary"
           onClick={onCancel}
         >
-          {tr("rent_cancelEdit")}
+          {tr("rent_backToRecord")}
         </button>
+        {onDiscard && (
+          <button type="button" className="text-button" onClick={onDiscard}>
+            {tr("rent_discardDraft")}
+          </button>
+        )}
         <button type="submit" className="button">
           {tr("rent_saveTransfer")}
         </button>
@@ -291,12 +303,14 @@ function RentHistorySnapshot({ snapshot }: { snapshot: RentRecordSnapshot }) {
 function RentRecordDialog({
   record,
   role,
+  state,
   initiallyEditing,
   setState,
   onClose,
 }: {
   record: RentRecord;
   role: Role;
+  state: RentRecordState;
   initiallyEditing: boolean;
   setState: Dispatch<SetStateAction<RentRecordState>>;
   onClose: () => void;
@@ -309,7 +323,7 @@ function RentRecordDialog({
   const copyRef = useRef<HTMLTextAreaElement>(null);
   const [editing, setEditing] = useState(initiallyEditing);
   const [correcting, setCorrecting] = useState(false);
-  const [correctionNote, setCorrectionNote] = useState("");
+  const correctionInputRef = useRef<HTMLTextAreaElement>(null);
   const [correctionError, setCorrectionError] = useState(false);
   const [feedback, setFeedback] = useState<OperationsMessage | null>(null);
   const [showCopyFallback, setShowCopyFallback] = useState(false);
@@ -333,8 +347,44 @@ function RentRecordDialog({
   const id = useId();
   const canEdit = canRecordRentTransfer(record, role);
   const canReview = canReviewRentRecord(record, role);
+  const transferForm = rentTransferDraft(state, role, record.id);
+  const correctionForm = rentCorrectionDraft(state, role, record.id);
+  const transferRetained = hasRentTransferDraft(state, role, record.id);
+  const correctionRetained = hasRentCorrectionDraft(state, role, record.id);
+  const privateForm = transferRetained
+    ? transferForm
+    : correctionRetained
+      ? correctionForm
+      : null;
+  const changeTransfer = (patch: Partial<RentTransferDraft>) => {
+    if (!transferForm) return;
+    setState((current) =>
+      updateRentTransferDraft(
+        current,
+        role,
+        record.id,
+        patch,
+        transferForm.recordVersion,
+      ),
+    );
+  };
+  useEffect(() => {
+    if (correcting) correctionInputRef.current?.focus();
+  }, [correcting]);
   const finishEdit = () => {
     setEditing(false);
+    requestAnimationFrame(() => titleRef.current?.focus());
+  };
+  const discardPrivateDraft = () => {
+    setState((current) =>
+      transferRetained
+        ? discardRentTransferDraft(current, role, record.id)
+        : discardRentCorrectionDraft(current, role, record.id),
+    );
+    setEditing(false);
+    setCorrecting(false);
+    setCorrectionError(false);
+    setFeedback({ key: "rent_draftDiscarded" });
     requestAnimationFrame(() => titleRef.current?.focus());
   };
   const field = (label: string, value: ReactNode) => (
@@ -422,14 +472,116 @@ function RentRecordDialog({
               <p>{record.correctionNote}</p>
             </div>
           )}
-          {editing && canEdit ? (
+          {privateForm &&
+            (privateForm.stale ||
+              (transferRetained ? !editing : !correcting)) && (
+              <section className="rent-private-draft">
+                <h3>{tr("rent_privateDraft")}</h3>
+                <p>
+                  {tr(
+                    transferRetained
+                      ? "rent_transferDraftScope"
+                      : "rent_correctionDraftScope",
+                  )}
+                </p>
+                {privateForm.stale && (
+                  <div className="rent-draft-stale">
+                    <strong>{tr("rent_staleDraft")}</strong>
+                    <p>{tr("rent_staleDraftNote")}</p>
+                    <details>
+                      <summary>{tr("rent_inspectDraft")}</summary>
+                      <dl className="rent-detail-fields">
+                        {transferRetained && transferForm ? (
+                          <>
+                            {field(
+                              tr("rent_transferredAmount"),
+                              transferForm.values.amount,
+                            )}
+                            {field(
+                              tr("rent_transferDate"),
+                              transferForm.values.transferredOn,
+                            )}
+                            {field(
+                              tr("rent_reference"),
+                              <span dir="auto">
+                                {transferForm.values.reference}
+                              </span>,
+                            )}
+                            {field(
+                              tr("rent_note"),
+                              <span dir="auto">
+                                {transferForm.values.note}
+                              </span>,
+                            )}
+                          </>
+                        ) : correctionForm ? (
+                          field(
+                            tr("rent_correctionQuestion"),
+                            <span dir="auto">
+                              {correctionForm.values.note}
+                            </span>,
+                          )
+                        ) : null}
+                      </dl>
+                    </details>
+                  </div>
+                )}
+                <div className="rent-dialog-actions">
+                  {!privateForm.stale &&
+                    (transferRetained ? !editing : !correcting) && (
+                      <button
+                        type="button"
+                        className="button button-secondary"
+                        onClick={() => {
+                          if (transferRetained) setEditing(true);
+                          else setCorrecting(true);
+                          setFeedback(null);
+                        }}
+                      >
+                        {tr(
+                          transferRetained
+                            ? "rent_resumeTransferDraft"
+                            : "rent_resumeCorrectionDraft",
+                        )}
+                      </button>
+                    )}
+                  <button
+                    type="button"
+                    className="text-button"
+                    onClick={discardPrivateDraft}
+                  >
+                    {tr("rent_discardDraft")}
+                  </button>
+                </div>
+              </section>
+            )}
+          {editing && canEdit && transferForm && !transferForm.stale ? (
             <TransferForm
               record={record}
+              draft={transferForm.values}
+              onChange={changeTransfer}
               onCancel={finishEdit}
+              onDiscard={transferRetained ? discardPrivateDraft : undefined}
               onSave={(draft) => {
-                setState((current) =>
-                  recordRentTransfer(current, role, record.id, draft),
-                );
+                const save = (current: RentRecordState) =>
+                  submitRentTransferDraft(
+                    updateRentTransferDraft(
+                      current,
+                      role,
+                      record.id,
+                      draft,
+                      transferForm.recordVersion,
+                    ),
+                    role,
+                    record.id,
+                    transferForm.recordVersion,
+                  );
+                const result = save(state);
+                if (!result.recordId) {
+                  setFeedback({ key: "rent_draftUnavailable" });
+                  return;
+                }
+                setState((current) => save(current).state);
                 setFeedback({ key: "rent_transferSaved" });
                 finishEdit();
               }}
@@ -467,7 +619,7 @@ function RentRecordDialog({
                 ) : (
                   <p className="rent-muted">{tr("rent_noTransfer")}</p>
                 )}
-                {canEdit && (
+                {canEdit && !transferForm?.stale && !transferRetained && (
                   <button
                     type="button"
                     className="button"
@@ -493,14 +645,16 @@ function RentRecordDialog({
                   <h3 id={`${id}-review-title`}>{tr("rent_ownerReview")}</h3>
                   <p className="rent-muted">{tr("rent_reviewScope")}</p>
                   <div className="rent-dialog-actions">
-                    <button
-                      type="button"
-                      className="button button-secondary"
-                      aria-expanded={correcting}
-                      onClick={() => setCorrecting((value) => !value)}
-                    >
-                      {tr("rent_requestCorrection")}
-                    </button>
+                    {!correctionRetained && (
+                      <button
+                        type="button"
+                        className="button button-secondary"
+                        aria-expanded={correcting}
+                        onClick={() => setCorrecting((value) => !value)}
+                      >
+                        {tr("rent_requestCorrection")}
+                      </button>
+                    )}
                     <button
                       type="button"
                       className="button"
@@ -516,7 +670,7 @@ function RentRecordDialog({
                       {tr("rent_confirmTransfer")}
                     </button>
                   </div>
-                  {correcting && (
+                  {correcting && correctionForm && !correctionForm.stale && (
                     <form
                       className="rent-correction-form"
                       noValidate
@@ -526,37 +680,68 @@ function RentRecordDialog({
                           new FormData(event.currentTarget).get(
                             "correctionNote",
                           ) ?? "",
-                        ).trim();
-                        if (!submittedNote || submittedNote.length > 500) {
-                          setCorrectionError(true);
+                        );
+                        const save = (current: RentRecordState) =>
+                          submitRentCorrectionDraft(
+                            updateRentCorrectionDraft(
+                              current,
+                              role,
+                              record.id,
+                              { note: submittedNote },
+                              correctionForm.recordVersion,
+                            ),
+                            role,
+                            record.id,
+                            correctionForm.recordVersion,
+                          );
+                        const result = save(state);
+                        if (!result.recordId) {
+                          setState((current) =>
+                            updateRentCorrectionDraft(
+                              current,
+                              role,
+                              record.id,
+                              { note: submittedNote },
+                              correctionForm.recordVersion,
+                            ),
+                          );
+                          if (result.issue)
+                            setFeedback({ key: "rent_draftUnavailable" });
+                          setCorrectionError(Boolean(result.issues.note));
                           document.getElementById(`${id}-correction`)?.focus();
                           return;
                         }
-                        setState((current) =>
-                          requestRentCorrection(
-                            current,
-                            role,
-                            record.id,
-                            submittedNote,
-                          ),
-                        );
+                        setState((current) => save(current).state);
                         setCorrecting(false);
                         setFeedback({ key: "rent_correctionSaved" });
                         requestAnimationFrame(() => titleRef.current?.focus());
                       }}
                     >
+                      <p className="rent-muted">
+                        {tr("rent_correctionDraftScope")}
+                      </p>
                       <label htmlFor={`${id}-correction`}>
                         {tr("rent_correctionQuestion")}
                         <textarea
                           id={`${id}-correction`}
+                          ref={correctionInputRef}
                           name="correctionNote"
                           aria-label={tr("rent_correctionQuestion")}
-                          value={correctionNote}
+                          value={correctionForm.values.note}
                           maxLength={500}
                           rows={3}
                           required
                           onChange={(event) => {
-                            setCorrectionNote(event.target.value);
+                            const note = event.target.value;
+                            setState((current) =>
+                              updateRentCorrectionDraft(
+                                current,
+                                role,
+                                record.id,
+                                { note },
+                                correctionForm.recordVersion,
+                              ),
+                            );
                             setCorrectionError(false);
                           }}
                           aria-invalid={Boolean(correctionError)}
@@ -576,9 +761,32 @@ function RentRecordDialog({
                           {tr("rent_errorCorrection")}
                         </p>
                       )}
-                      <button type="submit" className="button">
-                        {tr("rent_saveCorrection")}
-                      </button>
+                      <div className="rent-dialog-actions">
+                        <button
+                          type="button"
+                          className="button button-secondary"
+                          onClick={() => {
+                            setCorrecting(false);
+                            requestAnimationFrame(() =>
+                              titleRef.current?.focus(),
+                            );
+                          }}
+                        >
+                          {tr("rent_backToRecord")}
+                        </button>
+                        <button type="submit" className="button">
+                          {tr("rent_saveCorrection")}
+                        </button>
+                        {correctionRetained && (
+                          <button
+                            type="button"
+                            className="text-button"
+                            onClick={discardPrivateDraft}
+                          >
+                            {tr("rent_discardDraft")}
+                          </button>
+                        )}
+                      </div>
                     </form>
                   )}
                 </section>
@@ -667,6 +875,23 @@ export function RentRecords({
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [initiallyEditing, setInitiallyEditing] = useState(false);
   const [feedback, setFeedback] = useState<OperationsMessage | null>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const listTitleRef = useRef<HTMLHeadingElement>(null);
+  const rowRefs = useRef(new Map<string, HTMLButtonElement>());
+  const closeFocusFrame = useRef<number | null>(null);
+  const openedRecord = useRef<{
+    id: string;
+    role: Role;
+    trigger: HTMLElement | null;
+  } | null>(null);
+  useLayoutEffect(
+    () => () => {
+      if (closeFocusFrame.current !== null)
+        cancelAnimationFrame(closeFocusFrame.current);
+      openedRecord.current = null;
+    },
+    [],
+  );
   const records = visibleRentRecords(state, role);
   const visible = filterRentRecords(records, filters);
   const selected = records.find((record) => record.id === selectedId);
@@ -679,8 +904,64 @@ export function RentRecords({
     Number(filters.property !== "All properties") +
     Number(filters.period !== "All periods");
   const open = (record: RentRecord, editing = false) => {
+    if (closeFocusFrame.current !== null) {
+      cancelAnimationFrame(closeFocusFrame.current);
+      closeFocusFrame.current = null;
+    }
+    openedRecord.current = {
+      id: record.id,
+      role,
+      trigger:
+        document.activeElement instanceof HTMLElement
+          ? document.activeElement
+          : null,
+    };
     setSelectedId(record.id);
     setInitiallyEditing(editing);
+  };
+  const close = () => {
+    const closed = openedRecord.current;
+    openedRecord.current = null;
+    setSelectedId(null);
+    if (!closed) return;
+    if (closeFocusFrame.current !== null)
+      cancelAnimationFrame(closeFocusFrame.current);
+    closeFocusFrame.current = requestAnimationFrame(() => {
+      closeFocusFrame.current = null;
+      const root = rootRef.current;
+      if (
+        !root?.isConnected ||
+        root.dataset.rentWorkspace !== closed.role ||
+        openedRecord.current ||
+        document.querySelector('[role="dialog"], dialog[open]')
+      )
+        return;
+      const active = document.activeElement;
+      if (
+        active &&
+        active !== document.body &&
+        active !== document.documentElement
+      )
+        return;
+      const available = (
+        element: HTMLElement | null | undefined,
+      ): element is HTMLElement =>
+        Boolean(
+          element?.isConnected &&
+          root.contains(element) &&
+          !element.matches(":disabled") &&
+          !element.closest('[hidden], [inert], [aria-hidden="true"]') &&
+          element.getClientRects().length &&
+          getComputedStyle(element).visibility === "visible",
+        );
+      const row = rowRefs.current.get(closed.id);
+      const target = available(closed.trigger)
+        ? closed.trigger
+        : available(row)
+          ? row
+          : listTitleRef.current;
+      if (available(target)) target.focus({ preventScroll: true });
+    });
   };
   const exportRecords = () => {
     let url: string | undefined;
@@ -722,7 +1003,11 @@ export function RentRecords({
       </div>
     );
   return (
-    <div className="page-stack rent-records-page">
+    <div
+      className="page-stack rent-records-page"
+      ref={rootRef}
+      data-rent-workspace={role}
+    >
       <section className="rent-managed-banner">
         <div>
           <span className="eyebrow">{tr("rent_title")}</span>
@@ -886,7 +1171,9 @@ export function RentRecords({
       >
         <header>
           <div>
-            <h2 id="rent-managed-list-title">{tr("rent_title")}</h2>
+            <h2 id="rent-managed-list-title" ref={listTitleRef} tabIndex={-1}>
+              {tr("rent_title")}
+            </h2>
             <p role="status">
               {tr("rent_matchingCount", { count: visible.length })}
             </p>
@@ -906,16 +1193,35 @@ export function RentRecords({
             type="button"
             className="rent-managed-row"
             key={record.id}
+            ref={(node) => {
+              if (node) rowRefs.current.set(record.id, node);
+              else rowRefs.current.delete(record.id);
+            }}
             onClick={() => open(record)}
             aria-label={tr("rent_openRecord", {
               period: periodLabel(record.period),
               tenant: record.tenant,
               property: record.property,
             })}
+            aria-describedby={
+              hasRentTransferDraft(state, role, record.id) ||
+              hasRentCorrectionDraft(state, role, record.id)
+                ? `rent-draft-${role}-${record.id}`
+                : undefined
+            }
           >
             <span className="rent-managed-period">
               <strong>{periodLabel(record.period)}</strong>
               <small>{record.tenant}</small>
+              {(hasRentTransferDraft(state, role, record.id) ||
+                hasRentCorrectionDraft(state, role, record.id)) && (
+                <small
+                  className="rent-draft-indicator"
+                  id={`rent-draft-${role}-${record.id}`}
+                >
+                  {tr("rent_privateDraft")}
+                </small>
+              )}
             </span>
             <span className="rent-managed-property">{record.property}</span>
             <span className="rent-managed-amount">
@@ -946,12 +1252,13 @@ export function RentRecords({
       </p>
       {selected && (
         <RentRecordDialog
-          key={selected.id}
+          key={`${role}:${selected.id}`}
           record={selected}
           role={role}
+          state={state}
           initiallyEditing={initiallyEditing}
           setState={setState}
-          onClose={() => setSelectedId(null)}
+          onClose={close}
         />
       )}
     </div>

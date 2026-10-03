@@ -3,6 +3,23 @@ import type { RentDictionary } from "./rent-types";
 export const rentEs = {
   rent_title: "Registros de alquiler",
   rent_record: "Registro de alquiler",
+  rent_privateDraft: "Borrador privado",
+  rent_transferDraftScope:
+    "Los datos de transferencia sin terminar permanecen privados en su área de inquilino en esta pestaña. Al cerrar, el borrador se conserva; al recargar, se elimina.",
+  rent_correctionDraftScope:
+    "Esta nota de corrección sin terminar permanece privada en su área de propietario en esta pestaña hasta que guarde la solicitud. Al cerrar, se conserva; al recargar, se elimina.",
+  rent_resumeTransferDraft: "Retomar borrador de transferencia",
+  rent_resumeCorrectionDraft: "Retomar borrador de corrección",
+  rent_inspectDraft: "Ver borrador sin terminar",
+  rent_discardDraft: "Descartar borrador",
+  rent_draftDiscarded:
+    "Borrador privado descartado. El registro de alquiler no ha cambiado.",
+  rent_backToRecord: "Volver al registro",
+  rent_staleDraft: "El registro de alquiler ha cambiado",
+  rent_staleDraftNote:
+    "Sus datos sin terminar siguen disponibles para copiarlos. No pueden sustituir el registro más reciente. Descarte este borrador antes de empezar de nuevo.",
+  rent_draftUnavailable:
+    "Este borrador no se puede guardar en el registro actual. Revise el registro más reciente antes de continuar.",
   rent_statusAwaitingDetails: "Pendiente de datos de transferencia",
   rent_statusAwaitingOwner: "Pendiente de confirmación del propietario",
   rent_statusCorrection: "Necesita corrección",

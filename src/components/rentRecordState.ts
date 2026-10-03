@@ -17,6 +17,19 @@ export interface RentTransferDraft {
   note: string;
 }
 
+export interface RentCorrectionDraft {
+  note: string;
+}
+
+export interface RentFormDraftEntry<T> {
+  values: T;
+  recordVersion: string;
+}
+
+export interface RentFormDraft<T> extends RentFormDraftEntry<T> {
+  stale: boolean;
+}
+
 export interface RentTransfer {
   amountCents: number;
   transferredOn: string;
@@ -69,6 +82,10 @@ export interface RentRecord {
 
 export interface RentRecordState {
   records: RentRecord[];
+  formDrafts?: {
+    tenant?: Record<string, RentFormDraftEntry<RentTransferDraft>>;
+    landlord?: Record<string, RentFormDraftEntry<RentCorrectionDraft>>;
+  };
 }
 
 export interface RentRecordFilters {
@@ -130,6 +147,7 @@ export function createInitialRentRecordState(): RentRecordState {
     };
   });
   return {
+    formDrafts: {},
     records: [
       ...confirmed,
       {
@@ -446,6 +464,308 @@ export function requestRentCorrection(
     "correction-requested",
     now,
   );
+}
+
+/** The token describes the canonical record, never an unfinished private form. */
+function rentFormRecordVersion(record: RentRecord): string {
+  return JSON.stringify([
+    record.id,
+    record.period,
+    record.tenantId,
+    record.tenant,
+    record.propertyId,
+    record.property,
+    record.owner,
+    record.amountDueCents,
+    record.dueOn,
+    record.status,
+    record.transfer
+      ? [
+          record.transfer.amountCents,
+          record.transfer.transferredOn,
+          record.transfer.reference,
+          record.transfer.note,
+        ]
+      : null,
+    record.correctionNote,
+    record.confirmedAt ?? null,
+    record.updatedAt,
+    record.activity.length,
+    record.activity.at(-1)?.id ?? null,
+  ]);
+}
+
+function scopedRentFormRecord(
+  state: RentRecordState,
+  role: Role,
+  id: string,
+  actor: "tenant" | "landlord",
+): RentRecord | undefined {
+  return role === actor
+    ? visibleRentRecords(state, role).find((record) => record.id === id)
+    : undefined;
+}
+
+export function hasRentTransferDraft(
+  state: RentRecordState,
+  role: Role,
+  id: string,
+): boolean {
+  return Boolean(
+    scopedRentFormRecord(state, role, id, "tenant") &&
+    state.formDrafts?.tenant?.[id],
+  );
+}
+
+export function hasRentCorrectionDraft(
+  state: RentRecordState,
+  role: Role,
+  id: string,
+): boolean {
+  return Boolean(
+    scopedRentFormRecord(state, role, id, "landlord") &&
+    state.formDrafts?.landlord?.[id],
+  );
+}
+
+/** Reading defaults does not create a draft; retained stale values stay inspectable. */
+export function rentTransferDraft(
+  state: RentRecordState,
+  role: Role,
+  id: string,
+  now = new Date(),
+): RentFormDraft<RentTransferDraft> | null {
+  const record = scopedRentFormRecord(state, role, id, "tenant");
+  if (!record) return null;
+  const retained = state.formDrafts?.tenant?.[id];
+  const canEdit = canRecordRentTransfer(record, role);
+  if (!retained && !canEdit) return null;
+  const recordVersion = rentFormRecordVersion(record);
+  return retained
+    ? {
+        values: { ...retained.values },
+        recordVersion: retained.recordVersion,
+        stale: !canEdit || retained.recordVersion !== recordVersion,
+      }
+    : {
+        values: {
+          amount: (
+            (record.transfer?.amountCents ?? record.amountDueCents) / 100
+          ).toFixed(2),
+          transferredOn: record.transfer?.transferredOn ?? rentToday(now),
+          reference: record.transfer?.reference ?? "",
+          note: record.transfer?.note ?? "",
+        },
+        recordVersion,
+        stale: false,
+      };
+}
+
+export function rentCorrectionDraft(
+  state: RentRecordState,
+  role: Role,
+  id: string,
+): RentFormDraft<RentCorrectionDraft> | null {
+  const record = scopedRentFormRecord(state, role, id, "landlord");
+  if (!record) return null;
+  const retained = state.formDrafts?.landlord?.[id];
+  const canEdit = canReviewRentRecord(record, role);
+  if (!retained && !canEdit) return null;
+  const recordVersion = rentFormRecordVersion(record);
+  return retained
+    ? {
+        values: { ...retained.values },
+        recordVersion: retained.recordVersion,
+        stale: !canEdit || retained.recordVersion !== recordVersion,
+      }
+    : { values: { note: "" }, recordVersion, stale: false };
+}
+
+function rawRentDraftPatch<T extends object>(
+  current: T,
+  patch: Partial<T>,
+): T | null {
+  if (!patch || typeof patch !== "object") return null;
+  const next = { ...current };
+  let recognized = false;
+  for (const field of Object.keys(current) as (keyof T)[]) {
+    const value = patch[field];
+    if (Object.hasOwn(patch, field) && typeof value === "string") {
+      Object.assign(next, { [field]: value });
+      recognized = true;
+    }
+  }
+  return recognized ? next : null;
+}
+
+export function updateRentTransferDraft(
+  state: RentRecordState,
+  role: Role,
+  id: string,
+  patch: Partial<RentTransferDraft>,
+  expectedRecordVersion: string,
+  now = new Date(),
+): RentRecordState {
+  const draft = rentTransferDraft(state, role, id, now);
+  if (!draft || draft.stale || draft.recordVersion !== expectedRecordVersion)
+    return state;
+  const values = rawRentDraftPatch(draft.values, patch);
+  if (!values) return state;
+  if (
+    hasRentTransferDraft(state, role, id) &&
+    (Object.keys(values) as (keyof RentTransferDraft)[]).every(
+      (field) => values[field] === draft.values[field],
+    )
+  )
+    return state;
+  return {
+    ...state,
+    formDrafts: {
+      ...state.formDrafts,
+      tenant: {
+        ...state.formDrafts?.tenant,
+        [id]: { values, recordVersion: draft.recordVersion },
+      },
+    },
+  };
+}
+
+export function updateRentCorrectionDraft(
+  state: RentRecordState,
+  role: Role,
+  id: string,
+  patch: Partial<RentCorrectionDraft>,
+  expectedRecordVersion: string,
+): RentRecordState {
+  const draft = rentCorrectionDraft(state, role, id);
+  if (!draft || draft.stale || draft.recordVersion !== expectedRecordVersion)
+    return state;
+  const values = rawRentDraftPatch(draft.values, patch);
+  if (!values) return state;
+  if (
+    hasRentCorrectionDraft(state, role, id) &&
+    values.note === draft.values.note
+  )
+    return state;
+  return {
+    ...state,
+    formDrafts: {
+      ...state.formDrafts,
+      landlord: {
+        ...state.formDrafts?.landlord,
+        [id]: { values, recordVersion: draft.recordVersion },
+      },
+    },
+  };
+}
+
+export function discardRentTransferDraft(
+  state: RentRecordState,
+  role: Role,
+  id: string,
+): RentRecordState {
+  if (!hasRentTransferDraft(state, role, id)) return state;
+  const tenant = { ...state.formDrafts?.tenant };
+  delete tenant[id];
+  return { ...state, formDrafts: { ...state.formDrafts, tenant } };
+}
+
+export function discardRentCorrectionDraft(
+  state: RentRecordState,
+  role: Role,
+  id: string,
+): RentRecordState {
+  if (!hasRentCorrectionDraft(state, role, id)) return state;
+  const landlord = { ...state.formDrafts?.landlord };
+  delete landlord[id];
+  return { ...state, formDrafts: { ...state.formDrafts, landlord } };
+}
+
+export type RentFormDraftIssue = "unavailable" | "stale" | "noDraft";
+export type RentCorrectionIssues = { note?: "note" };
+
+export interface RentDraftSubmitResult<T> {
+  state: RentRecordState;
+  recordId: string | null;
+  issues: T;
+  issue: RentFormDraftIssue | null;
+}
+
+/** Consume only the saved form; direct record transitions deliberately preserve drafts. */
+export function submitRentTransferDraft(
+  state: RentRecordState,
+  role: Role,
+  id: string,
+  expectedRecordVersion: string,
+  now = new Date(),
+): RentDraftSubmitResult<RentTransferIssues> {
+  const failure = (
+    issue: RentFormDraftIssue | null,
+    issues: RentTransferIssues = {},
+  ): RentDraftSubmitResult<RentTransferIssues> => ({
+    state,
+    recordId: null,
+    issues,
+    issue,
+  });
+  if (
+    !scopedRentFormRecord(state, role, id, "tenant") ||
+    !Number.isFinite(now.getTime())
+  )
+    return failure("unavailable");
+  const draft = rentTransferDraft(state, role, id, now);
+  if (!draft) return failure("unavailable");
+  if (!hasRentTransferDraft(state, role, id)) return failure("noDraft");
+  if (draft.stale || draft.recordVersion !== expectedRecordVersion)
+    return failure("stale");
+  const issues = rentTransferIssues(draft.values, now);
+  if (Object.keys(issues).length) return failure(null, issues);
+  const next = recordRentTransfer(state, role, id, draft.values, now);
+  if (next === state) return failure("unavailable");
+  return {
+    state: discardRentTransferDraft(next, role, id),
+    recordId: id,
+    issues: {},
+    issue: null,
+  };
+}
+
+export function submitRentCorrectionDraft(
+  state: RentRecordState,
+  role: Role,
+  id: string,
+  expectedRecordVersion: string,
+  now = new Date(),
+): RentDraftSubmitResult<RentCorrectionIssues> {
+  const failure = (
+    issue: RentFormDraftIssue | null,
+    issues: RentCorrectionIssues = {},
+  ): RentDraftSubmitResult<RentCorrectionIssues> => ({
+    state,
+    recordId: null,
+    issues,
+    issue,
+  });
+  if (
+    !scopedRentFormRecord(state, role, id, "landlord") ||
+    !Number.isFinite(now.getTime())
+  )
+    return failure("unavailable");
+  const draft = rentCorrectionDraft(state, role, id);
+  if (!draft) return failure("unavailable");
+  if (!hasRentCorrectionDraft(state, role, id)) return failure("noDraft");
+  if (draft.stale || draft.recordVersion !== expectedRecordVersion)
+    return failure("stale");
+  const note = draft.values.note.trim();
+  if (!note || note.length > 500) return failure(null, { note: "note" });
+  const next = requestRentCorrection(state, role, id, note, now);
+  if (next === state) return failure("unavailable");
+  return {
+    state: discardRentCorrectionDraft(next, role, id),
+    recordId: id,
+    issues: {},
+    issue: null,
+  };
 }
 
 export interface RentSummaryLabels {

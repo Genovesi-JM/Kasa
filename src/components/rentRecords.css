@@ -121,6 +121,46 @@
   color: #748277;
   font-size: 11px;
 }
+.rent-managed-row .rent-draft-indicator {
+  color: #245f52;
+  font-weight: 600;
+}
+.rent-managed-list h2:focus {
+  outline: 2px solid #245f52;
+  outline-offset: 5px;
+  border-radius: 3px;
+}
+.rent-private-draft {
+  display: grid;
+  min-width: 0;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid #d6e3d9;
+  border-radius: 12px;
+  background: #f5f8f2;
+  overflow-wrap: anywhere;
+}
+.rent-private-draft p {
+  margin: 0;
+  color: #50695b;
+  font-size: 13px;
+  line-height: 1.6;
+}
+.rent-private-draft h3 {
+  margin: 0;
+}
+.rent-draft-stale {
+  display: grid;
+  gap: 8px;
+}
+.rent-draft-stale summary {
+  padding-block: 10px;
+  cursor: pointer;
+  font-size: 13px;
+}
+.rent-draft-stale .rent-detail-fields {
+  padding-block: 8px;
+}
 .rent-managed-row .rent-managed-status {
   justify-self: start;
 }

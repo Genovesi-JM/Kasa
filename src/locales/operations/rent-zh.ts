@@ -3,6 +3,22 @@ import type { RentDictionary } from "./rent-types";
 export const rentZh = {
   rent_title: "租金记录",
   rent_record: "租金记录",
+  rent_privateDraft: "私人草稿",
+  rent_transferDraftScope:
+    "未完成的转账详情仅保留在此标签页的租客工作区内，对其他工作区不可见。关闭后会保留草稿；重新加载页面会清除草稿。",
+  rent_correctionDraftScope:
+    "在您保存请求之前，这条未完成的更正备注仅保留在此标签页的房东工作区内，对其他工作区不可见。关闭后会保留备注；重新加载页面会清除备注。",
+  rent_resumeTransferDraft: "继续编辑转账草稿",
+  rent_resumeCorrectionDraft: "继续编辑更正草稿",
+  rent_inspectDraft: "查看未完成的草稿",
+  rent_discardDraft: "丢弃草稿",
+  rent_draftDiscarded: "已丢弃私人草稿。租金记录未更改。",
+  rent_backToRecord: "返回记录",
+  rent_staleDraft: "租金记录已更改",
+  rent_staleDraftNote:
+    "您仍可复制未完成的内容，但这些内容不能替换较新的记录。请先丢弃此草稿，再重新开始。",
+  rent_draftUnavailable:
+    "此草稿无法保存到当前记录。请先查看最新记录，再继续操作。",
   rent_statusAwaitingDetails: "等待填写转账详情",
   rent_statusAwaitingOwner: "等待房东确认",
   rent_statusCorrection: "需要更正",

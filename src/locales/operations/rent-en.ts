@@ -1,6 +1,22 @@
 export const rentEn = {
   rent_title: "Rent records",
   rent_record: "Rent record",
+  rent_privateDraft: "Private draft",
+  rent_transferDraftScope:
+    "Unfinished transfer details stay private in your tenant workspace in this tab. Closing keeps the draft; reloading clears it.",
+  rent_correctionDraftScope:
+    "This unfinished correction note stays private in your owner workspace in this tab until you save the request. Closing keeps it; reloading clears it.",
+  rent_resumeTransferDraft: "Resume transfer draft",
+  rent_resumeCorrectionDraft: "Resume correction draft",
+  rent_inspectDraft: "View unfinished draft",
+  rent_discardDraft: "Discard draft",
+  rent_draftDiscarded: "Private draft discarded. The rent record is unchanged.",
+  rent_backToRecord: "Back to record",
+  rent_staleDraft: "The rent record has changed",
+  rent_staleDraftNote:
+    "Your unfinished values are still available to copy. They cannot replace the newer record. Discard this draft before starting again.",
+  rent_draftUnavailable:
+    "This draft cannot be saved for the current record. Review the latest record before continuing.",
   rent_statusAwaitingDetails: "Awaiting transfer details",
   rent_statusAwaitingOwner: "Awaiting owner confirmation",
   rent_statusCorrection: "Needs correction",

@@ -3,6 +3,23 @@ import type { RentDictionary } from "./rent-types";
 export const rentPt = {
   rent_title: "Registos de renda",
   rent_record: "Registo de renda",
+  rent_privateDraft: "Rascunho privado",
+  rent_transferDraftScope:
+    "Os dados da transferência por concluir permanecem privados na sua área de inquilino neste separador. Ao fechar, o rascunho é mantido; ao recarregar a página, é eliminado.",
+  rent_correctionDraftScope:
+    "Esta nota de correção por concluir permanece privada na sua área de senhorio neste separador até guardar o pedido. Ao fechar, é mantida; ao recarregar a página, é eliminada.",
+  rent_resumeTransferDraft: "Retomar rascunho da transferência",
+  rent_resumeCorrectionDraft: "Retomar rascunho de correção",
+  rent_inspectDraft: "Ver rascunho por concluir",
+  rent_discardDraft: "Descartar rascunho",
+  rent_draftDiscarded:
+    "Rascunho privado descartado. O registo de renda permanece inalterado.",
+  rent_backToRecord: "Voltar ao registo",
+  rent_staleDraft: "O registo de renda foi alterado",
+  rent_staleDraftNote:
+    "Os valores por concluir continuam disponíveis para copiar. Não podem substituir o registo mais recente. Descarte este rascunho antes de recomeçar.",
+  rent_draftUnavailable:
+    "Este rascunho não pode ser guardado no registo atual. Reveja o registo mais recente antes de continuar.",
   rent_statusAwaitingDetails: "A aguardar dados da transferência",
   rent_statusAwaitingOwner: "A aguardar confirmação do senhorio",
   rent_statusCorrection: "Precisa de correção",
