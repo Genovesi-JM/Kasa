@@ -7,8 +7,10 @@ import {
   type DocumentKind,
 } from "./documentState";
 import {
+  futureLocalDate,
   validateRentalApplication,
   type RentalApplicationDraft,
+  type RequestErrors,
 } from "./propertyRequestState";
 
 const tenantIdentity = { id: "tenant-ines", name: "Inês Duarte", avatar: "ID" };
@@ -103,9 +105,16 @@ export interface ApplicationRecord extends Omit<
 
 export interface ApplicationState {
   records: ApplicationRecord[];
+  rentalDrafts?: Partial<Record<number, RentalApplicationComposerDraft>>;
   evidenceDrafts?: Record<number, ApplicationEvidenceDraft>;
   evidenceRevision?: number;
   nextEvidenceId?: number;
+}
+
+export interface RentalApplicationComposerDraft {
+  moveInDate: string;
+  householdSize: string;
+  introduction: string;
 }
 
 export type ApplicationAction =
@@ -123,6 +132,7 @@ export function createInitialApplicationState(): ApplicationState {
     "2026-08-16T16:10:00Z",
   ];
   return {
+    rentalDrafts: {},
     records: applications.map((application, index) => ({
       id: application.id,
       applicant: application.applicant,
@@ -612,6 +622,129 @@ export function tenantApplicationForProperty(
   );
 }
 
+function canonicalRentalProperty(role: Role, propertyId: number) {
+  return role === "tenant"
+    ? properties.find(
+        (property) =>
+          property.id === propertyId && property.listingType === "Rent",
+      )
+    : undefined;
+}
+
+/** Unsubmitted answers belong only to the tenant and never appear in shared application records. */
+export function rentalApplicationDraft(
+  state: ApplicationState,
+  role: Role,
+  propertyId: number,
+  now = new Date(),
+): RentalApplicationComposerDraft | null {
+  if (!canonicalRentalProperty(role, propertyId)) return null;
+  const saved = state.rentalDrafts?.[propertyId];
+  return saved
+    ? {
+        moveInDate: saved.moveInDate,
+        householdSize: saved.householdSize,
+        introduction: saved.introduction,
+      }
+    : {
+        moveInDate: futureLocalDate(14, now),
+        householdSize: "1",
+        introduction: "",
+      };
+}
+
+export function hasRentalApplicationDraft(
+  state: ApplicationState,
+  role: Role,
+  propertyId: number,
+): boolean {
+  return Boolean(
+    canonicalRentalProperty(role, propertyId) &&
+    state.rentalDrafts?.[propertyId],
+  );
+}
+
+export function updateRentalApplicationDraft(
+  state: ApplicationState,
+  role: Role,
+  propertyId: number,
+  patch: Partial<RentalApplicationComposerDraft>,
+  now = new Date(),
+): ApplicationState {
+  if (!patch || typeof patch !== "object") return state;
+  const current = rentalApplicationDraft(state, role, propertyId, now);
+  if (!current) return state;
+  const next = { ...current };
+  let recognized = false;
+  let changed = false;
+  for (const field of Object.keys(current) as Array<
+    keyof RentalApplicationComposerDraft
+  >) {
+    const value = patch[field];
+    if (typeof value !== "string") continue;
+    recognized = true;
+    if (value === current[field]) continue;
+    next[field] = value;
+    changed = true;
+  }
+  // Explicit input/submission may retain valid defaults; reading them alone never does.
+  return recognized &&
+    (changed || !hasRentalApplicationDraft(state, role, propertyId))
+    ? { ...state, rentalDrafts: { ...state.rentalDrafts, [propertyId]: next } }
+    : state;
+}
+
+export function discardRentalApplicationDraft(
+  state: ApplicationState,
+  role: Role,
+  propertyId: number,
+): ApplicationState {
+  if (!hasRentalApplicationDraft(state, role, propertyId)) return state;
+  const rentalDrafts = { ...state.rentalDrafts };
+  delete rentalDrafts[propertyId];
+  return { ...state, rentalDrafts };
+}
+
+export function submitRentalApplicationDraft(
+  state: ApplicationState,
+  role: Role,
+  propertyId: number,
+  now = new Date(),
+): {
+  state: ApplicationState;
+  applicationId: number | null;
+  errors: RequestErrors;
+  issue: "unavailable" | "duplicate" | "noDraft" | null;
+} {
+  const property = canonicalRentalProperty(role, propertyId);
+  if (!property)
+    return { state, applicationId: null, errors: {}, issue: "unavailable" };
+  if (tenantApplicationForProperty(state, property))
+    return { state, applicationId: null, errors: {}, issue: "duplicate" };
+  const retained = state.rentalDrafts?.[propertyId];
+  if (!retained)
+    return { state, applicationId: null, errors: {}, issue: "noDraft" };
+  const household = retained.householdSize.trim();
+  const draft: RentalApplicationDraft = {
+    moveInDate: retained.moveInDate,
+    householdSize: /^\d+$/.test(household) ? Number(household) : NaN,
+    introduction: retained.introduction,
+  };
+  const errors = validateRentalApplication(draft, now);
+  if (Object.keys(errors).length)
+    return { state, applicationId: null, errors, issue: null };
+  const next = submitRentalApplication(state, role, property, draft, now);
+  const created = tenantApplicationForProperty(next, property);
+  if (next === state || !created)
+    return { state, applicationId: null, errors: {}, issue: "unavailable" };
+  return {
+    state: discardRentalApplicationDraft(next, role, propertyId),
+    applicationId: created.id,
+    errors: {},
+    issue: null,
+  };
+}
+
 /** Record a tenant's local request; it does not deliver or approve an application. */
 export function submitRentalApplication(
   state: ApplicationState,
@@ -620,13 +753,10 @@ export function submitRentalApplication(
   draft: RentalApplicationDraft,
   now = new Date(),
 ): ApplicationState {
-  if (
-    role !== "tenant" ||
-    property.listingType !== "Rent" ||
-    Object.keys(validateRentalApplication(draft, now)).length
-  )
+  const canonical = canonicalRentalProperty(role, property.id);
+  if (!canonical || Object.keys(validateRentalApplication(draft, now)).length)
     return state;
-  if (tenantApplicationForProperty(state, property)) return state;
+  if (tenantApplicationForProperty(state, canonical)) return state;
   const id = Math.max(0, ...state.records.map((record) => record.id)) + 1;
   const introduction = draft.introduction.trim();
   const record: ApplicationRecord = {
@@ -634,8 +764,8 @@ export function submitRentalApplication(
     tenantId: tenantIdentity.id,
     applicant: tenantIdentity.name,
     avatar: tenantIdentity.avatar,
-    propertyId: property.id,
-    property: property.title,
+    propertyId: canonical.id,
+    property: canonical.title,
     status: "Review",
     submittedAt: now.toISOString(),
     submission: {

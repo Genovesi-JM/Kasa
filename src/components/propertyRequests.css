@@ -5,6 +5,15 @@
 .property-request-actions > .button {
   width: 100%;
 }
+.property-request-actions .button,
+.property-request-form .modal-actions .button {
+  min-width: 0;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.property-request-actions > .property-request-scope:empty {
+  display: none;
+}
 .property-request-form {
   display: grid;
   gap: 16px;

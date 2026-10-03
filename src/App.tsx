@@ -133,8 +133,6 @@ import {
 } from "./components/spaceBookingNotifications";
 import {
   createInitialApplicationState,
-  submitRentalApplication,
-  tenantApplicationForProperty,
   visibleApplicationRecords,
 } from "./components/applicationState";
 import {
@@ -4831,7 +4829,7 @@ function Plan({ notify }: { notify: (message: string) => void }) {
 }
 
 function App({ demoTarget }: { demoTarget?: DemoTarget }) {
-  const { tr } = useKasaI18n();
+  const { tr, language } = useKasaI18n();
   const previewParams = new URLSearchParams(window.location.search);
   const previewDevice = previewParams.get("device");
   const [initialRoute] = useState(() =>
@@ -5876,28 +5874,21 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
                 </div>
               ) : (
                 <PropertyRequestActions
+                  key={`${role}-${selectedProperty.id}`}
                   property={selectedProperty}
                   role={role}
                   viewingState={propertyRequestState}
                   setViewingState={setPropertyRequestState}
                   onViewViewings={openViewings}
-                  application={tenantApplicationForProperty(
-                    applicationState,
-                    selectedProperty,
-                  )}
+                  applicationState={applicationState}
+                  setApplicationState={setApplicationState}
                   viewingLabel={tr("discover.requestViewing")}
                   applicationLabel={tr("discover.applyHome")}
-                  onSaveApplication={(draft) => {
-                    setApplicationState((current) =>
-                      submitRentalApplication(
-                        current,
-                        role,
-                        selectedProperty,
-                        draft,
-                      ),
-                    );
+                  onApplicationSaved={() => {
                     notify(
-                      "Application saved in this tab. Open Applications to inspect it; nothing was sent.",
+                      language === "pt"
+                        ? "Candidatura guardada neste separador. Abra Candidaturas para a consultar; nada foi enviado."
+                        : "Application saved in this tab. Open Applications to inspect it; nothing was sent.",
                     );
                   }}
                   onViewApplications={() => go("applications")}

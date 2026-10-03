@@ -1,5 +1,6 @@
 import {
   useId,
+  useLayoutEffect,
   useRef,
   useState,
   type Dispatch,
@@ -8,17 +9,23 @@ import {
 import { createPortal } from "react-dom";
 import { CalendarDays, FileCheck2, X } from "lucide-react";
 import type { Property, Role } from "../types";
-import type { ApplicationRecord } from "./applicationState";
 import {
-  futureLocalDate,
+  discardRentalApplicationDraft,
+  hasRentalApplicationDraft,
+  rentalApplicationDraft,
+  submitRentalApplicationDraft,
+  tenantApplicationForProperty,
+  updateRentalApplicationDraft,
+  type ApplicationState,
+  type RentalApplicationComposerDraft,
+} from "./applicationState";
+import {
   isActiveViewing,
   localDateValue,
   pendingViewingProposal,
-  validateRentalApplication,
   viewingDrafts,
   viewingForProperty,
   type PropertyRequestState,
-  type RentalApplicationDraft,
   type RequestErrors,
 } from "./propertyRequestState";
 import { useDialogFocus } from "./useDialogFocus";
@@ -26,24 +33,79 @@ import { ViewingRequestDialog } from "./ViewingRequestDialog";
 import { useViewingCopy } from "./viewingCopy";
 import "./propertyRequests.css";
 
+function applicationFormValues(
+  form: HTMLFormElement,
+): RentalApplicationComposerDraft {
+  const data = new FormData(form);
+  return {
+    moveInDate: String(data.get("date") ?? ""),
+    householdSize: String(data.get("householdSize") ?? ""),
+    introduction: String(data.get("introduction") ?? ""),
+  };
+}
+
+function retainApplicationForm(
+  state: ApplicationState,
+  role: Role,
+  propertyId: number,
+  captured: RentalApplicationComposerDraft,
+): ApplicationState {
+  const current = rentalApplicationDraft(state, role, propertyId);
+  if (
+    !current ||
+    (!hasRentalApplicationDraft(state, role, propertyId) &&
+      current.moveInDate === captured.moveInDate &&
+      current.householdSize === captured.householdSize &&
+      current.introduction === captured.introduction)
+  )
+    return state;
+  return updateRentalApplicationDraft(state, role, propertyId, captured);
+}
+
 function RentalApplicationDialog({
   property,
+  role,
+  state,
+  setState,
   onClose,
-  onSave,
+  onSaved,
 }: {
   property: Property;
+  role: Role;
+  state: ApplicationState;
+  setState: Dispatch<SetStateAction<ApplicationState>>;
   onClose: () => void;
-  onSave: (draft: RentalApplicationDraft) => void;
+  onSaved: (id: number) => void;
 }) {
   const { text } = useViewingCopy();
-  const dialog = useDialogFocus<HTMLDivElement>(onClose);
   const id = useId();
   const form = useRef<HTMLFormElement>(null);
   const summary = useRef<HTMLDivElement>(null);
-  const [date, setDate] = useState(() => futureLocalDate(14));
-  const [household, setHousehold] = useState("1");
-  const [introduction, setIntroduction] = useState("");
+  const closedExplicitly = useRef(false);
+  const draft = rentalApplicationDraft(state, role, property.id);
   const [errors, setErrors] = useState<RequestErrors>({});
+  const [issue, setIssue] =
+    useState<ReturnType<typeof submitRentalApplicationDraft>["issue"]>(null);
+  useLayoutEffect(() => {
+    const currentForm = form.current;
+    return () => {
+      if (closedExplicitly.current || !currentForm) return;
+      const captured = applicationFormValues(currentForm);
+      setState((current) =>
+        retainApplicationForm(current, role, property.id, captured),
+      );
+    };
+  }, [property.id, role, setState]);
+  const keepDraftAndClose = () => {
+    const captured = form.current ? applicationFormValues(form.current) : null;
+    closedExplicitly.current = true;
+    if (captured)
+      setState((current) =>
+        retainApplicationForm(current, role, property.id, captured),
+      );
+    onClose();
+  };
+  const dialog = useDialogFocus<HTMLDivElement>(keepDraftAndClose);
   const message = (field: keyof RequestErrors) =>
     field === "date"
       ? text(
@@ -65,13 +127,37 @@ function RentalApplicationDialog({
         {message(field)}
       </small>
     );
-  function capture(currentForm: HTMLFormElement | null) {
+  function capture(
+    currentForm: HTMLFormElement | null,
+    field: keyof RequestErrors,
+  ) {
     if (!currentForm) return;
-    const data = new FormData(currentForm);
-    setDate(String(data.get("date") ?? ""));
-    setHousehold(String(data.get("householdSize") ?? ""));
-    setIntroduction(String(data.get("introduction") ?? ""));
+    const captured = applicationFormValues(currentForm);
+    setState((current) =>
+      updateRentalApplicationDraft(current, role, property.id, captured),
+    );
+    setErrors((current) => ({ ...current, [field]: undefined }));
+    setIssue(null);
   }
+  const invalidFields = Object.keys(errors).filter(
+    (field) => errors[field as keyof RequestErrors],
+  );
+  const issueMessage =
+    issue === "duplicate"
+      ? text(
+          "An application for this home already exists. Close this draft and open Applications to inspect it.",
+          "Já existe uma candidatura para este imóvel. Feche este rascunho e abra Candidaturas para a consultar.",
+        )
+      : issue === "unavailable"
+        ? text(
+            "This home is not available for a rental application in this workspace.",
+            "Este imóvel não está disponível para uma candidatura nesta área de trabalho.",
+          )
+        : text(
+            "The application could not be saved. Review your details and try again.",
+            "Não foi possível guardar a candidatura. Reveja os dados e tente novamente.",
+          );
+  if (!draft) return null;
   return createPortal(
     <div
       className="modal-layer property-request-layer"
@@ -87,7 +173,7 @@ function RentalApplicationDialog({
         className="modal-scrim"
         tabIndex={-1}
         aria-hidden="true"
-        onClick={onClose}
+        onClick={keepDraftAndClose}
       />
       <section className="modal-card property-request-card">
         <header>
@@ -102,8 +188,11 @@ function RentalApplicationDialog({
           <button
             type="button"
             className="icon-button"
-            onClick={onClose}
-            aria-label={text("Close application", "Fechar candidatura")}
+            onClick={keepDraftAndClose}
+            aria-label={text(
+              "Close and keep draft",
+              "Fechar e manter rascunho",
+            )}
             data-dialog-initial-focus
           >
             <X size={20} />
@@ -115,21 +204,32 @@ function RentalApplicationDialog({
           noValidate
           onSubmit={(event) => {
             event.preventDefault();
-            const data = new FormData(event.currentTarget);
-            const draft: RentalApplicationDraft = {
-              moveInDate: String(data.get("date") ?? ""),
-              householdSize: Number(data.get("householdSize") ?? ""),
-              introduction: String(data.get("introduction") ?? ""),
-            };
-            capture(event.currentTarget);
-            const nextErrors = validateRentalApplication(draft);
-            setErrors(nextErrors);
-            if (Object.keys(nextErrors).length) {
-              requestAnimationFrame(() => summary.current?.focus());
+            const prepared = updateRentalApplicationDraft(
+              state,
+              role,
+              property.id,
+              applicationFormValues(event.currentTarget),
+            );
+            const result = submitRentalApplicationDraft(
+              prepared,
+              role,
+              property.id,
+            );
+            setState(result.state);
+            setErrors(result.errors);
+            setIssue(result.issue);
+            if (result.applicationId === null) {
+              requestAnimationFrame(() => {
+                const target =
+                  form.current?.querySelector<HTMLElement>(
+                    '[aria-invalid="true"]',
+                  ) ?? summary.current;
+                target?.focus();
+              });
               return;
             }
-            onSave(draft);
-            onClose();
+            closedExplicitly.current = true;
+            onSaved(result.applicationId);
           }}
         >
           <strong className="property-request-property">
@@ -137,11 +237,11 @@ function RentalApplicationDialog({
           </strong>
           <p id={`${id}-scope`} className="property-request-scope">
             {text(
-              "Saved in this tab only. Nothing is sent to the listing party, and no tenancy is confirmed.",
-              "Guardada apenas neste separador. Nada é enviado ao anunciante e nenhum arrendamento é confirmado.",
+              "Your draft is private until you save the application. Closing keeps it in this tab; reloading clears it. Saving creates a local application, with no external message or confirmed tenancy.",
+              "O rascunho é privado até guardar a candidatura. Fechar mantém-no neste separador; recarregar elimina-o. Guardar cria uma candidatura local, sem mensagem externa nem arrendamento confirmado.",
             )}
           </p>
-          {Object.keys(errors).length > 0 && (
+          {(invalidFields.length > 0 || issue) && (
             <div
               className="property-request-errors"
               ref={summary}
@@ -149,10 +249,12 @@ function RentalApplicationDialog({
               tabIndex={-1}
             >
               <strong>
-                {text("Check these details", "Reveja estes dados")}
+                {invalidFields.length
+                  ? text("Check these details", "Reveja estes dados")
+                  : issueMessage}
               </strong>
               <ul>
-                {Object.keys(errors).map((field) => (
+                {invalidFields.map((field) => (
                   <li key={field}>
                     <a
                       href={`#${id}-${field}`}
@@ -177,9 +279,13 @@ function RentalApplicationDialog({
                 type="date"
                 min={localDateValue()}
                 required
-                value={date}
-                onInput={(event) => capture(event.currentTarget.form)}
-                onChange={(event) => capture(event.currentTarget.form)}
+                aria-label={text(
+                  "Preferred move-in date",
+                  "Data de entrada preferida",
+                )}
+                value={draft.moveInDate}
+                onInput={(event) => capture(event.currentTarget.form, "date")}
+                onChange={(event) => capture(event.currentTarget.form, "date")}
                 aria-invalid={Boolean(errors.date)}
                 aria-describedby={errors.date ? `${id}-date-error` : undefined}
               />
@@ -194,9 +300,14 @@ function RentalApplicationDialog({
                 min={1}
                 step={1}
                 required
-                value={household}
-                onInput={(event) => capture(event.currentTarget.form)}
-                onChange={(event) => capture(event.currentTarget.form)}
+                aria-label={text("Number of people", "Número de pessoas")}
+                value={draft.householdSize}
+                onInput={(event) =>
+                  capture(event.currentTarget.form, "householdSize")
+                }
+                onChange={(event) =>
+                  capture(event.currentTarget.form, "householdSize")
+                }
                 aria-invalid={Boolean(errors.householdSize)}
                 aria-describedby={
                   errors.householdSize ? `${id}-householdSize-error` : undefined
@@ -214,9 +325,17 @@ function RentalApplicationDialog({
                 name="introduction"
                 rows={3}
                 maxLength={1000}
-                value={introduction}
-                onInput={(event) => capture(event.currentTarget.form)}
-                onChange={(event) => capture(event.currentTarget.form)}
+                aria-label={text(
+                  "Introduction (optional)",
+                  "Apresentação (opcional)",
+                )}
+                value={draft.introduction}
+                onInput={(event) =>
+                  capture(event.currentTarget.form, "introduction")
+                }
+                onChange={(event) =>
+                  capture(event.currentTarget.form, "introduction")
+                }
                 aria-invalid={Boolean(errors.introduction)}
                 aria-describedby={
                   errors.introduction ? `${id}-introduction-error` : undefined
@@ -229,9 +348,9 @@ function RentalApplicationDialog({
             <button
               type="button"
               className="button button-secondary"
-              onClick={onClose}
+              onClick={keepDraftAndClose}
             >
-              {text("Cancel", "Cancelar")}
+              {text("Close and keep draft", "Fechar e manter rascunho")}
             </button>
             <button type="submit" className="button">
               {text("Save application", "Guardar candidatura")}
@@ -249,8 +368,9 @@ export function PropertyRequestActions({
   role,
   viewingState,
   setViewingState,
-  application,
-  onSaveApplication,
+  applicationState,
+  setApplicationState,
+  onApplicationSaved,
   onViewApplications,
   onViewViewings,
   viewingLabel,
@@ -260,8 +380,9 @@ export function PropertyRequestActions({
   role: Role;
   viewingState: PropertyRequestState;
   setViewingState: Dispatch<SetStateAction<PropertyRequestState>>;
-  application?: ApplicationRecord;
-  onSaveApplication: (draft: RentalApplicationDraft) => void;
+  applicationState: ApplicationState;
+  setApplicationState: Dispatch<SetStateAction<ApplicationState>>;
+  onApplicationSaved: (id: number) => void;
   onViewApplications: () => void;
   onViewViewings: (requestId?: string) => void;
   viewingLabel: string;
@@ -269,6 +390,17 @@ export function PropertyRequestActions({
 }) {
   const { text, status, date } = useViewingCopy();
   const [flow, setFlow] = useState<"viewing" | "application" | null>(null);
+  const [draftDiscarded, setDraftDiscarded] = useState(false);
+  const applicationAction = useRef<HTMLButtonElement>(null);
+  const application =
+    role === "tenant"
+      ? tenantApplicationForProperty(applicationState, property)
+      : undefined;
+  const hasApplicationDraft = hasRentalApplicationDraft(
+    applicationState,
+    role,
+    property.id,
+  );
   const viewing = viewingForProperty(viewingState, role, property.id);
   const activeViewing = viewing && isActiveViewing(viewing);
   const proposal = viewing ? pendingViewingProposal(viewing) : null;
@@ -348,17 +480,87 @@ export function PropertyRequestActions({
       {property.listingType === "Rent" && (
         <>
           <button
+            ref={applicationAction}
             type="button"
             className="button button-secondary"
-            onClick={() =>
-              application ? onViewApplications() : setFlow("application")
-            }
+            onClick={() => {
+              setDraftDiscarded(false);
+              if (application) onViewApplications();
+              else setFlow("application");
+            }}
           >
             <FileCheck2 size={16} />
             {application
               ? text("Open Applications", "Abrir candidaturas")
-              : applicationLabel}
+              : hasApplicationDraft
+                ? text(
+                    "Resume application draft",
+                    "Retomar rascunho da candidatura",
+                  )
+                : applicationLabel}
           </button>
+          {hasApplicationDraft && (
+            <section
+              className="property-request-summary"
+              aria-label={text(
+                "Unfinished rental application",
+                "Candidatura a arrendamento por concluir",
+              )}
+            >
+              <strong>
+                {text(
+                  "Private application draft",
+                  "Rascunho privado da candidatura",
+                )}
+              </strong>
+              <p>
+                {text(
+                  "Private until you save the application. Kept only in this tab; reloading clears it.",
+                  "Privado até guardar a candidatura. Mantido apenas neste separador; recarregar elimina-o.",
+                )}
+              </p>
+              {application && (
+                <button
+                  type="button"
+                  className="text-button"
+                  onClick={() => {
+                    setDraftDiscarded(false);
+                    setFlow("application");
+                  }}
+                >
+                  {text(
+                    "Resume application draft",
+                    "Retomar rascunho da candidatura",
+                  )}
+                </button>
+              )}
+              <button
+                type="button"
+                className="text-button"
+                onClick={() => {
+                  setApplicationState((current) =>
+                    discardRentalApplicationDraft(current, role, property.id),
+                  );
+                  setDraftDiscarded(true);
+                  requestAnimationFrame(() =>
+                    applicationAction.current?.focus(),
+                  );
+                }}
+              >
+                {text(
+                  "Discard application draft",
+                  "Descartar rascunho da candidatura",
+                )}
+              </button>
+            </section>
+          )}
+          <p className="property-request-scope" role="status">
+            {draftDiscarded &&
+              text(
+                "Application draft discarded.",
+                "Rascunho da candidatura descartado.",
+              )}
+          </p>
           {application && (
             <p className="property-request-scope">
               {text(
@@ -382,11 +584,18 @@ export function PropertyRequestActions({
           }}
         />
       )}
-      {flow === "application" && (
+      {flow === "application" && property.listingType === "Rent" && (
         <RentalApplicationDialog
+          key={`${role}-${property.id}`}
           property={property}
+          role={role}
+          state={applicationState}
+          setState={setApplicationState}
           onClose={() => setFlow(null)}
-          onSave={onSaveApplication}
+          onSaved={(id) => {
+            setFlow(null);
+            onApplicationSaved(id);
+          }}
         />
       )}
     </div>

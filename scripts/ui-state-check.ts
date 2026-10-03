@@ -2,6 +2,7 @@ import "./navigation-check";
 import "./search-check";
 import "./messages-check";
 import "./application-state-check";
+import "./rental-application-draft-check";
 import "./notification-check";
 import "./bookings-check";
 import "./space-schedule-check";
