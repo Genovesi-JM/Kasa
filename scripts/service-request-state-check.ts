@@ -4,6 +4,7 @@ import {
   canQuoteServiceRequest,
   createInitialServiceRequestState,
   isServiceCustomer,
+  isTerminalServiceRequest,
   latestServiceQuote,
   saveServiceQuote,
   saveServiceRequest,
@@ -26,6 +27,7 @@ import {
   workspaceServiceProvider,
   type ServiceQuoteDraft,
   type ServiceRequestDraft,
+  type ServiceRequestAction,
   type ServiceRequestState,
 } from "../src/components/serviceRequestState";
 import type { Role } from "../src/types";
@@ -781,6 +783,400 @@ assert.equal(
   "Reload factory contains only labelled examples, not session changes",
 );
 
+// Provider refusal is a terminal request decision, separate from a customer's revisable quote decline.
+const providerReason =
+  "  We cannot take on this electrical work in the requested period.  ";
+const providerRefusal: ServiceRequestAction = {
+  type: "decline-request",
+  note: providerReason,
+};
+for (const role of roles.filter((item) => item !== "provider")) {
+  assert.equal(
+    serviceRequestActionIssue(saved.state, role, id, providerRefusal, later),
+    "unavailable",
+  );
+  assert.equal(
+    actOnServiceRequest(saved.state, role, id, providerRefusal, later),
+    saved.state,
+  );
+}
+assert.equal(
+  serviceRequestActionIssue(
+    initial,
+    "provider",
+    foreignProviderRecord.id,
+    providerRefusal,
+    later,
+  ),
+  "unavailable",
+);
+assert.equal(
+  actOnServiceRequest(
+    initial,
+    "provider",
+    foreignProviderRecord.id,
+    providerRefusal,
+    later,
+  ),
+  initial,
+);
+assert.equal(
+  serviceRequestActionIssue(
+    saved.state,
+    "provider",
+    "missing",
+    providerRefusal,
+    later,
+  ),
+  "unavailable",
+);
+assert.equal(
+  actOnServiceRequest(
+    saved.state,
+    "provider",
+    "missing",
+    providerRefusal,
+    later,
+  ),
+  saved.state,
+);
+const mismatchedProviderCategory: ServiceRequestState = {
+  ...saved.state,
+  records: [{ ...record(saved.state), category: "Plumbing" }],
+};
+assert.equal(
+  serviceRequestActionIssue(
+    mismatchedProviderCategory,
+    "provider",
+    id,
+    providerRefusal,
+    later,
+  ),
+  "unavailable",
+);
+assert.equal(
+  actOnServiceRequest(
+    mismatchedProviderCategory,
+    "provider",
+    id,
+    providerRefusal,
+    later,
+  ),
+  mismatchedProviderCategory,
+);
+
+const otherRequestId = ownerCreate.requestId!;
+const privateDeclineDraft = updateServiceActionNote(
+  updateServiceActionNote(
+    updateServiceActionNote(
+      updateServiceQuoteDraft(ownerCreate.state, "provider", id, quoteDraft),
+      "provider",
+      id,
+      "PRIVATE: a different unsent internal reason",
+    ),
+    "tenant",
+    id,
+    "Customer's independent unsent note",
+  ),
+  "provider",
+  otherRequestId,
+  "Other request's private note",
+);
+assert.equal(record(privateDeclineDraft), record(ownerCreate.state));
+assert.equal(record(privateDeclineDraft).status, "Requested");
+assert.equal(record(privateDeclineDraft).history.length, 1);
+assert.equal(
+  JSON.stringify(
+    visibleServiceRequests(privateDeclineDraft, "tenant"),
+  ).includes("PRIVATE:"),
+  false,
+);
+assert.equal(
+  privateDeclineDraft.actionNotes.provider[id],
+  "PRIVATE: a different unsent internal reason",
+);
+for (const note of ["", "  ", "ab", " ab ", "x".repeat(2001)]) {
+  const action: ServiceRequestAction = { type: "decline-request", note };
+  assert.equal(
+    serviceRequestActionIssue(
+      privateDeclineDraft,
+      "provider",
+      id,
+      action,
+      later,
+    ),
+    "note",
+  );
+  assert.equal(
+    actOnServiceRequest(privateDeclineDraft, "provider", id, action, later),
+    privateDeclineDraft,
+  );
+}
+for (const note of [
+  "abc",
+  "  abc  ",
+  "x".repeat(2000),
+  `  ${"x".repeat(2000)}  `,
+]) {
+  const action: ServiceRequestAction = { type: "decline-request", note };
+  assert.equal(
+    serviceRequestActionIssue(saved.state, "provider", id, action, later),
+    null,
+  );
+  const result = actOnServiceRequest(
+    saved.state,
+    "provider",
+    id,
+    action,
+    later,
+  );
+  assert.equal(record(result).status, "Provider declined");
+  assert.equal(record(result).history.at(-1)!.note, note.trim());
+}
+
+const originalRequest = record(privateDeclineDraft);
+const originalSerialized = JSON.stringify(originalRequest);
+Object.freeze(originalRequest.history[0]);
+Object.freeze(originalRequest.history);
+Object.freeze(originalRequest.quotes);
+Object.freeze(originalRequest);
+const providerDeclined = actOnServiceRequest(
+  privateDeclineDraft,
+  "provider",
+  id,
+  providerRefusal,
+  later,
+);
+const refusalRecord = record(providerDeclined);
+assert.equal(refusalRecord.status, "Provider declined");
+assert.equal(refusalRecord.updatedAt, later.toISOString());
+assert.equal(refusalRecord.history.length, originalRequest.history.length + 1);
+const refusalEvent = refusalRecord.history.at(-1)!;
+assert.equal(refusalEvent.action, "provider-declined");
+assert.equal(refusalEvent.actor, workspaceServiceProvider);
+assert.equal(refusalEvent.at, later.toISOString());
+assert.equal(
+  refusalEvent.note,
+  providerReason.trim(),
+  "Only the explicit submitted reason becomes shared history",
+);
+assert.equal(refusalEvent.quoteId, undefined);
+assert.equal(refusalRecord.history[0], originalRequest.history[0]);
+assert.equal(refusalRecord.quotes, originalRequest.quotes);
+assert.equal(latestServiceQuote(refusalRecord), undefined);
+assert.equal(JSON.stringify(originalRequest), originalSerialized);
+for (const field of [
+  "id",
+  "source",
+  "customerRole",
+  "customerName",
+  "propertyId",
+  "category",
+  "providerName",
+  "title",
+  "description",
+  "preferredDate",
+  "preferredTime",
+  "createdAt",
+] as const)
+  assert.equal(refusalRecord[field], originalRequest[field]);
+assert.equal(
+  record(providerDeclined, otherRequestId),
+  record(privateDeclineDraft, otherRequestId),
+);
+assert.equal(providerDeclined.quoteDrafts, privateDeclineDraft.quoteDrafts);
+assert.equal(providerDeclined.drafts, privateDeclineDraft.drafts);
+assert.equal(providerDeclined.actionNotes.provider[id], "");
+assert.equal(
+  providerDeclined.actionNotes.provider[otherRequestId],
+  "Other request's private note",
+);
+assert.equal(
+  providerDeclined.actionNotes.tenant,
+  privateDeclineDraft.actionNotes.tenant,
+);
+assert.equal(
+  privateDeclineDraft.actionNotes.provider[id],
+  "PRIVATE: a different unsent internal reason",
+);
+assert.equal(
+  visibleServiceRequests(providerDeclined, "tenant")[0],
+  refusalRecord,
+);
+assert.ok(
+  visibleServiceRequests(providerDeclined, "provider").includes(refusalRecord),
+);
+assert.equal(
+  visibleServiceRequests(providerDeclined, "landlord").some(
+    (item) => item.id === id,
+  ),
+  false,
+);
+assert.equal(
+  JSON.stringify(visibleServiceRequests(providerDeclined, "tenant")).includes(
+    providerReason.trim(),
+  ),
+  true,
+);
+assert.equal(
+  JSON.stringify(visibleServiceRequests(providerDeclined, "tenant")).includes(
+    "PRIVATE:",
+  ),
+  false,
+);
+assert.equal(
+  serviceRequestCounts(providerDeclined, "tenant").providerDeclined,
+  1,
+);
+assert.equal(serviceRequestCounts(providerDeclined, "tenant").active, 0);
+assert.equal(serviceRequestCounts(providerDeclined, "tenant").requested, 0);
+assert.equal(serviceRequestCounts(providerDeclined, "tenant").cancelled, 0);
+assert.equal(serviceRequestCounts(providerDeclined, "tenant").completed, 0);
+assert.equal(serviceRequestCounts(providerDeclined, "tenant").total, 1);
+assert.equal(
+  serviceRequestCounts(providerDeclined, "provider").providerDeclined,
+  1,
+);
+assert.equal(serviceRequestCounts(providerDeclined, "provider").active, 1);
+assert.equal(serviceRequestCounts(providerDeclined, "provider").requested, 1);
+assert.equal(serviceRequestCounts(providerDeclined, "provider").total, 2);
+assert.equal(
+  serviceRequestCounts(providerDeclined, "landlord").providerDeclined,
+  0,
+);
+assert.equal(
+  serviceRequestCounts(privateDeclineDraft, "provider").providerDeclined,
+  0,
+);
+assert.equal(isTerminalServiceRequest("Provider declined"), true);
+assert.equal(isTerminalServiceRequest("Cancelled"), true);
+assert.equal(isTerminalServiceRequest("Completed"), true);
+for (const status of [
+  "Requested",
+  "Quoted",
+  "Accepted",
+  "Declined",
+  "In progress",
+] as const)
+  assert.equal(isTerminalServiceRequest(status), false);
+
+assert.equal(
+  serviceRequestActionIssue(
+    providerDeclined,
+    "provider",
+    id,
+    providerRefusal,
+    tomorrow,
+  ),
+  "status",
+);
+assert.equal(
+  actOnServiceRequest(
+    providerDeclined,
+    "provider",
+    id,
+    providerRefusal,
+    tomorrow,
+  ),
+  providerDeclined,
+);
+assert.equal(canQuoteServiceRequest(refusalRecord, "provider"), false);
+assert.equal(
+  updateServiceQuoteDraft(providerDeclined, "provider", id, { amount: "999" }),
+  providerDeclined,
+);
+assert.equal(
+  saveServiceQuote(providerDeclined, "provider", id, later).state,
+  providerDeclined,
+);
+assert.equal(
+  saveServiceQuote(providerDeclined, "provider", id, later).issue,
+  "unavailable",
+);
+const terminalActions: ServiceRequestAction[] = [
+  providerRefusal,
+  { type: "start" },
+  { type: "complete", note: "Cannot finish refused work" },
+  { type: "cancel", note: "Cannot cancel refused work" },
+  { type: "accept", quoteId: quote.id },
+  { type: "decline", quoteId: quote.id, note: "Cannot decide a missing quote" },
+];
+for (const role of roles) {
+  assert.equal(
+    updateServiceActionNote(
+      providerDeclined,
+      role,
+      id,
+      "Cannot edit terminal notes",
+    ),
+    providerDeclined,
+  );
+  for (const action of terminalActions)
+    assert.equal(
+      actOnServiceRequest(providerDeclined, role, id, action, tomorrow),
+      providerDeclined,
+    );
+}
+const cancelledForRefusal = actOnServiceRequest(
+  saved.state,
+  "tenant",
+  id,
+  { type: "cancel", note: "No longer needed" },
+  later,
+);
+for (const staleState of [
+  quoted,
+  declined,
+  accepted,
+  inProgress,
+  completed,
+  cancelledForRefusal,
+]) {
+  assert.equal(
+    serviceRequestActionIssue(
+      staleState,
+      "provider",
+      id,
+      providerRefusal,
+      later,
+    ),
+    "status",
+  );
+  assert.equal(
+    actOnServiceRequest(staleState, "provider", id, providerRefusal, later),
+    staleState,
+  );
+}
+assert.equal(record(declined).status, "Declined");
+assert.equal(isTerminalServiceRequest(record(declined).status), false);
+assert.equal(serviceRequestCounts(declined, "tenant").active, 1);
+assert.equal(serviceRequestCounts(declined, "provider").providerDeclined, 0);
+assert.equal(canQuoteServiceRequest(record(declined), "provider"), true);
+assert.equal(record(afterDecline).status, "Quoted");
+assert.equal(
+  record(afterDecline).history.some(
+    (event) => event.action === "provider-declined",
+  ),
+  false,
+);
+const ownerRefused = actOnServiceRequest(
+  providerDeclined,
+  "provider",
+  otherRequestId,
+  providerRefusal,
+  later,
+);
+assert.equal(
+  visibleServiceRequests(ownerRefused, "landlord")[0].status,
+  "Provider declined",
+);
+assert.equal(
+  serviceRequestCounts(ownerRefused, "provider").providerDeclined,
+  2,
+);
+assert.equal(serviceRequestCounts(ownerRefused, "provider").active, 0);
+assert.equal(record(ownerRefused), refusalRecord);
+
 console.log(
-  "Service request state checks passed: scoped customer/provider records, retained independent drafts, property/category/provider validation, exact quote totals, local dates/times, quote revisions and expiry, explicit decisions, cancellation, guarded work completion and immutable history.",
+  "Service request state checks passed: scoped customer/provider records, retained independent drafts, property/category/provider validation, exact quote totals, local dates/times, quote revisions and expiry, explicit decisions, cancellation, guarded work completion, terminal provider refusal and immutable history.",
 );

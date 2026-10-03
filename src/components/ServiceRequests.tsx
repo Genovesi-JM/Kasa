@@ -27,6 +27,7 @@ import {
   actOnServiceRequest,
   canQuoteServiceRequest,
   isServiceCustomer,
+  isTerminalServiceRequest,
   latestServiceQuote,
   saveServiceQuote,
   saveServiceRequest,
@@ -161,6 +162,10 @@ function statusText(status: ServiceRequestStatus, copy: Copy): string {
     Quoted: copy("Quote recorded", "Orçamento registado"),
     Accepted: copy("Quote accepted", "Orçamento aceite"),
     Declined: copy("Quote declined", "Orçamento recusado"),
+    "Provider declined": copy(
+      "Request declined by provider",
+      "Pedido recusado pelo prestador",
+    ),
     Cancelled: copy("Cancelled", "Cancelado"),
     "In progress": copy("In progress", "Em curso"),
     Completed: copy("Completed", "Concluído"),
@@ -766,6 +771,10 @@ function historyText(
     quoted: copy("Quote recorded", "Orçamento registado"),
     accepted: copy("Quote accepted", "Orçamento aceite"),
     declined: copy("Quote declined", "Orçamento recusado"),
+    "provider-declined": copy(
+      "Request declined by provider",
+      "Pedido recusado pelo prestador",
+    ),
     cancelled: copy("Request cancelled", "Pedido cancelado"),
     started: copy("Work marked in progress", "Trabalho marcado como em curso"),
     completed: copy("Completion recorded", "Conclusão registada"),
@@ -792,7 +801,7 @@ function ServiceRecordBoard({ role, state, setState }: ServiceRecordProps) {
     .filter(
       (record) =>
         (filter === "all" ||
-          (["Cancelled", "Completed"].includes(record.status)
+          (isTerminalServiceRequest(record.status)
             ? filter === "history"
             : filter === "active")) &&
         matchesSearch(
@@ -830,9 +839,29 @@ function ServiceRecordBoard({ role, state, setState }: ServiceRecordProps) {
     selected &&
     !provider &&
     ["Requested", "Quoted", "Accepted", "Declined"].includes(selected.status);
+  const canDeclineRequest =
+    provider &&
+    selected?.status === "Requested" &&
+    canQuoteServiceRequest(selected, role);
+  const providerDecline =
+    selected?.status === "Provider declined"
+      ? [...selected.history]
+          .reverse()
+          .find((event) => event.action === "provider-declined")
+      : undefined;
   const note = selected ? (state.actionNotes[role][selected.id] ?? "") : "";
   const showNote =
-    canCancel || (provider && selected?.status === "In progress");
+    canCancel ||
+    canDeclineRequest ||
+    (provider && selected?.status === "In progress");
+  const actionNoteLabel = canDeclineRequest
+    ? copy("Reason for declining the request", "Motivo da recusa do pedido")
+    : provider
+      ? copy("Completion note", "Nota de conclusão")
+      : copy(
+          "Reason for declining or cancelling",
+          "Motivo da recusa ou cancelamento",
+        );
   const perform = (action: ServiceRequestAction) => {
     if (!selected) return;
     const issue = serviceRequestActionIssue(state, role, selected.id, action);
@@ -853,6 +882,10 @@ function ServiceRecordBoard({ role, state, setState }: ServiceRecordProps) {
         "Quote declined in this tab. The provider can record a revised quote.",
         "Orçamento recusado neste separador. O prestador pode registar uma revisão.",
       ),
+      "decline-request": copy(
+        "Request declined in this tab. History is open with the recorded reason.",
+        "Pedido recusado neste separador. O histórico está aberto com o motivo registado.",
+      ),
       cancel: copy(
         "Request cancelled in this tab. The record remains in History.",
         "Pedido cancelado neste separador. O registo permanece no histórico.",
@@ -867,6 +900,10 @@ function ServiceRecordBoard({ role, state, setState }: ServiceRecordProps) {
       ),
     };
     setFeedback(completed[action.type]);
+    if (action.type === "decline-request") {
+      setFilter("history");
+      setSelectedId(selected.id);
+    }
     requestAnimationFrame(() =>
       action.type === "cancel" || action.type === "complete"
         ? heading.current?.focus()
@@ -905,8 +942,8 @@ function ServiceRecordBoard({ role, state, setState }: ServiceRecordProps) {
           </h2>
           <p>
             {copy(
-              `${counts.active} active · ${counts.completed} completed · ${counts.cancelled} cancelled`,
-              `${counts.active} em aberto · ${counts.completed} ${counts.completed === 1 ? "concluído" : "concluídos"} · ${counts.cancelled} ${counts.cancelled === 1 ? "cancelado" : "cancelados"}`,
+              `${counts.active} active · ${counts.completed} completed · ${counts.cancelled} cancelled · ${counts.providerDeclined} declined by provider`,
+              `${counts.active} em aberto · ${counts.completed} ${counts.completed === 1 ? "concluído" : "concluídos"} · ${counts.cancelled} ${counts.cancelled === 1 ? "cancelado" : "cancelados"} · ${counts.providerDeclined} ${counts.providerDeclined === 1 ? "recusado pelo prestador" : "recusados pelo prestador"}`,
             )}
           </p>
         </div>
@@ -980,10 +1017,16 @@ function ServiceRecordBoard({ role, state, setState }: ServiceRecordProps) {
               }}
             >
               {value === "active"
-                ? copy("Active", "Em aberto")
+                ? copy(
+                    `Active (${counts.active})`,
+                    `Em aberto (${counts.active})`,
+                  )
                 : value === "history"
-                  ? copy("History", "Histórico")
-                  : copy("All", "Todos")}
+                  ? copy(
+                      `History (${counts.total - counts.active})`,
+                      `Histórico (${counts.total - counts.active})`,
+                    )
+                  : copy(`All (${counts.total})`, `Todos (${counts.total})`)}
             </button>
           ))}
         </div>
@@ -1103,7 +1146,21 @@ function ServiceRecordBoard({ role, state, setState }: ServiceRecordProps) {
               <p className="service-record-description">
                 {selected.description}
               </p>
-              {quote ? (
+              {providerDecline ? (
+                <p className="service-quote-decision-note">
+                  <strong>
+                    {copy(
+                      "Reason from provider",
+                      "Motivo indicado pelo prestador",
+                    )}
+                  </strong>
+                  {providerDecline.note}
+                  <br />
+                  <time dateTime={providerDecline.at}>
+                    {formatTimestamp(providerDecline.at, locale)}
+                  </time>
+                </p>
+              ) : quote ? (
                 <QuoteCard
                   quote={quote}
                   copy={copy}
@@ -1150,14 +1207,11 @@ function ServiceRecordBoard({ role, state, setState }: ServiceRecordProps) {
                   className="service-record-action-note"
                   htmlFor={`${id}-action-note`}
                 >
-                  {provider
-                    ? copy("Completion note", "Nota de conclusão")
-                    : copy(
-                        "Reason for declining or cancelling",
-                        "Motivo da recusa ou cancelamento",
-                      )}
+                  {actionNoteLabel}
                   <textarea
                     id={`${id}-action-note`}
+                    aria-label={actionNoteLabel}
+                    aria-required={provider}
                     ref={noteInput}
                     rows={3}
                     maxLength={2000}
@@ -1187,20 +1241,23 @@ function ServiceRecordBoard({ role, state, setState }: ServiceRecordProps) {
                       setActionError(null);
                     }}
                     aria-invalid={actionError === "note"}
-                    aria-describedby={
-                      actionError === "note" ? `${id}-action-error` : undefined
-                    }
+                    aria-describedby={`${id}-action-help${actionError === "note" ? ` ${id}-action-error` : ""}`}
                   />
-                  <small>
-                    {provider
+                  <small id={`${id}-action-help`}>
+                    {canDeclineRequest
                       ? copy(
-                          "Required to record completion.",
-                          "Obrigatória para registar a conclusão.",
+                          "Use 3–2,000 characters. The reason is recorded in the customer's History only when you decline.",
+                          "Use entre 3 e 2 000 caracteres. O motivo só fica no histórico do cliente quando recusar.",
                         )
-                      : copy(
-                          "Required only for declining or cancelling. Accepting a quote needs no note.",
-                          "Obrigatório apenas para recusar ou cancelar. Aceitar um orçamento não exige uma nota.",
-                        )}
+                      : provider
+                        ? copy(
+                            "Required to record completion.",
+                            "Obrigatória para registar a conclusão.",
+                          )
+                        : copy(
+                            "Required only for declining or cancelling. Accepting a quote needs no note.",
+                            "Obrigatório apenas para recusar ou cancelar. Aceitar um orçamento não exige uma nota.",
+                          )}
                   </small>
                 </label>
               )}
@@ -1210,10 +1267,29 @@ function ServiceRecordBoard({ role, state, setState }: ServiceRecordProps) {
                   className="service-field-error"
                   role="alert"
                 >
-                  {issueText(actionError, copy)}
+                  {actionError === "note" && canDeclineRequest
+                    ? copy(
+                        "Give a reason between 3 and 2,000 characters to decline this request.",
+                        "Indique um motivo entre 3 e 2 000 caracteres para recusar este pedido.",
+                      )
+                    : issueText(actionError, copy)}
                 </p>
               )}
               <div className="service-record-actions">
+                {canDeclineRequest && (
+                  <button
+                    type="button"
+                    className="button button-secondary"
+                    onClick={() =>
+                      perform({
+                        type: "decline-request",
+                        note: noteInput.current?.value ?? note,
+                      })
+                    }
+                  >
+                    {copy("Decline request", "Recusar pedido")}
+                  </button>
+                )}
                 {!provider && selected.status === "Quoted" && quote && (
                   <>
                     <button
@@ -1309,7 +1385,10 @@ function ServiceRecordBoard({ role, state, setState }: ServiceRecordProps) {
                     <li key={event.id}>
                       <strong>{historyText(event.action, copy)}</strong>
                       <span>
-                        {event.actor} · {formatTimestamp(event.at, locale)}
+                        {event.actor} ·{" "}
+                        <time dateTime={event.at}>
+                          {formatTimestamp(event.at, locale)}
+                        </time>
                       </span>
                       {event.quoteId && (
                         <small>

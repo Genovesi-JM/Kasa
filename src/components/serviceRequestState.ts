@@ -18,6 +18,7 @@ export type ServiceRequestStatus =
   | "Quoted"
   | "Accepted"
   | "Declined"
+  | "Provider declined"
   | "Cancelled"
   | "In progress"
   | "Completed";
@@ -59,6 +60,7 @@ export interface ServiceRequestHistory {
     | "quoted"
     | "accepted"
     | "declined"
+    | "provider-declined"
     | "cancelled"
     | "started"
     | "completed";
@@ -116,6 +118,7 @@ export type ServiceQuoteErrors = Partial<
 export type ServiceRequestAction =
   | { type: "accept"; quoteId: string }
   | { type: "decline"; quoteId: string; note: string }
+  | { type: "decline-request"; note: string }
   | { type: "cancel"; note: string }
   | { type: "start" }
   | { type: "complete"; note: string };
@@ -370,13 +373,17 @@ export function visibleServiceRequests(
       customerOwnsRequest(record, role) || providerOwnsRequest(record, role),
   );
 }
+export function isTerminalServiceRequest(
+  status: ServiceRequestStatus,
+): boolean {
+  return ["Cancelled", "Completed", "Provider declined"].includes(status);
+}
 export function serviceRequestCounts(state: ServiceRequestState, role: Role) {
   const records = visibleServiceRequests(state, role);
   return {
     total: records.length,
-    active: records.filter(
-      (record) => !["Cancelled", "Completed"].includes(record.status),
-    ).length,
+    active: records.filter((record) => !isTerminalServiceRequest(record.status))
+      .length,
     requested: records.filter((record) => record.status === "Requested").length,
     quoted: records.filter((record) => record.status === "Quoted").length,
     accepted: records.filter((record) => record.status === "Accepted").length,
@@ -384,6 +391,9 @@ export function serviceRequestCounts(state: ServiceRequestState, role: Role) {
       .length,
     completed: records.filter((record) => record.status === "Completed").length,
     cancelled: records.filter((record) => record.status === "Cancelled").length,
+    providerDeclined: records.filter(
+      (record) => record.status === "Provider declined",
+    ).length,
   };
 }
 export function latestServiceQuote(
@@ -557,6 +567,11 @@ export function serviceRequestActionIssue(
 ): ServiceIssue | null {
   const record = state.records.find((item) => item.id === id);
   if (!record) return "unavailable";
+  if (action.type === "decline-request") {
+    if (!providerOwnsRequest(record, role)) return "unavailable";
+    if (record.status !== "Requested") return "status";
+    return validLength(action.note, 3, 2000) ? null : "note";
+  }
   if (action.type === "start" || action.type === "complete") {
     if (!providerOwnsRequest(record, role)) return "unavailable";
     if (action.type === "start")
@@ -599,6 +614,7 @@ export function actOnServiceRequest(
   const statuses: Record<ServiceRequestAction["type"], ServiceRequestStatus> = {
     accept: "Accepted",
     decline: "Declined",
+    "decline-request": "Provider declined",
     cancel: "Cancelled",
     start: "In progress",
     complete: "Completed",
@@ -609,6 +625,7 @@ export function actOnServiceRequest(
   > = {
     accept: "accepted",
     decline: "declined",
+    "decline-request": "provider-declined",
     cancel: "cancelled",
     start: "started",
     complete: "completed",
@@ -644,8 +661,12 @@ export function updateServiceActionNote(
   id: string,
   note: string,
 ): ServiceRequestState {
+  const record = visibleServiceRequests(state, role).find(
+    (item) => item.id === id,
+  );
   if (
-    !visibleServiceRequests(state, role).some((record) => record.id === id) ||
+    !record ||
+    isTerminalServiceRequest(record.status) ||
     typeof note !== "string" ||
     note.length > 2000 ||
     state.actionNotes[role][id] === note
