@@ -22,6 +22,10 @@ export default defineConfig({
               name: "icons-vendor",
               test: /node_modules\/lucide-react\//,
             },
+            {
+              name: "app-i18n",
+              test: /[\\/]src[\\/]i18n\.ts$/,
+            },
           ],
         },
       },
