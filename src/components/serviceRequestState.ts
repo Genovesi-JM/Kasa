@@ -498,6 +498,32 @@ export function canQuoteServiceRequest(
     ["Requested", "Quoted", "Declined"].includes(record.status)
   );
 }
+
+/** Retained private work can be inspected or discarded after quoting closes. */
+export function hasServiceQuoteDraft(
+  state: ServiceRequestState,
+  role: Role,
+  id: string,
+): boolean {
+  const record = state.records.find((item) => item.id === id);
+  return Boolean(
+    record &&
+    providerOwnsRequest(record, role) &&
+    Object.hasOwn(state.quoteDrafts, id),
+  );
+}
+
+export function discardServiceQuoteDraft(
+  state: ServiceRequestState,
+  role: Role,
+  id: string,
+): ServiceRequestState {
+  if (!hasServiceQuoteDraft(state, role, id)) return state;
+  const quoteDrafts = { ...state.quoteDrafts };
+  delete quoteDrafts[id];
+  return { ...state, quoteDrafts };
+}
+
 export function serviceQuoteDraft(
   state: ServiceRequestState,
   role: Role,
@@ -508,16 +534,16 @@ export function serviceQuoteDraft(
   );
   if (!record || !providerOwnsRequest(record, role))
     return { amount: "", scope: "", date: "", time: "", validUntil: "" };
+  const retained = state.quoteDrafts[id];
+  if (retained) return { ...retained };
   const quote = latestServiceQuote(record);
-  return (
-    state.quoteDrafts[id] ?? {
-      amount: quote ? (quote.amountCents / 100).toFixed(2) : "",
-      scope: quote?.scope ?? "",
-      date: quote?.date ?? record.preferredDate,
-      time: quote?.time ?? record.preferredTime,
-      validUntil: quote?.validUntil ?? "",
-    }
-  );
+  return {
+    amount: quote ? (quote.amountCents / 100).toFixed(2) : "",
+    scope: quote?.scope ?? "",
+    date: quote?.date ?? record.preferredDate,
+    time: quote?.time ?? record.preferredTime,
+    validUntil: quote?.validUntil ?? "",
+  };
 }
 export function updateServiceQuoteDraft(
   state: ServiceRequestState,
@@ -644,7 +670,14 @@ export function saveServiceQuote(
     status: "Quoted" as const,
     quotes: [...quotes, quote],
   };
-  return { state: replaceServiceRequest(state, updated), errors: {} };
+  return {
+    state: discardServiceQuoteDraft(
+      replaceServiceRequest(state, updated),
+      role,
+      id,
+    ),
+    errors: {},
+  };
 }
 export function serviceRequestActionIssue(
   state: ServiceRequestState,

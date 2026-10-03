@@ -26,6 +26,8 @@ import { useDialogFocus } from "./useDialogFocus";
 import {
   actOnServiceRequest,
   canQuoteServiceRequest,
+  discardServiceQuoteDraft,
+  hasServiceQuoteDraft,
   isServiceCustomer,
   isTerminalServiceRequest,
   latestServiceQuote,
@@ -198,6 +200,15 @@ function formatMoney(cents: number, locale: string) {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   }).format(cents / 100);
+}
+function quoteDraftLabels(copy: Copy): Record<keyof ServiceQuoteDraft, string> {
+  return {
+    amount: copy("Total quote (€)", "Total do orçamento (€)"),
+    scope: copy("Included work and terms", "Trabalho incluído e condições"),
+    date: copy("Proposed visit date", "Data proposta para a visita"),
+    time: copy("Proposed visit time", "Hora proposta para a visita"),
+    validUntil: copy("Quote valid through", "Orçamento válido até"),
+  };
 }
 
 function ServiceModal({
@@ -567,13 +578,7 @@ function QuoteEditor({
     );
     onClose();
   };
-  const labels: Record<keyof ServiceQuoteDraft, string> = {
-    amount: copy("Total quote (€)", "Total do orçamento (€)"),
-    scope: copy("Included work and terms", "Trabalho incluído e condições"),
-    date: copy("Proposed visit date", "Data proposta para a visita"),
-    time: copy("Proposed visit time", "Hora proposta para a visita"),
-    validUntil: copy("Quote valid through", "Orçamento válido até"),
-  };
+  const labels = quoteDraftLabels(copy);
   const field = (name: keyof ServiceQuoteDraft) => (
     <label
       className={name === "scope" ? "service-field-wide" : ""}
@@ -794,6 +799,14 @@ function ServiceRecordBoard({ role, state, setState }: ServiceRecordProps) {
   const heading = useRef<HTMLHeadingElement>(null);
   const detailHeading = useRef<HTMLHeadingElement>(null);
   const noteInput = useRef<HTMLTextAreaElement>(null);
+  const discardFocusFrame = useRef<number | null>(null);
+  useEffect(
+    () => () => {
+      if (discardFocusFrame.current !== null)
+        cancelAnimationFrame(discardFocusFrame.current);
+    },
+    [],
+  );
   useEffect(() => {
     if (!selectedId) return;
     const frame = requestAnimationFrame(() => {
@@ -836,6 +849,10 @@ function ServiceRecordBoard({ role, state, setState }: ServiceRecordProps) {
       record.id === quoteRequestId && canQuoteServiceRequest(record, role),
   );
   const quote = selected ? latestServiceQuote(selected) : undefined;
+  const retainedQuoteDraft =
+    selected && hasServiceQuoteDraft(state, role, selected.id)
+      ? serviceQuoteDraft(state, role, selected.id)
+      : null;
   const acceptIssue =
     selected && quote && selected.status === "Quoted" && !provider
       ? serviceRequestActionIssue(state, role, selected.id, {
@@ -870,6 +887,40 @@ function ServiceRecordBoard({ role, state, setState }: ServiceRecordProps) {
           "Reason for declining or cancelling",
           "Motivo da recusa ou cancelamento",
         );
+  const discardQuoteDraft = (trigger: HTMLButtonElement) => {
+    if (!selected || !retainedQuoteDraft) return;
+    const requestId = selected.id;
+    setState((current) => discardServiceQuoteDraft(current, role, requestId));
+    setFeedback(
+      copy(
+        "Private quote draft discarded. Recorded quotes are unchanged.",
+        "Rascunho privado do orçamento descartado. Os orçamentos registados permanecem inalterados.",
+      ),
+    );
+    if (discardFocusFrame.current !== null)
+      cancelAnimationFrame(discardFocusFrame.current);
+    discardFocusFrame.current = requestAnimationFrame(() => {
+      discardFocusFrame.current = null;
+      const target = detailHeading.current;
+      const active = document.activeElement;
+      if (
+        active &&
+        active !== document.body &&
+        active !== document.documentElement &&
+        active !== trigger
+      )
+        return;
+      if (
+        target?.isConnected &&
+        target.dataset.requestId === requestId &&
+        !target.closest('[hidden], [inert], [aria-hidden="true"]') &&
+        target.getClientRects().length > 0 &&
+        getComputedStyle(target).visibility === "visible" &&
+        !document.querySelector('[role="dialog"], dialog[open]')
+      )
+        target.focus();
+    });
+  };
   const perform = (action: ServiceRequestAction) => {
     if (!selected) return;
     const issue = serviceRequestActionIssue(state, role, selected.id, action);
@@ -1205,6 +1256,82 @@ function ServiceRecordBoard({ role, state, setState }: ServiceRecordProps) {
                   )}
                 </p>
               )}
+              {provider &&
+                retainedQuoteDraft &&
+                quoteRecord?.id !== selected.id && (
+                  <section
+                    className="service-private-quote"
+                    aria-labelledby={`${id}-private-quote-title`}
+                  >
+                    <h4 id={`${id}-private-quote-title`}>
+                      {copy(
+                        "Private quote draft",
+                        "Rascunho privado do orçamento",
+                      )}
+                    </h4>
+                    <p>
+                      {copy(
+                        "Unfinished details stay private in your provider workspace in this tab. Reloading clears them.",
+                        "Os dados por concluir permanecem privados no seu espaço de prestador neste separador. Recarregar a página apaga-os.",
+                      )}
+                    </p>
+                    {!canQuoteServiceRequest(selected, role) && (
+                      <p>
+                        {copy(
+                          "This request no longer allows a quote revision. You can inspect, copy or discard these unfinished values. They cannot replace a recorded or accepted quote.",
+                          "Este pedido já não permite rever o orçamento. Pode consultar, copiar ou descartar estes valores por concluir. Não podem substituir um orçamento registado ou aceite.",
+                        )}
+                      </p>
+                    )}
+                    <details>
+                      <summary>
+                        {copy(
+                          "View unfinished quote draft",
+                          "Ver rascunho do orçamento por concluir",
+                        )}
+                      </summary>
+                      <dl className="service-record-facts">
+                        {(
+                          [
+                            "amount",
+                            "date",
+                            "time",
+                            "validUntil",
+                            "scope",
+                          ] as const
+                        ).map((field) => (
+                          <div
+                            key={field}
+                            className={
+                              field === "scope"
+                                ? "service-private-quote-wide"
+                                : undefined
+                            }
+                          >
+                            <dt>{quoteDraftLabels(copy)[field]}</dt>
+                            <dd dir="auto">
+                              {retainedQuoteDraft[field] === ""
+                                ? copy("Not entered", "Por preencher")
+                                : retainedQuoteDraft[field]}
+                            </dd>
+                          </div>
+                        ))}
+                      </dl>
+                    </details>
+                    <button
+                      type="button"
+                      className="text-button"
+                      onClick={(event) =>
+                        discardQuoteDraft(event.currentTarget)
+                      }
+                    >
+                      {copy(
+                        "Discard quote draft",
+                        "Descartar rascunho do orçamento",
+                      )}
+                    </button>
+                  </section>
+                )}
               {provider && canQuoteServiceRequest(selected, role) && (
                 <button
                   type="button"
@@ -1212,9 +1339,14 @@ function ServiceRecordBoard({ role, state, setState }: ServiceRecordProps) {
                   onClick={() => setQuoteRequestId(selected.id)}
                 >
                   <FileText size={17} aria-hidden="true" />
-                  {quote
-                    ? copy("Revise quote", "Rever orçamento")
-                    : copy("Build quote", "Criar orçamento")}
+                  {retainedQuoteDraft
+                    ? copy(
+                        "Resume quote draft",
+                        "Retomar rascunho do orçamento",
+                      )
+                    : quote
+                      ? copy("Revise quote", "Rever orçamento")
+                      : copy("Build quote", "Criar orçamento")}
                 </button>
               )}
               {acceptIssue && (
