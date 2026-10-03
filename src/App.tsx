@@ -6,6 +6,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type SetStateAction,
 } from "react";
 import { useTranslation } from "react-i18next";
 import {
@@ -116,7 +117,12 @@ import {
 import {
   createInitialNotificationState,
   type KasaNotification,
+  type NotificationState,
 } from "./components/notificationState";
+import {
+  openWorkNotification,
+  reconcileWorkNotifications,
+} from "./components/workNotifications";
 import {
   createInitialApplicationState,
   submitRentalApplication,
@@ -4985,8 +4991,21 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
       : role === "tenant"
         ? viewingSummaryCounts.proposed
         : 0;
-  const [notificationState, setNotificationState] = useState(
+  const [savedNotificationState, setSavedNotificationState] = useState(
     createInitialNotificationState,
+  );
+  const notificationState = useMemo(
+    () => reconcileWorkNotifications(savedNotificationState, workState),
+    [savedNotificationState, workState],
+  );
+  const setNotificationState = useCallback(
+    (update: SetStateAction<NotificationState>) => {
+      setSavedNotificationState((current) => {
+        const reconciled = reconcileWorkNotifications(current, workState);
+        return typeof update === "function" ? update(reconciled) : update;
+      });
+    },
+    [workState],
   );
   const [mobileOpen, setMobileOpen] = useState(false);
   const [workspaceTool, setWorkspaceTool] = useState<
@@ -5560,6 +5579,13 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
   };
   const openNotification = (notification: KasaNotification) => {
     setNotificationsOpen(false);
+    if (notification.workEvent) {
+      const target = openWorkNotification(workState, role, notification);
+      if (!target) return;
+      setWorkState(target.state);
+      openServices(target.serviceMode, "");
+      return;
+    }
     if (notification.serviceMode) openServices(notification.serviceMode);
     else go(notification.destination);
   };

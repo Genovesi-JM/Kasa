@@ -1,5 +1,13 @@
 import type { Role, View } from "../types";
 
+export interface WorkNotificationEvent {
+  kind:
+    "application-submitted" | "application-withdrawn" | "application-reviewed";
+  applicationId: string;
+  opportunityTitle: string;
+  occurredAt: string;
+}
+
 export interface KasaNotification {
   id: string;
   role: Role;
@@ -15,7 +23,8 @@ export interface KasaNotification {
     | "payment"
     | "shield";
   destination: View;
-  serviceMode?: "jobs";
+  serviceMode?: "jobs" | "hire";
+  workEvent?: WorkNotificationEvent;
   read: boolean;
 }
 

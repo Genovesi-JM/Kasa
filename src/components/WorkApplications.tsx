@@ -1,4 +1,5 @@
 import {
+  useEffect,
   useId,
   useRef,
   useState,
@@ -57,6 +58,11 @@ function CandidateApplications({
   const selected =
     filtered.find((record) => record.id === view.selectedApplicationId) ??
     filtered[0];
+  const selectedId = selected?.id;
+  useEffect(() => {
+    if (view.selectedApplicationId && selectedId === view.selectedApplicationId)
+      heading.current?.focus();
+  }, [view.selectedApplicationId, selectedId]);
   const liveOpportunity = state.opportunities.find(
     (opportunity) => opportunity.id === selected?.opportunityId,
   );
@@ -79,7 +85,11 @@ function CandidateApplications({
       }),
     );
     setIssue("");
-    requestAnimationFrame(() => heading.current?.focus());
+    if (
+      view.selectedApplicationId === applicationId &&
+      selectedId === applicationId
+    )
+      heading.current?.focus();
   }
   if (role !== "tenant")
     return (

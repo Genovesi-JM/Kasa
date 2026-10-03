@@ -34,52 +34,105 @@ const controls = {
     unread: "unread",
     read: "Read",
     markRead: "Mark as read",
-    sample: "Sample updates. Read status is kept while you navigate.",
+    sample: "Sample entry",
+    local: "Local activity",
+    scope:
+      "Sample entries and local activity. Changes are retained in this tab until reload.",
+    applicationSubmitted: "Application recorded",
+    applicationWithdrawn: "Application withdrawn",
+    applicationReviewed: "Application review recorded",
   },
   pt: {
     unread: "por ler",
     read: "Lida",
     markRead: "Marcar como lida",
-    sample:
-      "Atualizações de exemplo. O estado de leitura mantém-se durante a navegação.",
+    sample: "Registo de exemplo",
+    local: "Atividade local",
+    scope:
+      "Registos de exemplo e atividade local. As alterações mantêm-se neste separador até recarregar.",
+    applicationSubmitted: "Candidatura registada",
+    applicationWithdrawn: "Candidatura retirada",
+    applicationReviewed: "Análise da candidatura registada",
   },
   es: {
     unread: "sin leer",
     read: "Leída",
     markRead: "Marcar como leída",
-    sample:
-      "Actualizaciones de ejemplo. El estado de lectura se conserva mientras navegas.",
+    sample: "Registro de ejemplo",
+    local: "Actividad local",
+    scope:
+      "Registros de ejemplo y actividad local. Los cambios se conservan en esta pestaña hasta recargarla.",
+    applicationSubmitted: "Candidatura registrada",
+    applicationWithdrawn: "Candidatura retirada",
+    applicationReviewed: "Revisión de la candidatura registrada",
   },
   fr: {
     unread: "non lues",
     read: "Lue",
     markRead: "Marquer comme lue",
-    sample:
-      "Exemples de notifications. L’état de lecture est conservé pendant la navigation.",
+    sample: "Exemple de notification",
+    local: "Activité locale",
+    scope:
+      "Exemples de notifications et activité locale. Les modifications sont conservées dans cet onglet jusqu’au rechargement.",
+    applicationSubmitted: "Candidature enregistrée",
+    applicationWithdrawn: "Candidature retirée",
+    applicationReviewed: "Examen de la candidature enregistré",
   },
   ar: {
     unread: "غير مقروءة",
     read: "مقروءة",
     markRead: "تحديد كمقروءة",
-    sample: "تحديثات تجريبية. تُحفظ حالة القراءة أثناء التنقل.",
+    sample: "إشعار تجريبي",
+    local: "نشاط محلي",
+    scope:
+      "إشعارات تجريبية ونشاط محلي. تُحفظ التغييرات في علامة التبويب هذه حتى إعادة تحميلها.",
+    applicationSubmitted: "تم تسجيل طلب العمل",
+    applicationWithdrawn: "تم سحب طلب العمل",
+    applicationReviewed: "تم تسجيل مراجعة طلب العمل",
   },
   zh: {
     unread: "未读",
     read: "已读",
     markRead: "标为已读",
-    sample: "示例通知。浏览时会保留已读状态。",
+    sample: "示例通知",
+    local: "本地活动",
+    scope: "示例通知和本地活动。更改会保留在此标签页中，直到重新加载。",
+    applicationSubmitted: "已记录工作申请",
+    applicationWithdrawn: "工作申请已撤回",
+    applicationReviewed: "已记录申请审阅",
   },
 };
 
 function useNotificationLabels() {
   const { t, i18n } = useTranslation();
-  const language = (i18n.resolvedLanguage ||
+  const requestedLanguage = (
+    i18n.resolvedLanguage ||
     i18n.language ||
-    "en") as LanguageCode;
+    "en"
+  ).split("-")[0];
+  const language = (
+    Object.hasOwn(controls, requestedLanguage) ? requestedLanguage : "en"
+  ) as LanguageCode;
   const english = i18n.getFixedT("en");
   const localized = controls[language] ?? controls.en;
+  const locale: Record<LanguageCode, string> = {
+    en: "en-GB",
+    pt: "pt-PT",
+    es: "es-ES",
+    fr: "fr-FR",
+    ar: "ar",
+    zh: "zh-CN",
+  };
+  const dateTime = new Intl.DateTimeFormat(locale[language], {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
   return {
     tr: (key: string) => displayTranslation(t(key), english(key), language),
+    formatTime: (value: string) => dateTime.format(new Date(value)),
     labels: Object.fromEntries(
       Object.entries(localized).map(([key, value]) => [
         key,
@@ -103,6 +156,12 @@ const icons = {
   shield: ShieldCheck,
 };
 
+const workTitleKeys = {
+  "application-submitted": "applicationSubmitted",
+  "application-withdrawn": "applicationWithdrawn",
+  "application-reviewed": "applicationReviewed",
+} as const;
+
 interface NotificationsProps {
   state: NotificationState;
   setState: Dispatch<SetStateAction<NotificationState>>;
@@ -117,13 +176,21 @@ function NotificationList({
   role,
   onNavigate,
 }: Omit<NotificationsProps, "notify">) {
-  const { tr, labels } = useNotificationLabels();
+  const { tr, labels, formatTime } = useNotificationLabels();
   const items = notificationsForRole(state, role);
   return (
     <div className="kasa-notification-list">
       {items.map((item) => {
         const Icon = icons[item.icon];
-        const title = tr(item.titleKey);
+        const event = item.workEvent;
+        const title = event
+          ? labels[workTitleKeys[event.kind]]
+          : tr(item.titleKey);
+        const note = event ? event.opportunityTitle : tr(item.noteKey);
+        const source = event ? labels.local : labels.sample;
+        const timestamp = event
+          ? formatTime(event.occurredAt)
+          : tr(item.timeKey);
         return (
           <article
             className={`kasa-notification-entry ${item.read ? "is-read" : "is-unread"}`}
@@ -137,15 +204,22 @@ function NotificationList({
                 );
                 onNavigate(item);
               }}
-              aria-label={`${title} · ${item.read ? labels.read : labels.unread}`}
+              aria-label={`${title}${event ? ` · ${event.opportunityTitle}` : ""} · ${source} · ${timestamp} · ${item.read ? labels.read : labels.unread}`}
             >
               <span className="notification-feed-icon">
-                <Icon size={19} />
+                <Icon size={19} aria-hidden="true" />
               </span>
               <span className="kasa-notification-copy">
                 <strong>{title}</strong>
-                <small>{tr(item.noteKey)}</small>
-                <small>{tr(item.timeKey)}</small>
+                <small dir={event ? "auto" : undefined}>{note}</small>
+                <small>
+                  {source} ·{" "}
+                  {event ? (
+                    <time dateTime={event.occurredAt}>{timestamp}</time>
+                  ) : (
+                    timestamp
+                  )}
+                </small>
               </span>
               {!item.read && (
                 <span className="notification-dot" aria-hidden="true" />
@@ -160,9 +234,9 @@ function NotificationList({
                     markNotificationRead(current, role, item.id),
                   )
                 }
-                aria-label={`${item.read ? labels.read : labels.markRead}: ${title}`}
+                aria-label={`${item.read ? labels.read : labels.markRead}: ${title}${event ? ` · ${event.opportunityTitle} · ${timestamp}` : ""}`}
               >
-                <Check size={15} />
+                <Check size={15} aria-hidden="true" />
                 <span>{item.read ? labels.read : labels.markRead}</span>
               </button>
             </div>
@@ -205,7 +279,7 @@ export function NotificationsView(props: NotificationsProps) {
       >
         <NotificationList {...props} />
       </section>
-      <p className="kasa-notification-scope">{labels.sample}</p>
+      <p className="kasa-notification-scope">{labels.scope}</p>
     </div>
   );
 }

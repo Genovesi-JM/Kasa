@@ -22,6 +22,7 @@ import "./property-listing-state-check";
 import "./space-listing-state-check";
 import "./service-request-state-check";
 import "./work-state-check";
+import "./work-notification-check";
 import "./operations-localization-check";
 
 console.log("Kasa UI state checks passed.");
