@@ -116,6 +116,7 @@ for (const requested of ["follow", "manual"] as const) {
       headers: { "Content-Type": "application/json" },
       credentials: "omit",
       redirect: requested,
+      cache: "no-store",
       signal: controller.signal,
     },
     production,
@@ -126,6 +127,7 @@ for (const requested of ["follow", "manual"] as const) {
       assert.equal(options?.credentials, "include");
       assert.equal(options?.method, "POST");
       assert.equal(options?.body, "{}");
+      assert.equal(options?.cache, "no-store");
       assert.equal(options?.signal, controller.signal);
       return fakeResponse;
     },
@@ -145,3 +147,5 @@ await assert.rejects(
 assert.equal(failures, 1);
 passed++;
 console.log(`${passed} API destination checks passed; no network requests.`);
+
+await import("./catalog-client-smoke.ts");

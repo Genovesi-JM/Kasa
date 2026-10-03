@@ -2,6 +2,8 @@
 
 This matrix distinguishes working frontend behaviour from production integrations. **Admin → System status** shows runtime checks and integration status.
 
+Each system-status run makes fresh property and Spaces catalogue requests, bypassing both the discovery cache and the browser HTTP cache. An outage or invalid response fails that run; a later run can report recovery. Diagnostic requests do not replace or clear the catalogue retained for browsing.
+
 Frontend workflow update: 3 October 2026. Production-integration requirements remain unchanged.
 
 The public [GitHub Pages URL](https://genovesi-jm.github.io/Kasa/) opens the software directly, without an account. The guided presentation is optional at [`?present=1`](https://genovesi-jm.github.io/Kasa/?present=1). GitHub Pages serves the frontend; it does not host the local API or provide authentication, message delivery or a database.

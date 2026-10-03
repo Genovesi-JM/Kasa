@@ -89,7 +89,14 @@ const spacePageSchema = z.object({
 let propertyRequest: Promise<Property[]> | null = null;
 let spaceRequest: Promise<SpaceVenue[]> | null = null;
 
-export function listProperties(): Promise<Property[]> {
+/** Fresh diagnostic reads bypass the browsing cache without replacing or invalidating it. */
+export function listProperties(
+  options: { fresh?: boolean } = {},
+): Promise<Property[]> {
+  if (options.fresh === true)
+    return apiRequest("properties?limit=100", propertyPageSchema, {
+      cache: "no-store",
+    }).then((page) => page.items);
   propertyRequest ??= apiRequest("properties?limit=100", propertyPageSchema)
     .then((page) => page.items)
     .catch((error: unknown) => {
@@ -99,7 +106,13 @@ export function listProperties(): Promise<Property[]> {
   return propertyRequest;
 }
 
-export function listSpaces(): Promise<SpaceVenue[]> {
+export function listSpaces(
+  options: { fresh?: boolean } = {},
+): Promise<SpaceVenue[]> {
+  if (options.fresh === true)
+    return apiRequest("spaces?limit=100", spacePageSchema, {
+      cache: "no-store",
+    }).then((page) => page.items);
   spaceRequest ??= apiRequest("spaces?limit=100", spacePageSchema)
     .then((page) => page.items)
     .catch((error: unknown) => {

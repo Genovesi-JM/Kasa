@@ -4216,8 +4216,8 @@ interface DiagnosticCheck {
 async function performLiveDiagnostics(): Promise<DiagnosticCheck[]> {
   const results = await Promise.allSettled([
     getApiHealth(),
-    listProperties(),
-    listSpaces(),
+    listProperties({ fresh: true }),
+    listSpaces({ fresh: true }),
     getCountryConfig(),
   ]);
   const health = results[0];
