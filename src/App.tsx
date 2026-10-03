@@ -84,6 +84,7 @@ import {
 } from "./components/maintenanceState";
 import type { MaintenanceOpenRequest } from "./components/Maintenance";
 import { createInitialDocumentState } from "./components/documentState";
+import { createInitialExpenseState } from "./components/expenseState";
 import { readPreference, writePreference } from "./platform/preferences";
 import { isWorkspaceListingOwner, ownsProperty } from "./propertyScope";
 import { propertyOperationStatus } from "./components/propertyOperationStatus";
@@ -325,6 +326,11 @@ const RentRecords = lazy(() =>
     default: module.RentRecords,
   })),
 );
+const ExpensesView = lazy(() =>
+  import("./components/Expenses").then((module) => ({
+    default: module.ExpensesView,
+  })),
+);
 const WorkspaceTools = lazy(() =>
   import("./components/WorkspaceTools").then((module) => ({
     default: module.WorkspaceTools,
@@ -455,6 +461,12 @@ const navItems: NavItem[] = [
     label: "Rent records",
     icon: WalletCards,
     roles: ["landlord", "tenant"],
+  },
+  {
+    id: "expenses",
+    label: "Expense records",
+    icon: CircleDollarSign,
+    roles: ["landlord"],
   },
   {
     id: "maintenance",
@@ -4938,6 +4950,7 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
   const [rentRecordState, setRentRecordState] = useState(
     createInitialRentRecordState,
   );
+  const [expenseState, setExpenseState] = useState(createInitialExpenseState);
   const [rentFiltersByRole, setRentFiltersByRole] = useState<
     Record<Role, RentRecordFilters>
   >(() => ({
@@ -5486,6 +5499,7 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
     notifications: "common.notifications",
     profile: "universalHome.profile",
     rent: "nav.rentRecords",
+    expenses: "nav.expenses",
     maintenance: "common.maintenance",
     documents: "common.documents",
     services: role === "provider" ? "universalHome.work" : "nav.kasaServices",
@@ -6123,6 +6137,15 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
                 [role]: typeof next === "function" ? next(current[role]) : next,
               }))
             }
+          />
+        );
+      case "expenses":
+        return (
+          <ExpensesView
+            key={role}
+            role={role}
+            state={expenseState}
+            setState={setExpenseState}
           />
         );
       case "maintenance":

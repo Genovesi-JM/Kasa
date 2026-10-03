@@ -1,9 +1,11 @@
+import { expenseAr } from "./expense-ar";
 import type { OperationsDictionary } from "./types";
 import { rentAr } from "./rent-ar";
 import { maintenanceAr } from "./maintenance-ar";
 import { messagesAr } from "./messages-ar";
 
 export const ar = {
+  ...expenseAr,
   ...rentAr,
   ...maintenanceAr,
   ...messagesAr,

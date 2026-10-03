@@ -1,9 +1,11 @@
+import { expenseEs } from "./expense-es";
 import type { OperationsDictionary } from "./types";
 import { rentEs } from "./rent-es";
 import { maintenanceEs } from "./maintenance-es";
 import { messagesEs } from "./messages-es";
 
 export const es = {
+  ...expenseEs,
   ...rentEs,
   ...maintenanceEs,
   ...messagesEs,

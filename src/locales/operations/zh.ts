@@ -1,9 +1,11 @@
+import { expenseZh } from "./expense-zh";
 import type { OperationsDictionary } from "./types";
 import { rentZh } from "./rent-zh";
 import { maintenanceZh } from "./maintenance-zh";
 import { messagesZh } from "./messages-zh";
 
 export const zh = {
+  ...expenseZh,
   ...rentZh,
   ...maintenanceZh,
   ...messagesZh,

@@ -34,6 +34,7 @@ const views: Record<View, true> = {
   notifications: true,
   profile: true,
   rent: true,
+  expenses: true,
   maintenance: true,
   documents: true,
   services: true,
@@ -114,6 +115,7 @@ function spaceSelection(
 
 /** Keep scoped operational screens inside their authorised workspace. */
 export function canonicalRoleView(role: Role, view: View): View {
+  if (view === "expenses" && role !== "landlord") return "overview";
   if (view === "viewings" && role !== "tenant" && role !== "landlord")
     return "overview";
   if (view === "spaceOnboarding" && role !== "spaceOperator") return "overview";

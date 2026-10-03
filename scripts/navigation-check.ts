@@ -27,6 +27,7 @@ const views: View[] = [
   "notifications",
   "profile",
   "rent",
+  "expenses",
   "maintenance",
   "documents",
   "services",
@@ -81,7 +82,9 @@ for (const role of roles) {
             ? "overview"
             : view === "spaceOnboarding" && role !== "spaceOperator"
               ? "overview"
-              : view,
+              : view === "expenses" && role !== "landlord"
+                ? "overview"
+                : view,
       },
       `${role}/${view} must round-trip`,
     );
@@ -124,6 +127,37 @@ for (const role of roles) {
   for (const key of ["service", "property", "from"])
     assert.equal(serialized.has(key), false);
 }
+
+for (const role of roles) {
+  const expected = role === "landlord" ? "expenses" : "overview";
+  assert.equal(canonicalRoleView(role, "expenses"), expected);
+  assert.equal(readAppRoute(`?role=${role}&view=expenses`).view, expected);
+  assert.equal(
+    readAppRoute(`?role=${role}`, { view: "expenses" }).view,
+    expected,
+  );
+  assert.equal(
+    readAppRoute(`?role=${role}&view=expenses`, {
+      role: "landlord",
+      view: "expenses",
+    }).role,
+    role,
+    "Opening expense records cannot silently change workspaces",
+  );
+  const serialized: URLSearchParams = new URLSearchParams(
+    appRouteUrl(
+      { ...initial, role, view: "expenses" },
+      "?app=1&campaign=phone&service=hire&property=1&from=insights&venue=1&space=11",
+    ),
+  );
+  assert.equal(serialized.get("view"), expected);
+  assert.equal(serialized.get("role"), role);
+  assert.equal(serialized.get("campaign"), "phone");
+  for (const key of ["service", "property", "from", "venue", "space"])
+    assert.equal(serialized.has(key), false);
+  assert.equal(readAppRoute(`?${serialized}`).view, expected);
+}
+assert.equal(readAppRoute("?role=unknown&view=expenses").view, "overview");
 
 for (const property of properties) {
   const route = readAppRoute(
@@ -753,5 +787,5 @@ for (const original of [
 }
 
 console.log(
-  `Application navigation passed: ${roles.length * views.length} role/view routes, every canonical venue/unit and property, invalid/legacy property and venue fallbacks, scoped venue setup and viewing inbox/return, all valid property return origins, all service modes, strict catalogue IDs, query limits, defaults and entry-mode preservation.`,
+  `Application navigation passed: ${roles.length * views.length} role/view routes, every canonical venue/unit and property, invalid/legacy property and venue fallbacks, scoped owner expenses, venue setup and viewing inbox/return, all valid property return origins, all service modes, strict catalogue IDs, query limits, defaults and entry-mode preservation.`,
 );

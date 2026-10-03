@@ -28,6 +28,7 @@ import "./document-view-check";
 import "./rent-record-state-check";
 import "./rent-history-check";
 import "./rent-draft-check";
+import "./expense-state-check";
 import "./property-operations-summary-check";
 import "./operations-record-navigation-check";
 import "./property-insights-check";
