@@ -106,7 +106,7 @@ export const maintenanceFr = {
   maintenance_noMatches: "Aucune demande ne correspond à ces filtres",
   maintenance_noRecords:
     "Aucun registre d’entretien dans cet espace de travail",
-  maintenance_resetFilters: "Réinitialiser les filtres",
+  maintenance_resetFilters: "Réinitialiser la recherche, les filtres et le tri",
   maintenance_statusNew: "Nouvelle",
   maintenance_statusScheduled: "Planifiée",
   maintenance_statusProgress: "En cours",

@@ -100,7 +100,7 @@ export const maintenanceEn = {
   maintenance_noRequests: "No requests",
   maintenance_noMatches: "No requests match these filters",
   maintenance_noRecords: "No maintenance records in this workspace",
-  maintenance_resetFilters: "Reset filters",
+  maintenance_resetFilters: "Reset search, filters and sort",
   maintenance_statusNew: "New",
   maintenance_statusScheduled: "Scheduled",
   maintenance_statusProgress: "In progress",

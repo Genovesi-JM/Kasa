@@ -10,11 +10,14 @@ import {
   hasMaintenanceReportDraft,
   maintenanceReportDraft,
   maintenanceReportIssues,
+  maintenanceView,
   maintenanceScheduleIssues,
   maintenanceNoteIssue,
   scheduleMaintenanceVisit,
+  resetMaintenanceFilters,
   submitMaintenanceReport,
   updateMaintenanceReportDraft,
+  updateMaintenanceView,
   validateMaintenanceReport,
   validateMaintenanceSchedule,
   visibleMaintenanceRecords,
@@ -598,6 +601,232 @@ for (const state of [draftScheduled, draftStarted, draftResolved]) {
   assert.deepEqual(maintenanceReportDraft(state, "landlord"), ownerPrivate);
 }
 assert.deepEqual(createInitialMaintenanceState().reportDrafts, {});
+
+// Layout and filters remain private to each workspace and detached from caller objects.
+const defaultMaintenanceView = {
+  layout: "Board",
+  filters: createMaintenanceFilters(),
+};
+for (const role of ["tenant", "landlord"] as const) {
+  assert.deepEqual(maintenanceView(initial, role), defaultMaintenanceView);
+  const viewCopy = maintenanceView(initial, role);
+  assert.notEqual(viewCopy, initial.views[role]);
+  assert.notEqual(viewCopy.filters, initial.views[role].filters);
+  viewCopy.layout = "List";
+  viewCopy.filters.query = "Cannot mutate through getter";
+  assert.deepEqual(maintenanceView(initial, role), defaultMaintenanceView);
+  const freshView = createInitialMaintenanceState().views[role];
+  assert.notEqual(freshView, initial.views[role]);
+  assert.notEqual(freshView.filters, initial.views[role].filters);
+}
+assert.notEqual(initial.views.tenant, initial.views.landlord);
+assert.notEqual(initial.views.tenant.filters, initial.views.landlord.filters);
+const retainedFilters = {
+  query: "  balcony  ",
+  status: "Resolved",
+  priority: "Urgent",
+  category: "Plumbing",
+  property: "1",
+  sort: "Scheduled visit",
+};
+const filteredTenant = updateMaintenanceView(bothDrafts, "tenant", {
+  layout: "List",
+  filters: retainedFilters,
+});
+retainedFilters.query = "Changed caller object";
+assert.equal(
+  maintenanceView(filteredTenant, "tenant").filters.query,
+  "  balcony  ",
+);
+assert.equal(filteredTenant.views.landlord, bothDrafts.views.landlord);
+assert.equal(filteredTenant.records, bothDrafts.records);
+assert.equal(filteredTenant.reportDrafts, bothDrafts.reportDrafts);
+assert.deepEqual(maintenanceView(bothDrafts, "tenant"), defaultMaintenanceView);
+const filteredBoth = updateMaintenanceView(filteredTenant, "landlord", {
+  layout: "List",
+  filters: {
+    query: "owner search",
+    status: "In progress",
+    category: "AC",
+    priority: "Low",
+    sort: "Oldest unresolved",
+    property: "1",
+  },
+});
+assert.equal(filteredBoth.views.tenant, filteredTenant.views.tenant);
+assert.equal(
+  maintenanceView(filteredBoth, "landlord").filters.query,
+  "owner search",
+);
+assert.equal(
+  updateMaintenanceView(
+    filteredBoth,
+    "tenant",
+    maintenanceView(filteredBoth, "tenant"),
+  ),
+  filteredBoth,
+);
+assert.equal(updateMaintenanceView(filteredBoth, "tenant", {}), filteredBoth);
+const boundedQuery = updateMaintenanceView(filteredBoth, "tenant", {
+  filters: { query: "q".repeat(201) },
+});
+assert.equal(
+  maintenanceView(boundedQuery, "tenant").filters.query,
+  "q".repeat(200),
+);
+for (const query of ["", "one ", "  several words  "])
+  assert.equal(
+    maintenanceView(
+      updateMaintenanceView(filteredBoth, "tenant", { filters: { query } }),
+      "tenant",
+    ).filters.query,
+    query,
+  );
+type MaintenanceViewPatch = Parameters<typeof updateMaintenanceView>[2];
+for (const patch of [
+  { layout: "board" },
+  { layout: "Table" },
+  { filters: { query: 123 } },
+  { filters: { status: "Completed" } },
+  { filters: { priority: "Critical" } },
+  { filters: { category: "Cleaning" } },
+  { filters: { sort: "Alphabetical" } },
+  { filters: { property: "2" } },
+  { filters: { property: "01" } },
+  { filters: { property: 1 } },
+  { filters: { unexpected: "ignored" } },
+] as unknown as MaintenanceViewPatch[])
+  assert.equal(
+    updateMaintenanceView(filteredBoth, "tenant", patch),
+    filteredBoth,
+  );
+const mixedViewPatch = updateMaintenanceView(filteredBoth, "tenant", {
+  layout: "invalid",
+  filters: {
+    query: "new query",
+    status: "New",
+    priority: "invalid",
+    property: "2",
+  },
+} as unknown as MaintenanceViewPatch);
+assert.equal(maintenanceView(mixedViewPatch, "tenant").layout, "List");
+assert.deepEqual(maintenanceView(mixedViewPatch, "tenant").filters, {
+  ...maintenanceView(filteredBoth, "tenant").filters,
+  query: "new query",
+  status: "New",
+});
+for (const [field, values] of [
+  ["status", ["All statuses", "New", "Scheduled", "In progress", "Resolved"]],
+  ["priority", ["All priorities", "Low", "Medium", "Urgent"]],
+  [
+    "category",
+    ["All categories", "Plumbing", "AC", "Electrical", "General repair"],
+  ],
+  [
+    "sort",
+    ["Urgent first", "Newest reported", "Oldest unresolved", "Scheduled visit"],
+  ],
+  ["property", ["All properties", "1"]],
+] as const)
+  for (const value of values)
+    assert.equal(
+      maintenanceView(
+        updateMaintenanceView(filteredBoth, "tenant", {
+          filters: { [field]: value },
+        }),
+        "tenant",
+      ).filters[field],
+      value,
+    );
+for (const role of ["provider", "spaceOperator", "admin"] as const) {
+  assert.deepEqual(maintenanceView(filteredBoth, role), defaultMaintenanceView);
+  assert.equal(
+    updateMaintenanceView(filteredBoth, role, {
+      layout: "List",
+      filters: { query: "private" },
+    }),
+    filteredBoth,
+  );
+  assert.equal(resetMaintenanceFilters(filteredBoth, role), filteredBoth);
+}
+const resetTenant = resetMaintenanceFilters(filteredBoth, "tenant");
+assert.deepEqual(maintenanceView(resetTenant, "tenant"), {
+  layout: "List",
+  filters: createMaintenanceFilters(),
+});
+assert.equal(resetTenant.views.landlord, filteredBoth.views.landlord);
+assert.equal(resetTenant.records, filteredBoth.records);
+assert.equal(resetTenant.reportDrafts, filteredBoth.reportDrafts);
+assert.equal(resetMaintenanceFilters(resetTenant, "tenant"), resetTenant);
+
+// Ordinary edits/transitions preserve views; only successful report submission resets actor filters.
+const changedDraftWithView = updateMaintenanceReportDraft(
+  filteredBoth,
+  "tenant",
+  { title: "Updated private draft" },
+);
+assert.equal(changedDraftWithView.views, filteredBoth.views);
+assert.equal(
+  discardMaintenanceReportDraft(filteredBoth, "tenant").views,
+  filteredBoth.views,
+);
+const addedWithViews = addMaintenanceReport(
+  filteredBoth,
+  "tenant",
+  report,
+  now,
+);
+assert.equal(addedWithViews.views, filteredBoth.views);
+const scheduledWithViews = scheduleMaintenanceVisit(
+  addedWithViews,
+  "landlord",
+  addedWithViews.records[0].id,
+  futureVisit,
+  now,
+);
+const startedWithViews = changeMaintenanceStatus(
+  scheduledWithViews,
+  "landlord",
+  addedWithViews.records[0].id,
+  { type: "start" },
+  now,
+);
+assert.equal(scheduledWithViews.views, filteredBoth.views);
+assert.equal(startedWithViews.views, filteredBoth.views);
+const invalidWithViews = updateMaintenanceReportDraft(filteredBoth, "tenant", {
+  title: "",
+});
+assert.equal(
+  submitMaintenanceReport(invalidWithViews, "tenant", now).state,
+  invalidWithViews,
+);
+for (const role of ["tenant", "landlord"] as const) {
+  const otherRole = role === "tenant" ? "landlord" : "tenant";
+  const submittedWithView = submitMaintenanceReport(filteredBoth, role, now);
+  assert.ok(submittedWithView.recordId);
+  assert.deepEqual(maintenanceView(submittedWithView.state, role), {
+    layout: "List",
+    filters: createMaintenanceFilters(),
+  });
+  assert.equal(
+    submittedWithView.state.views[otherRole],
+    filteredBoth.views[otherRole],
+  );
+  assert.equal(
+    submittedWithView.state.reportDrafts[otherRole],
+    filteredBoth.reportDrafts[otherRole],
+  );
+  assert.ok(
+    filterMaintenanceRecords(
+      visibleMaintenanceRecords(submittedWithView.state, role),
+      maintenanceView(submittedWithView.state, role).filters,
+    ).some((item) => item.id === submittedWithView.recordId),
+  );
+  assert.equal(
+    submitMaintenanceReport(submittedWithView.state, role, now).state,
+    submittedWithView.state,
+  );
+}
 console.log(
-  "Maintenance checks passed: private retained report drafts, guarded submission, report/schedule validation, structured issues, property/tenant scope, work-preserving visit updates, duplicate no-ops, explicit transitions, history and chronological filters.",
+  "Maintenance checks passed: scoped retained drafts/layout/filters, guarded submission and actor-only filter reset, report/schedule validation, structured issues, property/tenant scope, work-preserving visit updates, duplicate no-ops, explicit transitions, history and chronological filters.",
 );

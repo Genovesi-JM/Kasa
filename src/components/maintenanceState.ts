@@ -68,6 +68,7 @@ export interface MaintenanceRecord {
 export interface MaintenanceState {
   records: MaintenanceRecord[];
   nextId: number;
+  views: Record<MaintenanceReporterRole, MaintenanceView>;
   reportDrafts: Partial<
     Record<MaintenanceReporterRole, MaintenanceReportDraft>
   >;
@@ -119,6 +120,10 @@ export interface MaintenanceFilters {
   category: string;
   property: string;
   sort: string;
+}
+export interface MaintenanceView {
+  layout: "Board" | "List";
+  filters: MaintenanceFilters;
 }
 export type MaintenanceAction =
   | { type: "start" }
@@ -251,6 +256,10 @@ export function createInitialMaintenanceState(): MaintenanceState {
   ];
   return {
     nextId: Math.max(...maintenance.map((request) => request.id)) + 1,
+    views: {
+      tenant: createMaintenanceView(),
+      landlord: createMaintenanceView(),
+    },
     reportDrafts: {},
     records: maintenance.map((request, index) => {
       const home = homes.find((item) => item.title === request.property)!;
@@ -398,7 +407,10 @@ export function submitMaintenanceReport(
   const next = addMaintenanceReport(state, role, draft, now);
   if (next === state) return { state, recordId: null, issues };
   return {
-    state: discardMaintenanceReportDraft(next, role),
+    state: resetMaintenanceFilters(
+      discardMaintenanceReportDraft(next, role),
+      role,
+    ),
     recordId: state.nextId,
     issues: {},
   };
@@ -601,6 +613,81 @@ export function createMaintenanceFilters(): MaintenanceFilters {
     property: "All properties",
     sort: "Urgent first",
   };
+}
+
+function createMaintenanceView(): MaintenanceView {
+  return { layout: "Board", filters: createMaintenanceFilters() };
+}
+
+/** View preferences are private to each workspace and detached from retained state. */
+export function maintenanceView(
+  state: MaintenanceState,
+  role: Role,
+): MaintenanceView {
+  if (!canRetainMaintenanceReport(role)) return createMaintenanceView();
+  const view = state.views[role];
+  return { layout: view.layout, filters: { ...view.filters } };
+}
+
+export function updateMaintenanceView(
+  state: MaintenanceState,
+  role: Role,
+  patch: {
+    layout?: MaintenanceView["layout"];
+    filters?: Partial<MaintenanceFilters>;
+  },
+): MaintenanceState {
+  if (!canRetainMaintenanceReport(role) || !patch || typeof patch !== "object")
+    return state;
+  const current = state.views[role];
+  const next = maintenanceView(state, role);
+  if (patch.layout === "Board" || patch.layout === "List")
+    next.layout = patch.layout;
+  if (patch.filters && typeof patch.filters === "object") {
+    const allowed: Record<
+      Exclude<keyof MaintenanceFilters, "query">,
+      readonly string[]
+    > = {
+      status: ["All statuses", ...maintenanceStatuses],
+      priority: ["All priorities", ...maintenancePriorities],
+      category: ["All categories", ...maintenanceCategories],
+      property: [
+        "All properties",
+        ...maintenanceHomesForRole(role).map((home) => String(home.id)),
+      ],
+      sort: [
+        "Urgent first",
+        "Newest reported",
+        "Oldest unresolved",
+        "Scheduled visit",
+      ],
+    };
+    for (const field of Object.keys(next.filters) as Array<
+      keyof MaintenanceFilters
+    >) {
+      const value = patch.filters[field];
+      if (typeof value !== "string") continue;
+      if (field === "query") next.filters.query = value.slice(0, 200);
+      else if (allowed[field].includes(value)) next.filters[field] = value;
+    }
+  }
+  if (
+    current.layout === next.layout &&
+    (Object.keys(current.filters) as Array<keyof MaintenanceFilters>).every(
+      (field) => current.filters[field] === next.filters[field],
+    )
+  )
+    return state;
+  return { ...state, views: { ...state.views, [role]: next } };
+}
+
+export function resetMaintenanceFilters(
+  state: MaintenanceState,
+  role: Role,
+): MaintenanceState {
+  return updateMaintenanceView(state, role, {
+    filters: createMaintenanceFilters(),
+  });
 }
 
 export function filterMaintenanceRecords(

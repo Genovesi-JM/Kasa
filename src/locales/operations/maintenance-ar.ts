@@ -99,7 +99,7 @@ export const maintenanceAr = {
   maintenance_noRequests: "لا توجد طلبات",
   maintenance_noMatches: "لا توجد طلبات تطابق عوامل التصفية هذه",
   maintenance_noRecords: "لا توجد سجلات صيانة في مساحة العمل هذه",
-  maintenance_resetFilters: "إعادة ضبط عوامل التصفية",
+  maintenance_resetFilters: "إعادة ضبط البحث والتصفية والترتيب",
   maintenance_statusNew: "جديد",
   maintenance_statusScheduled: "مجدول",
   maintenance_statusProgress: "قيد التنفيذ",

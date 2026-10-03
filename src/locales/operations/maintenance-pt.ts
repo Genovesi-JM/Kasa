@@ -103,7 +103,7 @@ export const maintenancePt = {
   maintenance_noRequests: "Sem pedidos",
   maintenance_noMatches: "Nenhum pedido corresponde a estes filtros",
   maintenance_noRecords: "Não há registos de manutenção nesta área de trabalho",
-  maintenance_resetFilters: "Limpar filtros",
+  maintenance_resetFilters: "Repor pesquisa, filtros e ordenação",
   maintenance_statusNew: "Novo",
   maintenance_statusScheduled: "Agendado",
   maintenance_statusProgress: "Em curso",

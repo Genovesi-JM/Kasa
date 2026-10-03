@@ -30,12 +30,15 @@ import {
   maintenanceHomesForRole,
   maintenancePriorities,
   maintenanceStatuses,
+  maintenanceView,
+  resetMaintenanceFilters,
   scheduleMaintenanceVisit,
   maintenanceReportDraft,
   maintenanceScheduleIssues,
   maintenanceNoteIssue,
   submitMaintenanceReport,
   updateMaintenanceReportDraft,
+  updateMaintenanceView,
   visibleMaintenanceRecords,
   type MaintenanceAction,
   type MaintenanceFilters,
@@ -873,15 +876,13 @@ export function Maintenance({
 }) {
   const { tr, locale } = useOperationsI18n();
   const { dateLabel } = maintenanceFormatters(locale);
-  const [view, setView] = useState<"Board" | "List">("Board");
-  const [filters, setFilters] = useState<MaintenanceFilters>(
-    createMaintenanceFilters,
-  );
+  const { layout: view, filters } = maintenanceView(state, role);
   const [reporting, setReporting] = useState(false);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [feedback, setFeedback] = useState<OperationsKey | null>(null);
   const base = visibleMaintenanceRecords(state, role);
   const reportActionRef = useRef<HTMLButtonElement>(null);
+  const searchRef = useRef<HTMLInputElement>(null);
   const hasReportDraft = hasMaintenanceReportDraft(state, role);
   const visible = filterMaintenanceRecords(base, filters, (record) =>
     [
@@ -893,13 +894,20 @@ export function Maintenance({
   const homes = maintenanceHomesForRole(role);
   const selected = base.find((record) => record.id === selectedId);
   const updateFilter = (key: keyof MaintenanceFilters, value: string) =>
-    setFilters((current) => ({ ...current, [key]: value }));
-  const activeFilters =
-    Number(Boolean(filters.query.trim())) +
+    setState((current) =>
+      updateMaintenanceView(current, role, { filters: { [key]: value } }),
+    );
+  const resetFilters = () => {
+    setState((current) => resetMaintenanceFilters(current, role));
+    requestAnimationFrame(() => searchRef.current?.focus());
+  };
+  const changedControls =
+    Number(Boolean(filters.query)) +
     Number(filters.status !== "All statuses") +
     Number(filters.priority !== "All priorities") +
     Number(filters.category !== "All categories") +
-    Number(filters.property !== "All properties");
+    Number(filters.property !== "All properties") +
+    Number(filters.sort !== createMaintenanceFilters().sort);
   const openCount = base.filter(
     (record) => record.status !== "Resolved",
   ).length;
@@ -949,7 +957,11 @@ export function Maintenance({
               key={mode}
               className={view === mode ? "active" : ""}
               aria-pressed={view === mode}
-              onClick={() => setView(mode)}
+              onClick={() =>
+                setState((current) =>
+                  updateMaintenanceView(current, role, { layout: mode }),
+                )
+              }
             >
               {tr(maintenanceViewKeys[mode])}
             </button>
@@ -1034,8 +1046,10 @@ export function Maintenance({
           <label className="filter-search">
             <Search size={15} aria-hidden="true" />
             <input
+              ref={searchRef}
               aria-label={tr("maintenance_search")}
               placeholder={tr("maintenance_searchPlaceholder")}
+              maxLength={200}
               value={filters.query}
               onChange={(event) => updateFilter("query", event.target.value)}
             />
@@ -1110,13 +1124,14 @@ export function Maintenance({
             ))}
           </select>
         </div>
-        {activeFilters > 0 && (
+        {changedControls > 0 && (
           <button
             type="button"
             className="text-button"
-            onClick={() => setFilters(createMaintenanceFilters())}
+            aria-label={tr("maintenance_resetFilters")}
+            onClick={resetFilters}
           >
-            {tr("maintenance_resetActive", { count: activeFilters })}
+            {tr("maintenance_resetActive", { count: changedControls })}
           </button>
         )}
       </div>
@@ -1212,11 +1227,11 @@ export function Maintenance({
               homes.length ? "maintenance_noMatches" : "maintenance_noRecords",
             )}
           </h3>
-          {activeFilters > 0 && (
+          {changedControls > 0 && (
             <button
               type="button"
               className="button button-secondary"
-              onClick={() => setFilters(createMaintenanceFilters())}
+              onClick={resetFilters}
             >
               {tr("maintenance_resetFilters")}
             </button>
@@ -1235,7 +1250,6 @@ export function Maintenance({
           }}
           onCreate={(recordId) => {
             setReporting(false);
-            setFilters(createMaintenanceFilters());
             setSelectedId(recordId);
             setFeedback("maintenance_recorded");
           }}

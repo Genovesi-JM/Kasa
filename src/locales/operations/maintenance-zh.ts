@@ -96,7 +96,7 @@ export const maintenanceZh = {
   maintenance_noRequests: "暂无请求",
   maintenance_noMatches: "没有符合这些筛选条件的请求",
   maintenance_noRecords: "此工作区暂无维护记录",
-  maintenance_resetFilters: "重置筛选",
+  maintenance_resetFilters: "重置搜索、筛选和排序",
   maintenance_statusNew: "新请求",
   maintenance_statusScheduled: "已安排",
   maintenance_statusProgress: "处理中",
