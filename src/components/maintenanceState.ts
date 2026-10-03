@@ -573,12 +573,21 @@ export function changeMaintenanceStatus(
     );
   }
   if (action.type === "cancel-visit") {
-    if (record.status !== "Scheduled") return state;
+    if (
+      !record.visit ||
+      (record.status !== "Scheduled" && record.status !== "In progress")
+    )
+      return state;
     return replaceRecord(
       state,
       record,
-      { status: "New", visit: undefined },
-      "Scheduled visit removed locally; request returned to New.",
+      {
+        status: record.status === "Scheduled" ? "New" : "In progress",
+        visit: undefined,
+      },
+      record.status === "Scheduled"
+        ? "Scheduled visit removed locally; request returned to New."
+        : "Recorded visit removed locally; work remains in progress.",
       now,
     );
   }

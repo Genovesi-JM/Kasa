@@ -66,8 +66,7 @@ export const maintenanceFr = {
   maintenance_removeVisit: "Retirer la visite",
   maintenance_resolveRequest: "Résoudre la demande",
   maintenance_started: "Travaux marqués localement comme en cours.",
-  maintenance_visitRemoved:
-    "Visite retirée. La demande est revenue au statut Nouvelle.",
+  maintenance_visitRemoved: "Visite retirée de ce dossier.",
   maintenance_visitSaved:
     "Visite enregistrée localement. Le prestataire n’a pas été contacté.",
   maintenance_resolved: "Demande marquée localement comme résolue.",

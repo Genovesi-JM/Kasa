@@ -62,7 +62,7 @@ export const maintenanceEn = {
   maintenance_removeVisit: "Remove visit",
   maintenance_resolveRequest: "Resolve request",
   maintenance_started: "Work marked in progress locally.",
-  maintenance_visitRemoved: "Visit removed. The request is back in New.",
+  maintenance_visitRemoved: "Visit removed from this record.",
   maintenance_visitSaved:
     "Visit saved locally. The provider has not been contacted.",
   maintenance_resolved: "Request marked resolved locally.",

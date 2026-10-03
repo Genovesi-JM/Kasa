@@ -59,7 +59,7 @@ export const maintenanceZh = {
   maintenance_removeVisit: "移除上门安排",
   maintenance_resolveRequest: "解决请求",
   maintenance_started: "已在本地标记为处理中。",
-  maintenance_visitRemoved: "已移除上门安排。请求已恢复为新请求。",
+  maintenance_visitRemoved: "已从此记录中移除上门安排。",
   maintenance_visitSaved: "已在本地保存上门安排。未联系服务商。",
   maintenance_resolved: "已在本地将请求标记为已解决。",
   maintenance_reopened: "已在本地重新打开请求。",

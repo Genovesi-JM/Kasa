@@ -783,17 +783,19 @@ function RequestDetail({
                 {tr("maintenance_startWork")}
               </button>
             )}
-            {record.status === "Scheduled" && (
-              <button
-                type="button"
-                className="button button-secondary"
-                onClick={() =>
-                  act({ type: "cancel-visit" }, "maintenance_visitRemoved")
-                }
-              >
-                {tr("maintenance_removeVisit")}
-              </button>
-            )}
+            {(record.status === "Scheduled" ||
+              record.status === "In progress") &&
+              record.visit && (
+                <button
+                  type="button"
+                  className="button button-secondary"
+                  onClick={() =>
+                    act({ type: "cancel-visit" }, "maintenance_visitRemoved")
+                  }
+                >
+                  {tr("maintenance_removeVisit")}
+                </button>
+              )}
             {record.status === "In progress" && (
               <button
                 ref={primaryActionRef}

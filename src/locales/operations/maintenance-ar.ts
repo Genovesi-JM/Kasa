@@ -62,7 +62,7 @@ export const maintenanceAr = {
   maintenance_removeVisit: "إزالة الزيارة",
   maintenance_resolveRequest: "حل الطلب",
   maintenance_started: "حُدّد العمل محليًا بأنه قيد التنفيذ.",
-  maintenance_visitRemoved: "أُزيلت الزيارة. عاد الطلب إلى حالة جديد.",
+  maintenance_visitRemoved: "أُزيلت الزيارة من هذا السجل.",
   maintenance_visitSaved: "حُفظت الزيارة محليًا. لم يُتصل بمقدم الخدمة.",
   maintenance_resolved: "حُدّد الطلب محليًا بأنه محلول.",
   maintenance_reopened: "أُعيد فتح الطلب محليًا.",

@@ -23,6 +23,7 @@ import {
   visibleMaintenanceRecords,
   type MaintenanceReportDraft,
 } from "../src/components/maintenanceState";
+import { buildPropertyOperationsSummary } from "../src/components/propertyOperationsSummary";
 
 const initial = createInitialMaintenanceState();
 const now = new Date(2026, 9, 2, 12, 0, 0);
@@ -793,6 +794,204 @@ const startedWithViews = changeMaintenanceStatus(
 );
 assert.equal(scheduledWithViews.views, filteredBoth.views);
 assert.equal(startedWithViews.views, filteredBoth.views);
+
+// Removing a return visit changes its arrangement, not work already under way or any private workspace state.
+const removedAt = new Date(now.getTime() + 60 * 60 * 1000);
+for (const [state, expectedStatus] of [
+  [scheduledWithViews, "New"],
+  [startedWithViews, "In progress"],
+] as const) {
+  const beforeRemoval = state.records.find(
+    (record) => record.id === addedWithViews.records[0].id,
+  )!;
+  assert.ok(beforeRemoval.visit);
+  const stateSnapshot = JSON.stringify(state);
+  const removed = changeMaintenanceStatus(
+    state,
+    "landlord",
+    beforeRemoval.id,
+    { type: "cancel-visit" },
+    removedAt,
+  );
+  assert.notEqual(removed, state);
+  const afterRemoval = removed.records.find(
+    (record) => record.id === beforeRemoval.id,
+  )!;
+  assert.deepEqual(afterRemoval, {
+    ...beforeRemoval,
+    status: expectedStatus,
+    visit: undefined,
+    updatedAt: removedAt.toISOString(),
+    history: afterRemoval.history,
+  });
+  assert.equal(afterRemoval.history.length, beforeRemoval.history.length + 1);
+  assert.deepEqual(afterRemoval.history.slice(0, -1), beforeRemoval.history);
+  assert.equal(afterRemoval.history.at(-1)!.actor, "Property owner");
+  assert.equal(afterRemoval.history.at(-1)!.at, removedAt.toISOString());
+  assert.match(afterRemoval.history.at(-1)!.description, /removed/i);
+  assert.equal(
+    new Set(afterRemoval.history.map((event) => event.id)).size,
+    afterRemoval.history.length,
+  );
+  assert.equal(removed.views, state.views);
+  assert.equal(removed.reportDrafts, state.reportDrafts);
+  assert.equal(removed.nextId, state.nextId);
+  for (const other of state.records.filter(
+    (record) => record.id !== beforeRemoval.id,
+  ))
+    assert.equal(
+      removed.records.find((record) => record.id === other.id),
+      other,
+    );
+  assert.equal(JSON.stringify(state), stateSnapshot);
+  assert.equal(
+    changeMaintenanceStatus(
+      removed,
+      "landlord",
+      beforeRemoval.id,
+      { type: "cancel-visit" },
+      removedAt,
+    ),
+    removed,
+    "Removing an absent visit cannot append another event",
+  );
+  for (const role of ["tenant", "provider", "spaceOperator", "admin"] as const)
+    assert.equal(
+      changeMaintenanceStatus(
+        state,
+        role,
+        beforeRemoval.id,
+        { type: "cancel-visit" },
+        removedAt,
+      ),
+      state,
+    );
+  for (const recordId of [
+    2,
+    999,
+    String(beforeRemoval.id) as unknown as number,
+  ])
+    assert.equal(
+      changeMaintenanceStatus(
+        state,
+        "landlord",
+        recordId,
+        { type: "cancel-visit" },
+        removedAt,
+      ),
+      state,
+    );
+  for (const role of ["tenant", "landlord"] as const) {
+    const summary = (maintenanceState: typeof state) =>
+      buildPropertyOperationsSummary({
+        role,
+        maintenanceState,
+        applicationState: { records: [] },
+        rentState: { records: [] },
+        now,
+      });
+    assert.ok(
+      summary(state).nextVisits.some(
+        (visit) => visit.record.id === beforeRemoval.id,
+      ),
+    );
+    assert.equal(
+      summary(removed).nextVisits.some(
+        (visit) => visit.record.id === beforeRemoval.id,
+      ),
+      false,
+    );
+    assert.equal(
+      summary(removed).openMaintenanceCount,
+      summary(state).openMaintenanceCount,
+    );
+  }
+  if (expectedStatus === "In progress") {
+    assert.equal(
+      changeMaintenanceStatus(
+        removed,
+        "landlord",
+        beforeRemoval.id,
+        { type: "start" },
+        removedAt,
+      ),
+      removed,
+    );
+    const arrangedAgain = scheduleMaintenanceVisit(
+      removed,
+      "landlord",
+      beforeRemoval.id,
+      revisedVisit,
+      removedAt,
+    );
+    assert.equal(
+      arrangedAgain.records.find((record) => record.id === beforeRemoval.id)!
+        .status,
+      "In progress",
+    );
+    assert.deepEqual(
+      arrangedAgain.records.find((record) => record.id === beforeRemoval.id)!
+        .visit,
+      revisedVisit,
+    );
+    const resolvedWithoutVisit = changeMaintenanceStatus(
+      removed,
+      "landlord",
+      beforeRemoval.id,
+      {
+        type: "resolve",
+        note: "The repair was completed without another visit.",
+      },
+      removedAt,
+    );
+    assert.equal(
+      resolvedWithoutVisit.records.find(
+        (record) => record.id === beforeRemoval.id,
+      )!.status,
+      "Resolved",
+    );
+  }
+}
+for (const status of ["New", "Resolved"] as const) {
+  const invalidStatus = {
+    ...scheduledWithViews,
+    records: scheduledWithViews.records.map((record) =>
+      record.id === addedWithViews.records[0].id
+        ? { ...record, status }
+        : record,
+    ),
+  };
+  assert.equal(
+    changeMaintenanceStatus(
+      invalidStatus,
+      "landlord",
+      addedWithViews.records[0].id,
+      { type: "cancel-visit" },
+      removedAt,
+    ),
+    invalidStatus,
+  );
+}
+for (const status of ["Scheduled", "In progress"] as const) {
+  const noVisit = {
+    ...scheduledWithViews,
+    records: scheduledWithViews.records.map((record) =>
+      record.id === addedWithViews.records[0].id
+        ? { ...record, status, visit: undefined }
+        : record,
+    ),
+  };
+  assert.equal(
+    changeMaintenanceStatus(
+      noVisit,
+      "landlord",
+      addedWithViews.records[0].id,
+      { type: "cancel-visit" },
+      removedAt,
+    ),
+    noVisit,
+  );
+}
 const invalidWithViews = updateMaintenanceReportDraft(filteredBoth, "tenant", {
   title: "",
 });
@@ -828,5 +1027,5 @@ for (const role of ["tenant", "landlord"] as const) {
   );
 }
 console.log(
-  "Maintenance checks passed: scoped retained drafts/layout/filters, guarded submission and actor-only filter reset, report/schedule validation, structured issues, property/tenant scope, work-preserving visit updates, duplicate no-ops, explicit transitions, history and chronological filters.",
+  "Maintenance checks passed: scoped retained drafts/layout/filters, guarded submission and actor-only filter reset, report/schedule validation, structured issues, property/tenant scope, work-preserving visit updates/removal, duplicate no-ops, explicit transitions, history and chronological filters.",
 );
