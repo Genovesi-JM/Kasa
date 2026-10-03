@@ -102,4 +102,20 @@ export const expenseAr = {
   expenses_csvCreatedAt: "تاريخ الإنشاء",
   expenses_csvUpdatedAt: "تاريخ التعديل",
   expenses_csvRevision: "المراجعة",
+  expenses_insightsIntro:
+    "راجع سجلات الإيجار والمصروفات المحفوظة كلًّا على حدة للشهر المحدد. تأتي هذه المبالغ من السجلات الموجودة في علامة التبويب هذه.",
+  expenses_recordedMonth: "الشهر المسجل",
+  expenses_recordedRentPeriods: "فترات الإيجار المسجلة",
+  expenses_noRentRecords: "لا توجد سجلات إيجار",
+  expenses_noMonthlyRent:
+    "لا توجد سجلات إيجار لهذا الشهر. لا يعني خلو الشهر من السجلات وجود إيجار غير مدفوع أو عقار شاغر.",
+  expenses_monthlyExpenses: "المصروفات الشهرية",
+  expenses_savedCount: "سجلات المصروفات المحفوظة",
+  expenses_savedTotal: "إجمالي المصروفات المحفوظة",
+  expenses_insightsScope:
+    "المصروفات المحفوظة لهذا الشهر، بغض النظر عن مرشحات قائمة المصروفات. لا تشمل المسودات الخاصة أو السجلات المحذوفة.",
+  expenses_noMonthlyExpenses: "لا توجد مصروفات محفوظة لهذا الشهر.",
+  expenses_byCategory: "المصروفات حسب الفئة",
+  expenses_openAll: "فتح جميع سجلات المصروفات",
+  expenses_noSavedExpenses: "لا توجد مصروفات محفوظة",
 } satisfies ExpenseDictionary;

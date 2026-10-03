@@ -109,4 +109,20 @@ export const expenseEs = {
   expenses_csvCreatedAt: "Creado el",
   expenses_csvUpdatedAt: "Actualizado el",
   expenses_csvRevision: "Revisión",
+  expenses_insightsIntro:
+    "Consulte por separado los registros de alquileres y gastos guardados para el mes seleccionado. Los importes proceden de los registros de esta pestaña.",
+  expenses_recordedMonth: "Mes registrado",
+  expenses_recordedRentPeriods: "Periodos de alquiler registrados",
+  expenses_noRentRecords: "Sin registros de alquiler",
+  expenses_noMonthlyRent:
+    "No hay registros de alquiler para este mes. Un mes vacío no demuestra impagos ni que una vivienda esté desocupada.",
+  expenses_monthlyExpenses: "Gastos mensuales",
+  expenses_savedCount: "Registros de gastos guardados",
+  expenses_savedTotal: "Total de gastos guardados",
+  expenses_insightsScope:
+    "Gastos guardados para este mes, independientemente de los filtros de la lista de gastos. Se excluyen los borradores privados y los registros eliminados.",
+  expenses_noMonthlyExpenses: "No hay gastos guardados para este mes.",
+  expenses_byCategory: "Gastos por categoría",
+  expenses_openAll: "Abrir todos los registros de gastos",
+  expenses_noSavedExpenses: "Sin gastos guardados",
 } satisfies ExpenseDictionary;

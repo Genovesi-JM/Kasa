@@ -109,4 +109,20 @@ export const expenseFr = {
   expenses_csvCreatedAt: "Créé le",
   expenses_csvUpdatedAt: "Modifié le",
   expenses_csvRevision: "Révision",
+  expenses_insightsIntro:
+    "Consultez séparément les loyers et les dépenses enregistrés pour le mois sélectionné. Les montants proviennent des données de cet onglet.",
+  expenses_recordedMonth: "Mois enregistré",
+  expenses_recordedRentPeriods: "Périodes de loyer enregistrées",
+  expenses_noRentRecords: "Aucun loyer enregistré",
+  expenses_noMonthlyRent:
+    "Aucun loyer n’est enregistré pour ce mois. Un mois vide ne signifie pas que le loyer est impayé ou que le logement est vacant.",
+  expenses_monthlyExpenses: "Dépenses mensuelles",
+  expenses_savedCount: "Dépenses enregistrées",
+  expenses_savedTotal: "Total des dépenses enregistrées",
+  expenses_insightsScope:
+    "Dépenses enregistrées pour ce mois, quels que soient les filtres de la liste des dépenses. Les brouillons privés et les enregistrements supprimés sont exclus.",
+  expenses_noMonthlyExpenses: "Aucune dépense enregistrée pour ce mois.",
+  expenses_byCategory: "Dépenses par catégorie",
+  expenses_openAll: "Ouvrir tous les enregistrements de dépenses",
+  expenses_noSavedExpenses: "Aucune dépense enregistrée",
 } satisfies ExpenseDictionary;

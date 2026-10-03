@@ -1,4 +1,3 @@
-import { useTranslation } from "react-i18next";
 import {
   ArrowRight,
   Building2,
@@ -9,6 +8,8 @@ import {
 import type { Property, View } from "../types";
 import type { PropertyOperationsSummary } from "./propertyOperationsSummary";
 import { buildPropertyInsights } from "./propertyInsightsSummary";
+import type { ExpenseState } from "./expenseState";
+import { useOperationsI18n } from "./useOperationsI18n";
 import "./propertyInsights.css";
 
 export function PropertyInsights({
@@ -18,6 +19,8 @@ export function PropertyInsights({
   selectedPeriod,
   onPeriodChange,
   onOpenRentPeriod,
+  expenseState,
+  onOpenAllExpenses,
 }: {
   summary: PropertyOperationsSummary;
   go: (view: View) => void;
@@ -25,22 +28,12 @@ export function PropertyInsights({
   selectedPeriod?: string;
   onPeriodChange: (period: string) => void;
   onOpenRentPeriod: (period: string) => void;
+  expenseState: ExpenseState;
+  onOpenAllExpenses: () => void;
 }) {
-  const { i18n } = useTranslation();
-  const language = i18n.resolvedLanguage || i18n.language;
+  const { language, locale, tr } = useOperationsI18n();
   const pt = language.startsWith("pt");
   const copy = (en: string, portuguese: string) => (pt ? portuguese : en);
-  const locale =
-    (
-      {
-        pt: "pt-PT",
-        en: "en-GB",
-        es: "es-ES",
-        fr: "fr-FR",
-        ar: "ar",
-        zh: "zh-CN",
-      } as Record<string, string>
-    )[language] ?? "en-GB";
   const money = (cents: number) =>
     new Intl.NumberFormat(locale, {
       style: "currency",
@@ -53,7 +46,10 @@ export function PropertyInsights({
       month: "long",
       year: "numeric",
     });
-  const data = buildPropertyInsights(summary, selectedPeriod);
+  const data = buildPropertyInsights(summary, selectedPeriod, expenseState);
+  const expensesByProperty = new Map(
+    data.expenses.byProperty.map((row) => [row.propertyId, row]),
+  );
   const open = (view: View) =>
     view === "rent" ? onOpenRentPeriod(data.period) : go(view);
   const highestAmount = Math.max(1, ...data.history.map((row) => row.dueCents));
@@ -102,15 +98,10 @@ export function PropertyInsights({
               "Veja os registos e o que precisa de atenção.",
             )}
           </h2>
-          <p>
-            {copy(
-              "Amounts come from your rent records. They are not bank-verified income, property valuations or occupancy estimates.",
-              "Os valores vêm dos seus registos de renda. Não representam rendimentos verificados pelo banco, avaliações de imóveis ou estimativas de ocupação.",
-            )}
-          </p>
+          <p>{tr("expenses_insightsIntro")}</p>
         </div>
         <label>
-          {copy("Rent period", "Período da renda")}
+          {tr("expenses_recordedMonth")}
           <select
             value={data.period}
             onChange={(event) => onPeriodChange(event.target.value)}
@@ -150,12 +141,62 @@ export function PropertyInsights({
       </section>
       {!data.totals.count && (
         <p className="scope-note" role="status">
-          {copy(
-            "No rent records exist for this period. An empty period does not establish unpaid rent or a vacant property.",
-            "Não existem registos de renda para este período. Um período vazio não indica rendas em falta ou um imóvel desocupado.",
-          )}
+          {tr("expenses_noMonthlyRent")}
         </p>
       )}
+      <section
+        className="card padded insights-expenses"
+        aria-labelledby="insights-expenses-title"
+      >
+        <div className="insights-section-heading">
+          <div>
+            <h2 id="insights-expenses-title">
+              {tr("expenses_monthlyExpenses")}
+            </h2>
+            <p>{month(data.period)}</p>
+          </div>
+          <button className="text-button" onClick={onOpenAllExpenses}>
+            {tr("expenses_openAll")}
+            <ArrowRight size={16} aria-hidden="true" />
+          </button>
+        </div>
+        <p className="scope-note">{tr("expenses_insightsScope")}</p>
+        <dl className="insights-expense-totals">
+          <div>
+            <dt>{tr("expenses_savedCount")}</dt>
+            <dd>{number(data.expenses.count)}</dd>
+          </div>
+          <div>
+            <dt>{tr("expenses_savedTotal")}</dt>
+            <dd>{money(data.expenses.totalCents)}</dd>
+          </div>
+        </dl>
+        {data.expenses.count ? (
+          <table className="insights-expense-categories">
+            <caption>{tr("expenses_byCategory")}</caption>
+            <thead>
+              <tr>
+                <th scope="col">{tr("expenses_category")}</th>
+                <th scope="col">{tr("expenses_savedCount")}</th>
+                <th scope="col">{tr("expenses_savedTotal")}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.expenses.byCategory
+                .filter((row) => row.count > 0)
+                .map((row) => (
+                  <tr key={row.category}>
+                    <th scope="row">{tr(`expenses_${row.category}`)}</th>
+                    <td>{number(row.count)}</td>
+                    <td>{money(row.totalCents)}</td>
+                  </tr>
+                ))}
+            </tbody>
+          </table>
+        ) : (
+          <p>{tr("expenses_noMonthlyExpenses")}</p>
+        )}
+      </section>
       <div className="insights-columns">
         <section
           className="card padded insights-history"
@@ -164,7 +205,7 @@ export function PropertyInsights({
           <div className="insights-section-heading">
             <div>
               <h2 id="insights-history-title">
-                {copy("Recorded periods", "Períodos registados")}
+                {tr("expenses_recordedRentPeriods")}
               </h2>
               <p>
                 {copy(
@@ -197,7 +238,7 @@ export function PropertyInsights({
                     <span>
                       {row.count
                         ? money(row.dueCents)
-                        : copy("No records", "Sem registos")}
+                        : tr("expenses_noRentRecords")}
                     </span>
                   </span>
                   <span className="insights-bar" aria-hidden="true">
@@ -352,6 +393,20 @@ export function PropertyInsights({
               <div>
                 <dt>{copy("Open repairs", "Reparações em aberto")}</dt>
                 <dd>{number(row.openMaintenance)}</dd>
+              </div>
+              <div>
+                <dt>{tr("expenses_savedCount")}</dt>
+                <dd>
+                  {number(expensesByProperty.get(row.property.id)?.count ?? 0)}
+                </dd>
+              </div>
+              <div>
+                <dt>{tr("expenses_savedTotal")}</dt>
+                <dd>
+                  {expensesByProperty.get(row.property.id)?.count
+                    ? money(expensesByProperty.get(row.property.id)!.totalCents)
+                    : tr("expenses_noSavedExpenses")}
+                </dd>
               </div>
             </dl>
           </article>

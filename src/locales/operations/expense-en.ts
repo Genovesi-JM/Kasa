@@ -104,4 +104,20 @@ export const expenseEn = {
   expenses_csvCreatedAt: "Created at",
   expenses_csvUpdatedAt: "Updated at",
   expenses_csvRevision: "Revision",
+  expenses_insightsIntro:
+    "Review saved rent and expense records separately for the selected month. These amounts come from the records in this tab.",
+  expenses_recordedMonth: "Recorded month",
+  expenses_recordedRentPeriods: "Recorded rent periods",
+  expenses_noRentRecords: "No rent records",
+  expenses_noMonthlyRent:
+    "No rent records exist for this month. An empty month does not establish unpaid rent or a vacant property.",
+  expenses_monthlyExpenses: "Monthly expenses",
+  expenses_savedCount: "Saved expense records",
+  expenses_savedTotal: "Saved expense total",
+  expenses_insightsScope:
+    "Saved expenses for this month, regardless of expense-list filters. Private drafts and removed records are excluded.",
+  expenses_noMonthlyExpenses: "No saved expenses for this month.",
+  expenses_byCategory: "Expenses by category",
+  expenses_openAll: "Open all expense records",
+  expenses_noSavedExpenses: "No saved expenses",
 };

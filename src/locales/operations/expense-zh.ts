@@ -98,4 +98,20 @@ export const expenseZh = {
   expenses_csvCreatedAt: "创建时间",
   expenses_csvUpdatedAt: "更新时间",
   expenses_csvRevision: "修订版",
+  expenses_insightsIntro:
+    "分别查看所选月份已保存的租金和费用记录。这些金额来自此标签页中的记录。",
+  expenses_recordedMonth: "记录月份",
+  expenses_recordedRentPeriods: "已记录的租金月份",
+  expenses_noRentRecords: "没有租金记录",
+  expenses_noMonthlyRent:
+    "本月没有租金记录。没有记录并不代表租金未付或房屋空置。",
+  expenses_monthlyExpenses: "每月费用",
+  expenses_savedCount: "已保存的费用记录",
+  expenses_savedTotal: "已保存费用总额",
+  expenses_insightsScope:
+    "本月已保存的费用，不受费用列表筛选条件影响。不包括私人草稿和已移除的记录。",
+  expenses_noMonthlyExpenses: "本月没有已保存的费用。",
+  expenses_byCategory: "按类别查看费用",
+  expenses_openAll: "打开全部费用记录",
+  expenses_noSavedExpenses: "没有已保存的费用",
 } satisfies ExpenseDictionary;

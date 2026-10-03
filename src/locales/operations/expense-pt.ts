@@ -109,4 +109,20 @@ export const expensePt = {
   expenses_csvCreatedAt: "Criado em",
   expenses_csvUpdatedAt: "Atualizado em",
   expenses_csvRevision: "Revisão",
+  expenses_insightsIntro:
+    "Consulte separadamente os registos de rendas e despesas guardados para o mês selecionado. Os valores vêm dos registos deste separador.",
+  expenses_recordedMonth: "Mês registado",
+  expenses_recordedRentPeriods: "Períodos de renda registados",
+  expenses_noRentRecords: "Sem registos de renda",
+  expenses_noMonthlyRent:
+    "Não existem registos de renda para este mês. Um mês vazio não indica rendas em falta ou um imóvel desocupado.",
+  expenses_monthlyExpenses: "Despesas mensais",
+  expenses_savedCount: "Registos de despesas guardados",
+  expenses_savedTotal: "Total de despesas guardadas",
+  expenses_insightsScope:
+    "Despesas guardadas para este mês, independentemente dos filtros da lista de despesas. Exclui rascunhos privados e registos removidos.",
+  expenses_noMonthlyExpenses: "Sem despesas guardadas para este mês.",
+  expenses_byCategory: "Despesas por categoria",
+  expenses_openAll: "Abrir todos os registos de despesas",
+  expenses_noSavedExpenses: "Sem despesas guardadas",
 } satisfies ExpenseDictionary;

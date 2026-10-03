@@ -84,7 +84,10 @@ import {
 } from "./components/maintenanceState";
 import type { MaintenanceOpenRequest } from "./components/Maintenance";
 import { createInitialDocumentState } from "./components/documentState";
-import { createInitialExpenseState } from "./components/expenseState";
+import {
+  createInitialExpenseState,
+  updateExpenseView,
+} from "./components/expenseState";
 import { readPreference, writePreference } from "./platform/preferences";
 import { isWorkspaceListingOwner, ownsProperty } from "./propertyScope";
 import { propertyOperationStatus } from "./components/propertyOperationStatus";
@@ -6269,6 +6272,17 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
         return operationsSummary ? (
           <PropertyInsights
             summary={operationsSummary}
+            expenseState={expenseState}
+            onOpenAllExpenses={() => {
+              setExpenseState((current) =>
+                updateExpenseView(current, role, {
+                  query: "",
+                  property: "All properties",
+                  category: "All categories",
+                }),
+              );
+              go("expenses");
+            }}
             go={go}
             onOpenProperty={(property) => openProperty(property, "insights")}
             selectedPeriod={insightsPeriod}

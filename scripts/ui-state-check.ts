@@ -34,6 +34,7 @@ import "./expense-csv-check";
 import "./property-operations-summary-check";
 import "./operations-record-navigation-check";
 import "./property-insights-check";
+import "./expense-insights-check";
 import "./property-listing-state-check";
 import "./space-listing-state-check";
 import "./service-request-state-check";
