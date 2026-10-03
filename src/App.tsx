@@ -155,6 +155,7 @@ import {
 import {
   createInitialWorkState,
   openWorkOpportunities,
+  updateWorkMarketplaceView,
   type WorkState,
 } from "./components/workState";
 import { SaveSearchButton, SavedSearches } from "./components/SavedSearches";
@@ -5261,6 +5262,13 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
       if (route.view === "spaces" || route.view === "spaceVenue") {
         setSpacesDiscovery((current) =>
           updateSpacesDiscovery(current, route.role, { query: route.query }),
+        );
+      }
+      if (route.view === "services" && route.service === "jobs") {
+        setWorkState((current) =>
+          updateWorkMarketplaceView(current, route.role, {
+            query: route.query,
+          }),
         );
       }
       if (route.view === "discover" || route.view === "property") {

@@ -742,6 +742,80 @@ assert.equal(
   ).query.length,
   200,
 );
+
+// Restoring an empty history query must not reset retained Work controls or private work.
+let historyQueries = updateWorkMarketplaceView(
+  updateWorkMarketplaceView(
+    updateWorkApplicationDraft(edited, "tenant", sharedId, goodApplication),
+    "tenant",
+    {
+      query: "Electrical",
+      section: "applications",
+      type: "Full time",
+      status: "All",
+      selectedOpportunityId: sharedId,
+    },
+  ),
+  "provider",
+  { query: "Provider's separate search", type: "Freelance" },
+);
+assert.deepEqual(
+  workApplicationDraft(historyQueries, "tenant", sharedId),
+  goodApplication,
+);
+assert.equal(
+  workPostDrafts(historyQueries, "provider")[0].title,
+  goodPost.title,
+);
+for (const query of ["", "Electrical again", ""]) {
+  const before = historyQueries;
+  const beforeJson = JSON.stringify(before);
+  historyQueries = updateWorkMarketplaceView(before, "tenant", { query });
+  assert.deepEqual(workMarketplaceView(historyQueries, "tenant"), {
+    query,
+    section: "applications",
+    type: "Full time",
+    status: "All",
+    selectedOpportunityId: sharedId,
+  });
+  for (const role of [
+    "provider",
+    "landlord",
+    "spaceOperator",
+    "admin",
+  ] as const)
+    assert.equal(
+      historyQueries.marketplaceViews[role],
+      before.marketplaceViews[role],
+    );
+  for (const key of [
+    "opportunities",
+    "applications",
+    "postDrafts",
+    "removedPostDraft",
+    "applicationDrafts",
+    "hiringView",
+    "applicantView",
+    "nextPostId",
+    "nextDraftId",
+    "nextApplicationId",
+  ] as const)
+    assert.equal(
+      historyQueries[key],
+      before[key],
+      `Query restoration preserves ${key}`,
+    );
+  assert.equal(JSON.stringify(before), beforeJson);
+}
+assert.deepEqual(
+  workApplicationDraft(historyQueries, "tenant", sharedId),
+  goodApplication,
+);
+assert.equal(
+  workPostDrafts(historyQueries, "provider")[0].title,
+  goodPost.title,
+);
+
 const hiringFiltered = updateWorkHiringView(
   foreignSubmitted.state,
   "provider",
