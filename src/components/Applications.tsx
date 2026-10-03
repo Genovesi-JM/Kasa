@@ -156,8 +156,8 @@ function ApplicationDetail({
               : text("Sample record", "Registo de exemplo")}{" "}
             ·{" "}
             {text(
-              "Changes stay in this tab until reload. No documents or notifications are sent.",
-              "As alterações ficam neste separador até recarregar. Nenhum documento ou notificação é enviado.",
+              "Changes stay in this tab until reload. No documents or external notifications are sent.",
+              "As alterações ficam neste separador até recarregar. Nenhum documento ou notificação externa é enviado.",
             )}
           </p>
 

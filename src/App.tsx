@@ -132,6 +132,10 @@ import {
   reconcileSpaceBookingNotifications,
 } from "./components/spaceBookingNotifications";
 import {
+  openRentalApplicationNotification,
+  reconcileRentalApplicationNotifications,
+} from "./components/applicationNotifications";
+import {
   createInitialApplicationState,
   revealApplication,
   visibleApplicationRecords,
@@ -5004,29 +5008,41 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
   );
   const notificationState = useMemo(
     () =>
-      reconcileSpaceBookingNotifications(
-        reconcileServiceNotifications(
-          reconcileWorkNotifications(savedNotificationState, workState),
-          serviceRequestState,
+      reconcileRentalApplicationNotifications(
+        reconcileSpaceBookingNotifications(
+          reconcileServiceNotifications(
+            reconcileWorkNotifications(savedNotificationState, workState),
+            serviceRequestState,
+          ),
+          bookingsState,
         ),
-        bookingsState,
+        applicationState,
       ),
-    [savedNotificationState, workState, serviceRequestState, bookingsState],
+    [
+      savedNotificationState,
+      workState,
+      serviceRequestState,
+      bookingsState,
+      applicationState,
+    ],
   );
   const setNotificationState = useCallback(
     (update: SetStateAction<NotificationState>) => {
       setSavedNotificationState((current) => {
-        const reconciled = reconcileSpaceBookingNotifications(
-          reconcileServiceNotifications(
-            reconcileWorkNotifications(current, workState),
-            serviceRequestState,
+        const reconciled = reconcileRentalApplicationNotifications(
+          reconcileSpaceBookingNotifications(
+            reconcileServiceNotifications(
+              reconcileWorkNotifications(current, workState),
+              serviceRequestState,
+            ),
+            bookingsState,
           ),
-          bookingsState,
+          applicationState,
         );
         return typeof update === "function" ? update(reconciled) : update;
       });
     },
-    [workState, serviceRequestState, bookingsState],
+    [workState, serviceRequestState, bookingsState, applicationState],
   );
   const [mobileOpen, setMobileOpen] = useState(false);
   const [workspaceTool, setWorkspaceTool] = useState<
@@ -5641,6 +5657,15 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
   };
   const openNotification = (notification: KasaNotification) => {
     setNotificationsOpen(false);
+    if (notification.rentalApplicationEvent) {
+      const target = openRentalApplicationNotification(
+        applicationState,
+        role,
+        notification,
+      );
+      if (target) openRentalApplication(target.applicationId);
+      return;
+    }
     if (notification.spaceBookingEvent) {
       const target = openSpaceBookingNotification(
         bookingsState,

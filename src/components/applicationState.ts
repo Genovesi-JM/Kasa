@@ -84,6 +84,25 @@ export interface ApplicationEvidenceSummary {
   unreviewedResponseIds: string[];
 }
 
+export interface ApplicationActivityEvent {
+  id: string;
+  label: string;
+  at: string;
+  source: "sample" | "local";
+  actor: "tenant" | "landlord" | null;
+  action:
+    | "sample"
+    | "application-submitted"
+    | "application-reviewed"
+    | "application-approved"
+    | "evidence-requested"
+    | "evidence-response-saved"
+    | "evidence-acknowledged"
+    | "evidence-request-closed";
+  requestId?: string | null;
+  responseId?: string;
+}
+
 export interface ApplicationRecord extends Omit<
   Application,
   "score" | "submitted"
@@ -100,7 +119,7 @@ export interface ApplicationRecord extends Omit<
   evidenceResponses?: readonly ApplicationEvidenceResponse[];
   evidenceReviews?: readonly { responseId: string; at: string }[];
   evidenceClosures?: readonly { requestId: string; at: string }[];
-  activity: Array<{ id: string; label: string; at: string }>;
+  activity: ApplicationActivityEvent[];
 }
 
 export interface ApplicationState {
@@ -225,6 +244,9 @@ export function createInitialApplicationState(): ApplicationState {
       activity: [
         {
           id: `initial-${application.id}`,
+          source: "sample",
+          actor: null,
+          action: "sample",
           label:
             application.status === "Draft"
               ? "Sample draft created"
@@ -732,6 +754,11 @@ export function submitApplicationEvidence(
       ...record.activity,
       {
         id: response.id,
+        source: "local",
+        actor: "tenant",
+        action: "evidence-response-saved",
+        responseId: response.id,
+        requestId: response.requestId,
         label: `Applicant saved evidence response ${version} in this tab; no files were verified or sent`,
         at: response.submittedAt,
       },
@@ -947,6 +974,9 @@ export function submitRentalApplication(
     activity: [
       {
         id: `local-submission-${id}`,
+        source: "local",
+        actor: "tenant",
+        action: "application-submitted",
         label:
           "Rental application saved in this tab; not sent to the listing party",
         at: now.toISOString(),
@@ -979,13 +1009,18 @@ export function updateApplication(
 
   let updated: ApplicationRecord;
   let label: string;
+  let activityAction: ApplicationActivityEvent["action"];
+  let requestId: string | undefined;
+  let responseId: string | undefined;
   if (action.type === "mark-reviewed") {
     if (record.reviewed) return state;
     updated = { ...record, reviewed: true };
+    activityAction = "application-reviewed";
     label = "Owner marked this application as reviewed in this workspace";
   } else if (action.type === "approve") {
     if (!record.reviewed) return state;
     updated = { ...record, status: "Approved" };
+    activityAction = "application-approved";
     label =
       "Owner explicitly marked this application approved in this workspace";
   } else if (action.type === "acknowledge-evidence") {
@@ -998,6 +1033,8 @@ export function updateApplication(
       )
     )
       return state;
+    activityAction = "evidence-acknowledged";
+    responseId = action.responseId;
     updated = {
       ...record,
       evidenceReviews: [
@@ -1014,6 +1051,8 @@ export function updateApplication(
     const summary = applicationEvidenceSummary(record);
     if (!summary.requestOpen || summary.latestRequest!.id !== action.requestId)
       return state;
+    activityAction = "evidence-request-closed";
+    requestId = action.requestId;
     updated = {
       ...record,
       documentRequest: "",
@@ -1061,6 +1100,8 @@ export function updateApplication(
       note: action.note.trim(),
       createdAt: now.toISOString(),
     };
+    activityAction = "evidence-requested";
+    requestId = request.id;
     updated = {
       ...record,
       status: record.status === "Approved" ? "Approved" : "Documents",
@@ -1080,6 +1121,11 @@ export function updateApplication(
     ...record.activity,
     {
       id: `${record.id}-${now.getTime()}-${record.activity.length}`,
+      source: "local",
+      actor: "landlord",
+      action: activityAction,
+      ...(requestId !== undefined ? { requestId } : {}),
+      ...(responseId !== undefined ? { responseId } : {}),
       label,
       at: now.toISOString(),
     },

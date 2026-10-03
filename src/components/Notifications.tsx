@@ -41,6 +41,8 @@ const controls = {
     applicationSubmitted: "Application recorded",
     applicationWithdrawn: "Application withdrawn",
     applicationReviewed: "Application review recorded",
+    rentalEvidenceRequested: "Rental application documents requested",
+    rentalEvidenceResponseSaved: "Rental application response recorded",
     serviceRequestSubmitted: "Service request recorded",
     serviceQuoteRecorded: "Service quote recorded",
     serviceRequestDeclined: "Service request declined by provider",
@@ -69,6 +71,10 @@ const controls = {
     applicationSubmitted: "Candidatura registada",
     applicationWithdrawn: "Candidatura retirada",
     applicationReviewed: "Análise da candidatura registada",
+    rentalEvidenceRequested:
+      "Documentos pedidos para a candidatura a arrendamento",
+    rentalEvidenceResponseSaved:
+      "Resposta à candidatura a arrendamento registada",
     serviceRequestSubmitted: "Pedido de serviço registado",
     serviceQuoteRecorded: "Orçamento de serviço registado",
     serviceRequestDeclined: "Pedido de serviço recusado pelo prestador",
@@ -97,6 +103,9 @@ const controls = {
     applicationSubmitted: "Candidatura registrada",
     applicationWithdrawn: "Candidatura retirada",
     applicationReviewed: "Revisión de la candidatura registrada",
+    rentalEvidenceRequested: "Documentos pedidos para la solicitud de alquiler",
+    rentalEvidenceResponseSaved:
+      "Respuesta a la solicitud de alquiler registrada",
     serviceRequestSubmitted: "Solicitud de servicio registrada",
     serviceQuoteRecorded: "Presupuesto de servicio registrado",
     serviceRequestDeclined: "Solicitud de servicio rechazada por el proveedor",
@@ -125,6 +134,9 @@ const controls = {
     applicationSubmitted: "Candidature enregistrée",
     applicationWithdrawn: "Candidature retirée",
     applicationReviewed: "Examen de la candidature enregistré",
+    rentalEvidenceRequested: "Documents demandés pour la candidature locative",
+    rentalEvidenceResponseSaved:
+      "Réponse à la candidature locative enregistrée",
     serviceRequestSubmitted: "Demande de service enregistrée",
     serviceQuoteRecorded: "Devis de service enregistré",
     serviceRequestDeclined: "Demande de service refusée par le prestataire",
@@ -153,6 +165,8 @@ const controls = {
     applicationSubmitted: "تم تسجيل طلب العمل",
     applicationWithdrawn: "تم سحب طلب العمل",
     applicationReviewed: "تم تسجيل مراجعة طلب العمل",
+    rentalEvidenceRequested: "طُلبت مستندات لطلب الإيجار",
+    rentalEvidenceResponseSaved: "تم تسجيل الرد على طلب الإيجار",
     serviceRequestSubmitted: "تم تسجيل طلب الخدمة",
     serviceQuoteRecorded: "تم تسجيل عرض سعر الخدمة",
     serviceRequestDeclined: "رفض مقدم الخدمة طلب الخدمة",
@@ -180,6 +194,8 @@ const controls = {
     applicationSubmitted: "已记录工作申请",
     applicationWithdrawn: "工作申请已撤回",
     applicationReviewed: "已记录申请审阅",
+    rentalEvidenceRequested: "已请求租房申请材料",
+    rentalEvidenceResponseSaved: "已记录租房申请回复",
     serviceRequestSubmitted: "已记录服务请求",
     serviceQuoteRecorded: "已记录服务报价",
     serviceRequestDeclined: "服务商已拒绝服务请求",
@@ -286,6 +302,14 @@ const spaceBookingTitleKeys = {
   keyof typeof controls.en
 >;
 
+const rentalApplicationTitleKeys = {
+  "evidence-requested": "rentalEvidenceRequested",
+  "evidence-response-saved": "rentalEvidenceResponseSaved",
+} as const satisfies Record<
+  NonNullable<KasaNotification["rentalApplicationEvent"]>["kind"],
+  keyof typeof controls.en
+>;
+
 interface NotificationsProps {
   state: NotificationState;
   setState: Dispatch<SetStateAction<NotificationState>>;
@@ -305,23 +329,34 @@ function NotificationList({
   return (
     <div className="kasa-notification-list">
       {items.map((item) => {
-        const Icon = icons[item.icon];
+        const Icon = item.rentalApplicationEvent
+          ? icons.document
+          : icons[item.icon];
         const workEvent = item.workEvent;
         const serviceEvent = item.serviceEvent;
         const spaceBookingEvent = item.spaceBookingEvent;
-        const event = spaceBookingEvent ?? serviceEvent ?? workEvent;
-        const title = spaceBookingEvent
-          ? labels[spaceBookingTitleKeys[spaceBookingEvent.kind]]
-          : serviceEvent
-            ? labels[serviceTitleKeys[serviceEvent.kind]]
-            : workEvent
-              ? labels[workTitleKeys[workEvent.kind]]
-              : tr(item.titleKey);
-        const note = spaceBookingEvent
-          ? `${spaceBookingEvent.venueName} · ${spaceBookingEvent.spaceName}`
-          : (serviceEvent?.requestTitle ??
-            workEvent?.opportunityTitle ??
-            tr(item.noteKey));
+        const rentalApplicationEvent = item.rentalApplicationEvent;
+        const event =
+          rentalApplicationEvent ??
+          spaceBookingEvent ??
+          serviceEvent ??
+          workEvent;
+        const title = rentalApplicationEvent
+          ? labels[rentalApplicationTitleKeys[rentalApplicationEvent.kind]]
+          : spaceBookingEvent
+            ? labels[spaceBookingTitleKeys[spaceBookingEvent.kind]]
+            : serviceEvent
+              ? labels[serviceTitleKeys[serviceEvent.kind]]
+              : workEvent
+                ? labels[workTitleKeys[workEvent.kind]]
+                : tr(item.titleKey);
+        const note = rentalApplicationEvent
+          ? rentalApplicationEvent.propertyTitle
+          : spaceBookingEvent
+            ? `${spaceBookingEvent.venueName} · ${spaceBookingEvent.spaceName}`
+            : (serviceEvent?.requestTitle ??
+              workEvent?.opportunityTitle ??
+              tr(item.noteKey));
         const source = event ? labels.local : labels.sample;
         const timestamp = event
           ? formatTime(event.occurredAt)

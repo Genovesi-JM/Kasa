@@ -4,6 +4,7 @@ import "./messages-check";
 import "./application-state-check";
 import "./rental-application-draft-check";
 import "./application-view-check";
+import "./application-notifications-check";
 import "./notification-check";
 import "./bookings-check";
 import "./space-schedule-check";
