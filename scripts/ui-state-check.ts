@@ -18,6 +18,7 @@ import "./saved-search-state-check";
 import "./saved-homes-view-check";
 import "./workspace-saved-state-check";
 import "./property-request-check";
+import "./viewing-selection-check";
 import "./maintenance-state-check";
 import "./document-state-check";
 import "./rent-record-state-check";

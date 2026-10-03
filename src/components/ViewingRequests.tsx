@@ -15,6 +15,7 @@ import {
   isActiveViewing,
   pendingViewingProposal,
   scopedViewingRequests,
+  selectVisibleViewingRequest,
   selectViewingRequest,
   selectedViewingRequest,
   setViewingFilter,
@@ -141,9 +142,10 @@ function ViewingInbox({
     requestId: string;
   } | null>(null);
   const [draftPropertyId, setDraftPropertyId] = useState<number | null>(null);
+  const renderedAt = new Date();
   const view = viewingView(state, role);
-  const requests = visibleViewingRequests(state, role);
-  const selected = selectedViewingRequest(state, role);
+  const requests = visibleViewingRequests(state, role, renderedAt);
+  const selected = selectedViewingRequest(state, role, renderedAt);
   const actionRequest = actionDialog
     ? scopedViewingRequests(state, role).find(
         (request) => request.id === actionDialog.requestId,
@@ -152,7 +154,7 @@ function ViewingInbox({
   const actionProperty = properties.find(
     (item) => item.id === actionRequest?.propertyId,
   );
-  const counts = viewingCounts(state, role);
+  const counts = viewingCounts(state, role, renderedAt);
   const drafts = viewingDrafts(state, role);
   const property = properties.find((item) => item.id === selected?.propertyId);
   const draftProperty = properties.find((item) => item.id === draftPropertyId);
@@ -161,7 +163,7 @@ function ViewingInbox({
     selected && ["Cancelled", "Declined"].includes(selected.status);
   const pastAgreement =
     selected?.agreedTerms &&
-    !isActiveViewing({ ...selected, status: "Agreed" });
+    !isActiveViewing({ ...selected, status: "Agreed" }, renderedAt);
   const filters: [ViewingFilter, number][] = [
     ["All", counts.total],
     ["Pending", counts.pending],
@@ -169,14 +171,21 @@ function ViewingInbox({
     ["Agreed", counts.agreed],
     ["History", counts.history],
   ];
-  function focusDetail() {
-    requestAnimationFrame(() => detailHeading.current?.focus());
+  function focusDetail(expectedId?: string) {
+    requestAnimationFrame(() => {
+      const heading = detailHeading.current;
+      if (!expectedId || heading?.dataset.viewingId === expectedId)
+        heading?.focus();
+    });
   }
   function select(id: string) {
-    setState((current) => selectViewingRequest(current, role, id));
+    const clickedAt = new Date();
+    setState((current) =>
+      selectVisibleViewingRequest(current, role, id, clickedAt),
+    );
     setFeedback("");
     setError("");
-    focusDetail();
+    focusDetail(id);
   }
   function act(action: ViewingAction, message: string) {
     if (!selected) return;
@@ -459,7 +468,12 @@ function ViewingInbox({
               <header>
                 <div>
                   <span className="eyebrow">{selected.id}</span>
-                  <h2 id={`${id}-detail`} tabIndex={-1} ref={detailHeading}>
+                  <h2
+                    id={`${id}-detail`}
+                    tabIndex={-1}
+                    ref={detailHeading}
+                    data-viewing-id={selected.id}
+                  >
                     {property.title}
                   </h2>
                   <p>{property.address}</p>

@@ -506,6 +506,27 @@ export function selectViewingRequest(
   };
 }
 
+/** Ordinary row selection stays inside the current workspace and list filter. */
+export function selectVisibleViewingRequest(
+  state: PropertyRequestState,
+  role: Role,
+  id: string,
+  now = new Date(),
+): PropertyRequestState {
+  if (
+    !visibleViewingRequests(state, role, now).some(
+      (request) => request.id === id,
+    )
+  )
+    return state;
+  const view = viewingView(state, role);
+  if (view.selectedId === id) return state;
+  return {
+    ...state,
+    views: { ...state.views, [role]: { ...view, selectedId: id } },
+  };
+}
+
 export function viewingCounts(
   state: PropertyRequestState,
   role: Role,
