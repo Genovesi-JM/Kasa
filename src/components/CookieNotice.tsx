@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Cookie } from "lucide-react";
 import { readPreference, writePreference } from "../platform/preferences";
@@ -55,11 +55,10 @@ export function CookieNotice({ onOpenPolicy }: { onOpenPolicy: () => void }) {
   const { i18n } = useTranslation();
   const language = (i18n.resolvedLanguage || i18n.language).split("-")[0];
   const copy = noticeCopy[language] || noticeCopy.en;
-  const [visible, setVisible] = useState(false);
-
-  useEffect(() => {
-    if (readPreference(STORAGE_KEY) !== "1") setVisible(true);
-  }, []);
+  // Read the acknowledgement once at mount; storage access is wrapped safely.
+  const [visible, setVisible] = useState(
+    () => readPreference(STORAGE_KEY) !== "1",
+  );
 
   if (!visible) return null;
 
