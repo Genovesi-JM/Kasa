@@ -1,0 +1,142 @@
+.how-kasa {
+  position: relative;
+  padding: clamp(26px, 3.4vw, 46px);
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background:
+    radial-gradient(
+      circle at 92% 6%,
+      rgba(231, 185, 79, 0.12),
+      transparent 34%
+    ),
+    var(--surface);
+  box-shadow: var(--shadow);
+}
+
+.how-kasa-head {
+  max-width: 640px;
+  margin-bottom: clamp(22px, 2.6vw, 34px);
+}
+.how-kasa-head .eyebrow {
+  color: #8a7320;
+}
+.how-kasa-head h2 {
+  margin: 10px 0 10px;
+  color: var(--green);
+  font-size: clamp(25px, 3.4vw, 40px);
+  line-height: 1.04;
+}
+.how-kasa-head p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13.5px;
+  line-height: 1.6;
+}
+
+.how-kasa-steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: clamp(14px, 1.8vw, 22px);
+}
+.how-kasa-steps li {
+  position: relative;
+  padding: 20px 18px 22px;
+  border: 1px solid var(--line);
+  border-radius: 15px;
+  background: var(--cream);
+}
+/* Journey connector between consecutive steps (desktop only). */
+.how-kasa-steps li::after {
+  content: "";
+  position: absolute;
+  top: 40px;
+  right: calc(-1 * clamp(14px, 1.8vw, 22px) / 2 - 5px);
+  width: 11px;
+  height: 11px;
+  border-top: 2px solid #d6c08a;
+  border-right: 2px solid #d6c08a;
+  transform: rotate(45deg);
+  opacity: 0.8;
+}
+.how-kasa-steps li:last-child::after {
+  display: none;
+}
+[dir="rtl"] .how-kasa-steps li::after {
+  right: auto;
+  left: calc(-1 * clamp(14px, 1.8vw, 22px) / 2 - 5px);
+  transform: rotate(225deg);
+}
+
+.how-kasa-index {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  font-family: var(--font-serif);
+  font-size: 22px;
+  font-weight: 500;
+  color: #d8c290;
+  line-height: 1;
+}
+[dir="rtl"] .how-kasa-index {
+  right: auto;
+  left: 16px;
+}
+.how-kasa-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  color: var(--green);
+  background: var(--sage);
+  margin-bottom: 14px;
+}
+.how-kasa-steps li:last-child .how-kasa-icon {
+  color: #7a6414;
+  background: var(--amber);
+}
+.how-kasa-steps h3 {
+  margin: 0 0 6px;
+  font-size: 15.5px;
+  color: var(--ink);
+  letter-spacing: -0.02em;
+}
+.how-kasa-steps li p {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--muted);
+}
+
+.how-kasa-promise {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin: clamp(20px, 2.4vw, 30px) 0 0;
+  color: #40564e;
+  font-size: 12.5px;
+  font-weight: 600;
+}
+.how-kasa-promise svg {
+  flex: 0 0 auto;
+  color: var(--green-2);
+}
+
+@media (max-width: 860px) {
+  .how-kasa-steps {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  /* Connector only reads left-to-right; drop it on the wrapped grid. */
+  .how-kasa-steps li::after {
+    display: none;
+  }
+}
+@media (max-width: 520px) {
+  .how-kasa-steps {
+    grid-template-columns: 1fr;
+  }
+}

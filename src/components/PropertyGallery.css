@@ -230,9 +230,203 @@
   color: #36574c;
 }
 .property-media button:focus-visible,
+.property-hero button:focus-visible,
 .property-dialog button:focus-visible {
   outline: 3px solid #b9e783;
   outline-offset: -4px;
+}
+
+/* --- Cinematic property hero ------------------------------------------- */
+.property-hero {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) clamp(190px, 22vw, 250px);
+  gap: 10px;
+  height: clamp(340px, 46vw, 560px);
+  border-radius: 20px;
+  overflow: hidden;
+  background: #e8efeb;
+}
+.property-hero[data-rail="0"] {
+  grid-template-columns: 1fr;
+}
+.property-hero-lead {
+  position: relative;
+  display: block;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  border: 0;
+  background: #e8efeb;
+  cursor: zoom-in;
+}
+.property-hero-lead > img,
+.property-hero-lead > .property-photo-unavailable {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.9s cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+.property-hero-lead:hover > img {
+  transform: scale(1.035);
+}
+.property-hero-scrim {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(180deg, rgba(9, 28, 23, 0.3) 0%, rgba(9, 28, 23, 0) 24%),
+    linear-gradient(
+      0deg,
+      rgba(7, 24, 19, 0.84) 1%,
+      rgba(7, 24, 19, 0.34) 32%,
+      rgba(7, 24, 19, 0) 58%
+    );
+}
+.property-hero-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 14px;
+  padding: clamp(16px, 2.3vw, 28px);
+  color: #fff;
+  text-align: start;
+  pointer-events: none;
+}
+.property-hero-top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.property-hero-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 11px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  background: rgba(255, 255, 255, 0.16);
+  backdrop-filter: blur(8px);
+  font-size: 11px;
+  font-weight: 700;
+}
+.property-hero-added {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.82);
+}
+.property-hero-foot {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 18px;
+}
+.property-hero-headline {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+.property-hero-title {
+  display: block;
+  font-size: clamp(27px, 4vw, 46px);
+  line-height: 1.02;
+  text-shadow: 0 2px 22px rgba(6, 18, 14, 0.4);
+}
+.property-hero-location {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.9);
+}
+.property-hero-price {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  text-align: end;
+  white-space: nowrap;
+}
+.property-hero-price strong {
+  font: 700 clamp(20px, 2.4vw, 28px) / 1 var(--font-heading);
+}
+.property-hero-price small {
+  margin-top: 3px;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.82);
+}
+[dir="rtl"] .property-hero-price {
+  align-items: flex-start;
+  text-align: start;
+}
+.property-hero-rail {
+  display: grid;
+  grid-template-rows: 1fr 1fr;
+  gap: 10px;
+  min-height: 0;
+}
+.property-hero[data-rail="1"] .property-hero-rail {
+  grid-template-rows: 1fr;
+}
+.property-hero-rail-tile {
+  position: relative;
+  display: block;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  border: 0;
+  background: #e8efeb;
+  cursor: zoom-in;
+}
+.property-hero-rail-tile > img,
+.property-hero-rail-tile > .property-photo-unavailable {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.9s cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+.property-hero-rail-tile:hover > img {
+  transform: scale(1.04);
+}
+.property-hero .property-hero-open {
+  top: clamp(16px, 2.3vw, 28px);
+  bottom: auto;
+  right: clamp(16px, 2.3vw, 28px);
+  left: auto;
+  white-space: nowrap;
+}
+[dir="rtl"] .property-hero .property-hero-open {
+  right: auto;
+  left: clamp(16px, 2.3vw, 28px);
+}
+@media (prefers-reduced-motion: reduce) {
+  .property-hero-lead > img,
+  .property-hero-rail-tile > img {
+    transition: none;
+  }
+}
+@media (max-width: 720px) {
+  .property-hero {
+    grid-template-columns: 1fr;
+    height: clamp(300px, 72vw, 430px);
+  }
+  .property-hero-rail {
+    display: none;
+  }
+}
+/* Keep the top-right open control from crowding the verified badge on phones. */
+@media (max-width: 600px) {
+  .property-hero-open-label {
+    display: none;
+  }
+  .property-hero-added {
+    display: none;
+  }
 }
 
 @media (max-width: 980px) {

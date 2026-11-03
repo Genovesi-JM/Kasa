@@ -2,6 +2,7 @@ import { z } from "zod";
 import type { Property, SpaceVenue } from "../types";
 import { apiRequest } from "./api";
 import { appConfig } from "./config";
+import { countryConfigSchema } from "./marketPolicy";
 
 const propertySchema: z.ZodType<Property> = z.object({
   id: z.number().int().positive(),
@@ -133,25 +134,6 @@ export const apiHealthSchema = z.object({
 export function getApiHealth() {
   return apiRequest("health", apiHealthSchema);
 }
-
-const featureFlagsSchema = z.object({
-  propertyDiscovery: z.boolean(),
-  propertyOperations: z.boolean(),
-  services: z.boolean(),
-  spacesSports: z.boolean(),
-  spacesEvents: z.boolean(),
-  overnightSpaces: z.boolean(),
-  rentCustody: z.boolean(),
-  mortgageIntermediation: z.boolean(),
-  externalVenuePayments: z.boolean(),
-});
-
-const countryConfigSchema = z.object({
-  country: z.string(),
-  currency: z.string().length(3),
-  features: featureFlagsSchema,
-  readiness: z.enum(["demo", "requires_market_approval"]),
-});
 
 export function getCountryConfig(country = appConfig.country) {
   const params = new URLSearchParams({ country });

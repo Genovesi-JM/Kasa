@@ -5,7 +5,10 @@ import { isPresentationEntry } from "./entry";
 const Presentation = lazy(() => import("./presentation/Presentation"));
 
 export default function AppEntry() {
-  return isPresentationEntry(window.location.search) ? (
+  const params = new URLSearchParams(window.location.search);
+  return !params.has("saved") &&
+    !params.has("account") &&
+    isPresentationEntry(window.location.search) ? (
     <Suspense
       fallback={
         <main className="app-loading" role="status">

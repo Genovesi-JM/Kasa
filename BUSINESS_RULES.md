@@ -7,6 +7,7 @@ This file records the product and business decisions already agreed in the Kasa 
 ### Positioning
 
 - Kasa is a **non-brokerage PropTech and Property Operations Platform**.
+- This is the intended operating model, not a legal exemption or a confirmed regulatory classification. Product labels, direct payments and the absence of a success commission do not by themselves establish that a particular property service is outside licensed mediation.
 - The product ecosystem connects **Properties + Property Operations + Kasa Services + Kasa Spaces + Kasa Work**. Spaces remains Phase 2, and Work launches only where its job-board model and local requirements have been approved.
 - Kasa provides technology, records, communication and workflows. It does not act as an estate agent or accept a regulated property-management mandate by default.
 
@@ -143,6 +144,9 @@ These are readiness requirements **if Angola is selected as a launch market**; t
 - Obtain Angolan legal confirmation of Kasa's information-society-provider classification and any registration or authorisation required for the intended services.
 - Complete the required personal-data assessment, notifications or authorisations with the competent data-protection authority, including hosting, chat, identity checks and international data transfers.
 - Obtain a written Angolan property-law opinion on the neutral listing and chat model, the boundary with licensed mediation, and each proposed monetisation method.
+- Review self-service listings, search, lead routing, viewing requests, applications and paid promotion together with their contracts and actual staff involvement. [Law 14/12, Articles 4–5](https://lex.ao/docs/assembleia-nacional/2012/lei-n-o-14-12-de-04-de-maio/) includes prospecting and property promotion in the scope of mediation; the [licensing regulation, Presidential Decree 320/20](https://lex.ao/docs/presidente-da-republica/2020/decreto-presidencial-n-o-320-20-de-24-de-dezembro/) also needs review. This does not establish that every listings portal is a mediator. Clarification with the INH is a release requirement where classification is uncertain.
+- Preserve the user's Angola-first hosting preference: assess core hosting, backups, logs, support access and data processors. Foreign login, map, notification and other APIs are separate data-flow decisions, not silently approved exceptions. No specific provider has been selected or legally cleared.
+- Keep live property publication, paid promotion, real bookings, job publication and connected payments disabled in the current synthetic prototype. Technical health checks and UI controls cannot approve a market; the readiness checklist is not legal certification. Developing and testing local drafts remains possible.
 - Review any payment flow under the applicable payment-services framework. Rent custody remains disabled, and supported service or Spaces payments use an appropriately authorised provider.
 - Before public launch, operate reporting, blocking, moderation, evidence retention, appeals, listing authenticity and clear promoted-content labelling appropriate to the market.
 - Property owners, listing parties, service providers and venue operators remain responsible for their own licences, authority, safety, insurance, capacity and local compliance.

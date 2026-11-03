@@ -6,20 +6,172 @@ Each system-status run makes fresh property and Spaces catalogue requests, bypas
 
 Frontend workflow update: 3 October 2026. Production-integration requirements remain unchanged.
 
+Release-policy update: 14 October 2026. Admin and System status now show the same six-language pre-launch checklist without simulated approval switches. Country API responses explicitly separate synthetic demo capabilities from blocked live publication, paid promotion, bookings, job publication and payments. The shared contract rejects missing readiness information and enabled prohibited capabilities. A successful technical diagnostic never supplies legal clearance. The Angola property-mediation classification, including self-service listings and promotion, remains unresolved; no production integration or market has been activated.
+
 The public [GitHub Pages URL](https://genovesi-jm.github.io/Kasa/) opens the software directly, without an account. The guided presentation is optional at [`?present=1`](https://genovesi-jm.github.io/Kasa/?present=1). GitHub Pages serves the frontend; it does not host the local API or provide authentication, message delivery or a database.
+
+## My Kasa saved workspace — 15 October 2026
+
+**My Kasa** now opens the saved account workspace inside the main application shell,
+alongside Properties, Spaces, Services and Jobs. It connects to the opt-in persisted
+local account API: registration, sign-in, session restoration, editable display
+name/language, version-conflict handling and server-side sign-out. Profile, private
+properties, maintenance, documents, rent records, notifications, test listings and private chats have their own
+saved destinations. The old `?account=1` link opens the same shell and is canonicalized
+to `?saved=profile`; it no longer requires a separate account-only application.
+
+Saved records survive reload and API restart. Unsaved form drafts remain in the current
+tab while moving between saved sections and exploration; this is not automatic saving
+or a promise that drafts survive a reload, sign-out or account change. Browser
+Back/Forward restores the destination without assigning an account role. The simulator
+can open the same saved section on iOS and Android while retaining Rent/Buy context.
+Both frames share this browser's signed-in account and cookies; they are not two
+independent user sessions.
+
+The saved account identity and unread notifications are distinct from **Interactive
+preview** identities and example notifications. The preview workflows listed later
+remain separate in-memory demos: their actions do not write to the saved account,
+publish listings, send messages or make bookings for real people. No `saved`, `role`
+or other URL parameter grants authentication, membership or account permissions.
+
+This is a development milestone, not permission to accept customer data. Use invented
+test details. No email verification/recovery, MFA, production invitation delivery,
+full professional/team permissions, production database or production private-file service is connected.
+The local adapter is disabled by default and refuses public/production startup.
+See [local setup and limits](./API_AND_DATA.md#persisted-local-accounts--development-milestone).
+
+### Connected owner–tenant maintenance — local development
+
+Inside **My Kasa → My properties**, signed-in accounts can create owner workspaces and
+private properties, edit property details, invite a specific existing account using
+a manually shared one-time code, accept invitations and revoke access. The assigned
+tenant submits maintenance requests; the owner updates their status; both can add
+comments and inspect the saved history. Tenant access is restricted to assigned
+properties and their own requests. A single account can own one workspace and be a
+tenant in another; switching simulator personas grants no permission.
+
+These records use the local SQLite database, not static sample data. Version conflicts
+are rejected instead of overwriting newer changes. Existing account databases upgrade
+in place. Updates appear on explicit refresh; there is no push delivery or real-time
+chat. No public listing, verified ownership, legal tenancy, rent payment or service
+dispatch is created. The remaining simulator screens below retain their existing limits.
+
+### Private files and in-app notifications — local development
+
+The authenticated property workspace now uploads and downloads real **test-file bytes**
+through the local API, persists them in the private SQLite database and restores them
+after restart. PDF, JPEG and PNG files up to 1 MiB are supported. Uploads default to
+private; sharing targets the owner or one active assigned tenant. Recipients cannot
+edit files. The uploader can rename, unshare, archive and restore using version guards.
+Every download checks current access; tenant removal also revokes prior sharing.
+Archiving is reversible, does not purge bytes and does not free capacity.
+
+Saved in-app notifications now connect maintenance activity and explicit document
+sharing to their exact property records. They have unread counts, individual/all-read
+actions and pagination. Events and read state persist; inaccessible records are filtered
+out. No notification exposes document content, comments, private descriptions or emails.
+There is no email/SMS/push delivery, and the simulator's separate sample notification
+screen is unchanged.
+
+The existing green/cream design, mobile layouts and all six interface languages are
+retained. These are local-development functions, not a production launch: use harmless
+invented files only. Malware scanning, production file encryption/storage, retention,
+deletion, backups and external delivery providers remain outstanding. Signature checks
+do not certify a file as safe. See [API details and limits](./API_AND_DATA.md#private-documents-and-notifications--local-test-accounts-only).
+
+### Saved rent records and reconciliation — 15 October 2026
+
+The authenticated local property workspace now has its own saved rent records,
+separate from the simulator's examples. Owners record the expected monthly amount
+and due date for an actively assigned tenant. Tenants report a transfer they made
+directly to the owner; the owner can request a correction or explicitly confirm
+an exact amount match. Kasa never executes a transfer, collects rent, holds a deposit,
+checks a bank account, issues a tax receipt or certifies payment evidence.
+
+This local slice uses **AOA** and one current transfer report per rent record,
+with prior revisions preserved in its history. It is not a multi-payment bank ledger.
+The owner can edit expected terms before any transfer report exists, or void an
+unconfirmed mistaken record with a reason and create a replacement. Confirmed
+records cannot be rewritten. Version checks reject stale edits; persistent mutation
+IDs make identical retries safe without recording duplicate activity.
+
+An optional evidence attachment must already be an active tenant-uploaded document
+explicitly shared with that property's owner. Selecting it does not grant or widen
+file access. Unsharing or archiving still revokes access to its bytes. Tenant removal
+also permanently revokes that membership's old rent access; accepting a new invitation
+does not reopen it. Owners retain the history. New rent notifications contain no
+amounts, bank references, notes or file contents.
+
+The same local-only and invented-data restrictions apply. No commercial launch,
+automatic bank reconciliation, fiscal invoicing or customer-data approval is supplied
+by this milestone. See [the rent API contract and limits](./API_AND_DATA.md#saved-rent-records--local-test-accounts-only).
+
+### Saved test listings and private enquiries — local development
+
+**My Kasa → Saved listings** connects owner-created listings to a shared catalogue
+for authenticated local test accounts. Owners select one of their private properties,
+enter separate listing details, save a draft and explicitly make it visible in the
+test catalogue. Private addresses are never copied automatically. Owners can edit
+or pause their listing; stale edits are rejected. Prices are exact AOA minor units.
+Search, Rent/Buy, type, pet policy, price limits, ordering and pagination use the saved API.
+
+A different test account can send an enquiry. The server derives the owner from the
+listing and creates or reuses their participant-only conversation. **Private chats**
+stores messages across reload and API restart, with paged history, unread state,
+explicit refresh and block/unblock controls. Either participant's block prevents
+both parties from sending. Identical mutation retries do not duplicate messages.
+Read acknowledgements advance only to a message sequence loaded by the interface;
+they mark that message and earlier history read, including older paginated messages.
+After sending, the interface refreshes the thread before enabling an acknowledgement.
+Existing
+conversations remain available after the listing is paused; new enquiries do not.
+
+This is not public publication, proof of listing authority, a verified identity,
+a tenancy application, a viewing appointment, external message delivery or a market
+launch. Listing/chat DTOs never project the account email, phone fields or private
+property address. User-entered names, descriptions and messages are not automatically
+redacted: this is not contact-data detection or moderation. Enter only invented
+listing details and messages. No photo upload, moderation
+queue, reporting service, full-text moderation or public customer onboarding is
+connected to this local slice. Production flags remain blocked. Simulator/example
+messages below remain a different, non-persisted experience.
+
+Verification on 15 October 2026: the full check/build suite passed, including 11
+marketplace HTTP groups and 5 independent access-control/security groups. A two-account
+browser test covered draft creation, catalogue visibility, enquiry-to-chat handoff,
+owner reply, explicit read state, blocking/unblocking, retained unsent drafts, the
+sign-out discard warning and saved history after reload. Narrow Arabic RTL and Chinese
+layouts kept the requested English parenthetical labels without horizontal overflow.
+
+### Saved viewing requests — local development
+
+Private chat now connects to **Viewing requests**, using the same saved identity and
+conversation participants. The interested account requests a date/time; the owner can
+confirm, decline or propose an alternative for the interested account to accept.
+Both can cancel, with immutable history and explicit version conflicts. Confirmed
+appointments are changed by cancellation and a new request, never by silently changing
+the other party's agreement. All times explicitly use Luanda time in this local slice.
+
+Requests and decisions are stored in SQLite. Confirmed overlaps are checked atomically
+against the same property and interested account; this does not imply access to an
+operator's external calendar. Passing the appointment time does not mark it attended.
+Pausing a listing or blocking a conversation does not remove its history or the ability
+to cancel. No email, SMS, calendar invite, broker representation, payment or customer-data
+approval is supplied. Use synthetic accounts and details only.
 
 ## Operational in the current local environment
 
-| Function                                     | Verification                                                                              |
-| -------------------------------------------- | ----------------------------------------------------------------------------------------- |
-| Responsive web app and iOS/Android simulator | Production build plus route/role browser audit                                            |
-| Property discovery                           | API catalogue reads, Rent/Buy search, filters, map pins and drawn-area filtering          |
-| Kasa Spaces discovery                        | Sports and event-space catalogue reads, filters and venue views                           |
-| Versioned API                                | Health, configuration, catalogue and OpenAPI endpoints                                    |
-| Country feature flags                        | Automated guardrail checks for rent custody, overnight Spaces and mortgage intermediation |
-| Mortgage calculator                          | Educational calculations in the browser; no lender matching or data transmission          |
-| Portuguese-first localisation                | Portuguese, English, Spanish, French, Arabic RTL and Simplified Chinese                   |
-| Safe fallback catalogue                      | The UI falls back to typed demo data if the local API is unavailable                      |
+| Function                                     | Verification                                                                                                       |
+| -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| Responsive web app and iOS/Android simulator | Production build plus route/role browser audit                                                                     |
+| Integrated My Kasa navigation                | Saved-section links, legacy account entry, Back/Forward, retained in-tab drafts and shared-session device previews |
+| Property discovery                           | API catalogue reads, Rent/Buy search, filters, map pins and drawn-area filtering                                   |
+| Kasa Spaces discovery                        | Sports and event-space catalogue reads, filters and venue views                                                    |
+| Versioned API                                | Health, configuration, catalogue and OpenAPI endpoints                                                             |
+| Country feature flags                        | Automated guardrail checks for rent custody, overnight Spaces and mortgage intermediation                          |
+| Mortgage calculator                          | Educational calculations in the browser; no lender matching or data transmission                                   |
+| Portuguese-first localisation                | Portuguese, English, Spanish, French, Arabic RTL and Simplified Chinese                                            |
+| Safe fallback catalogue                      | The UI falls back to typed demo data if the local API is unavailable                                               |
 
 A successful empty Spaces catalogue shows no venue results. Venues with no individual spaces remain readable, with requests unavailable until a space is listed. An individual space without suggested time slots still permits entering a custom time. Catalogue failures retain the sample fallback; successful catalogue updates do not rewrite existing request drafts.
 
@@ -99,6 +251,11 @@ Run the frontend state checks directly:
 ```bash
 npm run test:ui-state
 ```
+
+This chain includes `scripts/connected-navigation-check.ts`: strict saved-route and
+legacy-link parsing, public/saved route composition, base-path/origin preservation,
+Rent/Buy simulator context, shared-account notices and all six shell translations.
+Arabic and Chinese labels retain the requested parenthesized English wording.
 
 They cover URL routing and validation, scoped search, workspace-isolated messages, canonical seeded property-thread reuse with retained drafts/history and separate changed-owner contexts, workspace-specific retained inbox controls with validated defaults/reset and intentional property-contact reveal, six-language chat labels/plurals/search with canonical values and unchanged conversation content, saved collections and documents, scoped retained document-library controls and atomic successful-add filter reset, private rental-application drafts, raw-value retention, canonical rental scope, atomic submission and draft removal, application submissions/transitions, scoped retained application views, canonical property filters, reset and exact-record reveal, viewing drafts, ownership, proposal decisions, agreed appointments and history, scoped current-agreement calendar snapshots with expiry and DST guards, stable identifiers, canonical property labels, privacy and UTF-8-safe wire formatting, six-language viewing labels, plural forms, dates, semantic feedback and private draft retention through language changes, queued immediate viewing commands with exact event receipts, rejection/replay, private draft retention, newer navigation preservation and success-only focus, filter-preserving row selection and appointment-boundary guards, private raw viewing response draft recovery through other-party closure, detached reads, guarded updates and scoped discard with unchanged shared history, genuine local viewing-event projection with canonical dual scope, historical proposal linkage, private payload exclusion, read receipts, mixed chronology and source-validated exact request opening, successful-save cleanup and no-note preservation, Work post review/publication and copying into independent drafts, application snapshots, withdrawal and business scope, captured review commands with exact committed receipts, queued rejection, deterministic replay and success-only history feedback, maintenance ownership, private report drafts and explicit submission, scoped retained list preferences and filter reset, visit no-ops, scoped return-visit removal without resetting work in progress, summary updates and status changes, service request/quote revisions, provider-only raw quote draft recovery through acceptance and terminal states, scoped discard with unchanged shared terms/history, detached reads and atomic successful-save consumption, scoped provider refusals with retained reasons and terminal guards, retained workspace-specific service inbox views and exact record handoff, and explicit customer decisions, captured-time action receipts, expiry-boundary and queued-state rejection, deterministic replay and success-only notification projection, purpose-specific private action notes and exact quote revision isolation, matching-text-only cleanup, acceptance/start preservation, inactive/terminal inspection and scoped discard, owner-only expense routing, property scope, exact-cent/date validation, private raw drafts and detached reads, atomic saves, stale-edit protection, immutable lifecycle history, guarded removal/undo, retained ledger filters and visible-only totals, scoped filtered expense CSV ordering, exact values, translated categories, private/history exclusion and quoted multiline/formula-safe exports, rent validation/review, private record-scoped transfer/correction drafts, raw-value retention, actor isolation, stale-record protection and exact atomic submission, immutable before/after history through correction cycles, first-edit preservation of legacy values, latest-value summaries/CSV and CSV escaping, live property summaries and date rollover, typed dashboard record targets and exact scoped maintenance reveal through hiding filters, document translation coverage, notification counts, local rental-application/Work/Services/Spaces event projection and privacy, typed rental-evidence provenance and immutable snapshot validation, historical follow-up retention and exact application handoff, explicit booking-history provenance, mixed activity order, quote revision history and service start/completion history, read-state retention, exact application navigation through conflicting filters, booking changes, private operator response draft recovery and scoped discard through closed phases, raw-value detachment, exact successful proposal consumption, matching-reason-only cleanup and private note retention during acceptance, explicit operator completion with end-time, date/DST and proposal guards, immutable completion history and scoped completion alerts, dated operator blocks, reservation conflicts, stale acceptance/undo guards, private-reason isolation, operator venue draft validation/readiness, unit and photo integrity, venue/unit URLs, retained workspace-scoped Spaces filters and category normalization, workspace-isolated Rent/Buy discovery queries and filters, validated history snapshots, retained saved-home controls, and unavailable browser preference storage. These checks validate local behaviour, not production delivery or payment integrations.
 

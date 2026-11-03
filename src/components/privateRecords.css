@@ -1,0 +1,266 @@
+.private-documents > summary .pw-badge {
+  margin-inline-start: 4px;
+}
+.private-files-warning {
+  margin: 14px 0;
+  padding: 12px 14px;
+  border: 1px solid #dfd3b1;
+  border-radius: 10px;
+  background: var(--amber);
+  color: #65532d;
+  font-size: 12px;
+  line-height: 1.7;
+}
+.private-record-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 9px;
+  margin: 13px 0;
+}
+.private-record-actions button {
+  font-size: 12px;
+}
+.private-record-actions button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.private-document-upload,
+.private-document-editor {
+  margin: 20px 0;
+  padding: 17px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #eff3eb;
+}
+.private-document-upload input[type="file"] {
+  font-size: 12px;
+  padding: 8px;
+}
+.private-document-upload input[type="file"]::file-selector-button {
+  min-height: 38px;
+  margin-inline-end: 9px;
+  border: 1px solid #c9d4cb;
+  border-radius: 7px;
+  color: var(--green);
+  background: var(--surface);
+  font: inherit;
+  cursor: pointer;
+}
+.private-record-filters {
+  display: flex;
+  gap: 5px;
+  margin: 20px 0 16px;
+  padding: 4px;
+  border-radius: 10px;
+  background: #eaeee5;
+}
+.private-record-filters button {
+  flex: 1;
+  padding: 10px 12px;
+  min-height: 44px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--green);
+  font-size: 12px;
+  font-weight: 650;
+  cursor: pointer;
+}
+.private-record-filters button[aria-pressed="true"] {
+  background: var(--green);
+  color: white;
+}
+.private-document-list {
+  display: grid;
+  gap: 13px;
+}
+.private-document {
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  background: white;
+}
+.private-document.is-highlighted {
+  border-color: #5b8b70;
+  box-shadow: 0 0 0 2px #c8ddcd;
+}
+.private-document header {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+.private-document header > svg {
+  flex-shrink: 0;
+  margin-top: 3px;
+}
+.private-document header > div {
+  flex: 1;
+  min-width: 0;
+}
+.private-document h3 {
+  margin: 0 0 6px;
+  font-size: 16px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+.private-document header p {
+  margin: 0;
+  color: #526b62;
+  font-size: 11px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+.private-document .pw-badge {
+  gap: 4px;
+  flex-shrink: 0;
+  max-width: 140px;
+}
+.private-document > .pw-muted {
+  margin: 12px 0;
+}
+.private-document-editor .pw-muted,
+.private-document-upload .pw-muted {
+  margin: 0;
+}
+.private-document-editor .private-record-actions {
+  margin-bottom: 0;
+}
+.saved-notifications {
+  max-width: 900px;
+  margin: 0 auto;
+}
+.saved-notifications > header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 20px;
+}
+.saved-notifications h1 {
+  margin: 0 0 12px;
+  font-size: 34px;
+}
+.saved-notifications > header p {
+  max-width: 620px;
+  font-size: 13px;
+  line-height: 1.7;
+  color: #526b62;
+}
+.saved-notification-list {
+  display: grid;
+  gap: 12px;
+  margin-top: 21px;
+}
+.saved-notification {
+  display: flex;
+  gap: 13px;
+  padding: 21px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--surface);
+}
+.saved-notification.is-unread {
+  border-inline-start: 4px solid var(--green-2);
+}
+.saved-notification > span {
+  display: grid;
+  flex-shrink: 0;
+  place-items: center;
+  height: 42px;
+  width: 42px;
+  border-radius: 12px;
+  background: var(--sage);
+}
+.saved-notification > div {
+  min-width: 0;
+  flex: 1;
+}
+.saved-notification h2 {
+  margin: 0 0 8px;
+  font-size: 17px;
+  line-height: 1.4;
+}
+.saved-notification p {
+  margin: 0 0 7px;
+  font-size: 12px;
+  color: #526b62;
+  overflow-wrap: anywhere;
+}
+.saved-notification time {
+  color: #526b62;
+  font-size: 11px;
+}
+.saved-notification .private-record-actions {
+  margin: 13px 0 0;
+}
+.saved-notifications .private-record-filters {
+  max-width: 420px;
+}
+.saved-notifications .pw-feedback {
+  margin: 18px 0;
+}
+.saved-notifications .pw-secondary:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.account-unread-badge {
+  display: inline-grid;
+  place-items: center;
+  min-width: 20px;
+  margin-inline-start: 6px;
+  padding: 2px 5px;
+  border-radius: 10px;
+  background: var(--gold);
+  color: var(--green);
+  font-size: 11px;
+  line-height: 1.3;
+}
+.account-notification-area[hidden] {
+  display: none;
+}
+@media (max-width: 760px) {
+  .private-record-actions > button {
+    flex: 1 1 120px;
+  }
+  .private-document {
+    padding: 14px;
+  }
+  .private-document header {
+    flex-wrap: wrap;
+  }
+  .private-document header .pw-badge {
+    margin-inline-start: 32px;
+  }
+  .private-document-upload,
+  .private-document-editor {
+    padding: 13px;
+  }
+  .saved-notifications {
+    max-width: 510px;
+  }
+  .saved-notifications > header {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .saved-notifications h1 {
+    font-size: 28px;
+  }
+  .saved-notification {
+    padding: 16px;
+    gap: 10px;
+  }
+  .saved-notification > span {
+    width: 35px;
+    height: 38px;
+  }
+  .account-area-tabs {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+  .account-area-tabs button {
+    flex: 1;
+    padding-inline: 10px;
+  }
+}
+.private-document-upload[hidden] {
+  display: none;
+}

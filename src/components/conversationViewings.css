@@ -1,0 +1,344 @@
+.conversation-viewings {
+  --cv-green: #214b36;
+  --cv-line: #dce3d6;
+  margin-top: 22px;
+  padding: 20px;
+  border: 1px solid var(--cv-line);
+  border-radius: 20px;
+  background: #fafbf5;
+  color: #253e30;
+  min-width: 0;
+}
+.conversation-viewings[hidden],
+.conversation-viewings [hidden] {
+  display: none !important;
+}
+.conversation-viewings * {
+  box-sizing: border-box;
+}
+.conversation-viewings button,
+.conversation-viewings input,
+.conversation-viewings select {
+  min-height: 44px;
+}
+.conversation-viewings button {
+  font: inherit;
+  font-size: 12px;
+  font-weight: 650;
+  cursor: pointer;
+}
+.conversation-viewings button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.conversation-viewings :focus-visible {
+  outline: 3px solid #8aab7c;
+  outline-offset: 3px;
+}
+.conversation-viewings [tabindex="-1"] {
+  scroll-margin-block-start: 100px;
+}
+.cv-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 15px;
+}
+.cv-heading > div {
+  min-width: 0;
+}
+.cv-eyebrow {
+  display: inline-flex;
+  gap: 7px;
+  align-items: center;
+  font-size: 11px;
+  font-weight: 750;
+  color: #60764e;
+}
+.cv-heading h3 {
+  margin: 8px 0;
+  color: var(--cv-green);
+  font-size: 22px;
+  line-height: 1.25;
+  letter-spacing: -0.03em;
+}
+.cv-heading p,
+.cv-muted {
+  font-size: 12px;
+  line-height: 1.65;
+  color: #61705e;
+  overflow-wrap: anywhere;
+}
+.cv-heading p {
+  margin-bottom: 0;
+}
+.cv-zone {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  padding: 12px;
+  background: #edf2e5;
+  border-radius: 10px;
+  font-size: 12px;
+  line-height: 1.6;
+}
+.cv-zone svg,
+.cv-duration svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+.cv-primary,
+.cv-secondary,
+.cv-danger {
+  display: inline-flex;
+  gap: 7px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  padding: 10px 14px;
+  line-height: 1.5;
+  text-align: center;
+}
+.cv-primary {
+  background: var(--cv-green);
+  color: white;
+}
+.cv-secondary {
+  background: #fffef9;
+  border-color: #cdd8c6;
+  color: var(--cv-green);
+}
+.cv-danger {
+  background: #faeee5;
+  border-color: #dfbda6;
+  color: #84462d;
+}
+.cv-new {
+  margin: 18px 0;
+}
+.cv-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.cv-feedback,
+.cv-confirmation {
+  margin: 14px 0;
+  padding: 14px;
+  border-radius: 11px;
+  background: #e9f2e4;
+  color: #315538;
+  font-size: 12px;
+  line-height: 1.65;
+  overflow-wrap: anywhere;
+}
+.cv-feedback.is-error {
+  background: #faeee9;
+  color: #86472d;
+}
+.cv-feedback.is-warning,
+.cv-confirmation {
+  background: #faf1db;
+  color: #77602e;
+  border: 1px solid #e2cf9e;
+}
+.cv-feedback p,
+.cv-confirmation p {
+  margin-top: 0;
+}
+.cv-error-guidance {
+  display: block;
+  margin-top: 8px;
+}
+.cv-editor {
+  display: grid;
+  gap: 12px;
+  margin: 20px 0;
+  padding: 18px;
+  background: #fffefa;
+  border: 1px solid #bdceb2;
+  border-radius: 15px;
+}
+.cv-editor h4 {
+  font-size: 18px;
+  line-height: 1.5;
+  margin: 0;
+  color: var(--cv-green);
+}
+.cv-editor p {
+  margin: 0;
+}
+.cv-editor label {
+  display: grid;
+  gap: 7px;
+  min-width: 0;
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 1.6;
+}
+.cv-editor input,
+.cv-editor select,
+.cv-editor textarea {
+  width: 100%;
+  min-width: 0;
+  padding: 11px;
+  border: 1px solid #cdd6c7;
+  border-radius: 9px;
+  background: #fffefb;
+  color: #263e30;
+  font: inherit;
+  font-size: 14px;
+}
+.cv-editor input[type="datetime-local"] {
+  direction: ltr;
+}
+.cv-editor textarea {
+  resize: vertical;
+  min-height: 90px;
+}
+.cv-fields {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr);
+  gap: 12px;
+}
+.cv-slot {
+  display: grid;
+  gap: 7px;
+  padding: 12px;
+  background: #eef3e7;
+  border-radius: 10px;
+  font-size: 12px;
+  line-height: 1.6;
+}
+.cv-records {
+  display: grid;
+  gap: 13px;
+  margin-top: 18px;
+}
+.cv-records > .cv-muted {
+  margin: 0;
+}
+.cv-card {
+  padding: 17px;
+  background: #fffefa;
+  border: 1px solid var(--cv-line);
+  border-radius: 14px;
+  min-width: 0;
+}
+.cv-card-heading {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+.cv-card h4 {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+.cv-status {
+  width: fit-content;
+  border-radius: 7px;
+  padding: 5px 8px;
+  background: #f4ecd6;
+  color: #796235;
+  font-size: 10px;
+  line-height: 1.4;
+  flex-shrink: 0;
+  max-width: 50%;
+}
+.cv-status.is-confirmed {
+  background: #e4efdf;
+  color: #376341;
+}
+.cv-status.is-cancelled,
+.cv-status.is-declined {
+  background: #efece6;
+  color: #70685e;
+}
+.cv-duration {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  font-size: 12px;
+  color: #65775c;
+}
+.cv-note {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 13px;
+  line-height: 1.7;
+}
+.cv-empty {
+  text-align: center;
+  padding: 22px 12px;
+  border: 1px dashed var(--cv-line);
+  border-radius: 10px;
+  color: #62725a;
+  font-size: 12px;
+  line-height: 1.7;
+}
+.cv-history-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 12px;
+  background: transparent;
+  color: #627352;
+  border: 0;
+  padding: 7px 0;
+}
+.cv-history ol {
+  margin-bottom: 0;
+  padding-inline-start: 20px;
+}
+.cv-history li {
+  padding: 10px 0;
+  font-size: 12px;
+  line-height: 1.7;
+}
+.cv-history time {
+  display: block;
+  color: #74816b;
+  font-size: 11px;
+}
+.cv-history-actor {
+  display: block;
+  color: #65775c;
+}
+.cv-history-slot {
+  display: grid;
+  gap: 5px;
+  color: #68775f;
+}
+.cv-history .cv-note {
+  margin: 6px 0;
+}
+@media (max-width: 640px) {
+  .conversation-viewings {
+    padding: 14px;
+    border-radius: 15px;
+  }
+  .cv-heading,
+  .cv-card-heading {
+    flex-direction: column;
+  }
+  .cv-heading > button {
+    width: 100%;
+  }
+  .cv-fields {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .cv-status {
+    max-width: 100%;
+  }
+  .cv-editor,
+  .cv-card {
+    padding: 14px;
+  }
+  .cv-actions > button {
+    flex: 1 1 140px;
+  }
+}

@@ -1,0 +1,240 @@
+.property-rent > summary .pw-badge {
+  margin-inline-start: 5px;
+}
+.rent-record-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: end;
+  gap: 12px;
+  margin: 18px 0;
+}
+.rent-record-toolbar label {
+  display: grid;
+  gap: 6px;
+  color: #526b62;
+  font-size: 12px;
+  font-weight: 650;
+}
+.rent-record-toolbar select {
+  max-width: 300px;
+  padding: 9px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+}
+.rent-record-grid {
+  display: grid;
+  grid-template-columns: minmax(210px, 0.8fr) minmax(0, 1.4fr);
+  gap: 19px;
+  align-items: start;
+}
+.rent-record-list {
+  display: grid;
+  gap: 9px;
+}
+.rent-record-card {
+  display: grid;
+  gap: 8px;
+  width: 100%;
+  padding: 15px;
+  text-align: start;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--ink);
+}
+.rent-record-card[aria-pressed="true"] {
+  border-color: var(--green-2);
+  background: #eff5ed;
+  box-shadow: inset 3px 0 var(--green-2);
+}
+.rent-record-card strong {
+  font-size: 17px;
+}
+.rent-record-card small {
+  color: #526b62;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.rent-record-status {
+  display: inline-block;
+  width: fit-content;
+  max-width: 100%;
+  padding: 5px 8px;
+  border-radius: 7px;
+  background: #ecf0e9;
+  color: #3b5f50;
+  font-size: 11px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.rent-record-status.is-confirmed {
+  background: #e2f2e8;
+  color: #215c3d;
+}
+.rent-record-status.is-needs_correction {
+  background: #fff0d0;
+  color: #775514;
+}
+.rent-record-status.is-voided {
+  background: #f0e9e6;
+  color: #79574a;
+}
+.rent-record-detail {
+  min-width: 0;
+  padding: 20px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+  scroll-margin-top: 20px;
+}
+.rent-record-detail h3 {
+  margin: 0 0 12px;
+  font-size: 20px;
+  overflow-wrap: anywhere;
+}
+.rent-record-facts {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 13px;
+  margin: 18px 0;
+}
+.rent-record-facts > div {
+  min-width: 0;
+}
+.rent-record-facts dt {
+  margin-bottom: 5px;
+  font-size: 11px;
+  color: #526b62;
+}
+.rent-record-facts dd {
+  margin: 0;
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+.rent-record-facts .is-wide {
+  grid-column: 1 / -1;
+}
+.rent-record-create,
+.rent-record-editor {
+  padding: 17px;
+  margin: 18px 0;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #f0f3eb;
+}
+.rent-record-create[hidden] {
+  display: none;
+}
+.rent-record-editor h4 {
+  margin: 0;
+  font-size: 16px;
+}
+.rent-record-editor .pw-muted {
+  margin: 0;
+}
+.rent-record-check {
+  display: flex !important;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 10px !important;
+  line-height: 1.65;
+}
+.rent-record-check input {
+  min-height: 20px;
+  min-width: 20px;
+  width: 20px;
+  height: 20px;
+  margin-top: 3px;
+  accent-color: var(--green);
+}
+.rent-record-history {
+  margin-top: 24px;
+  border-top: 1px solid var(--line);
+  padding-top: 16px;
+}
+.rent-record-history > summary {
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.rent-record-history ol {
+  list-style: none;
+  padding: 0;
+  margin: 15px 0 0;
+}
+.rent-record-history li {
+  padding: 13px 0;
+  padding-inline-start: 15px;
+  border-inline-start: 2px solid #d2ddce;
+  border-bottom: 1px solid #edf0e8;
+}
+.rent-record-history h5 {
+  margin: 0 0 7px;
+  font-size: 13px;
+}
+.rent-record-history p {
+  margin: 5px 0;
+  font-size: 12px;
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+.rent-record-history time {
+  font-size: 11px;
+  color: #526b62;
+}
+.rent-record-history .rent-record-facts {
+  margin: 9px 0;
+}
+.rent-record-history .rent-record-facts dd {
+  font-size: 12px;
+}
+@media (max-width: 760px) {
+  .rent-record-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .rent-record-list {
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 145px), 1fr));
+  }
+  .rent-record-toolbar {
+    align-items: stretch;
+  }
+  .rent-record-toolbar > label {
+    width: 100%;
+  }
+  .rent-record-toolbar select {
+    width: 100%;
+    max-width: none;
+  }
+  .rent-record-detail {
+    padding: 15px;
+  }
+  .rent-record-create,
+  .rent-record-editor {
+    padding: 13px;
+  }
+}
+.rent-inline-confirmation {
+  padding: 15px;
+  border: 1px solid #c7d6c9;
+  border-radius: 10px;
+  background: #e8f1e5;
+}
+.rent-inline-confirmation > p {
+  margin: 0 0 11px;
+  font-size: 13px;
+  line-height: 1.7;
+}
+.rent-inline-confirmation > strong {
+  font-size: 20px;
+}
+.rent-inline-confirmation .private-record-actions {
+  margin-bottom: 0;
+}

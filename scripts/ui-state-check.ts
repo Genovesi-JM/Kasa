@@ -1,4 +1,9 @@
 import "./navigation-check";
+import "./connected-navigation-check";
+import "./local-marketplace-check";
+import "./persisted-viewing-check";
+import "./market-policy-check";
+import "./property-workspace-check";
 import "./search-check";
 import "./messages-check";
 import "./message-view-check";

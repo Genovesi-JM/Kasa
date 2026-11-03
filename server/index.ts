@@ -10,7 +10,8 @@ import express, {
 import rateLimit from "express-rate-limit";
 import helmet from "helmet";
 import { properties, spaceVenues } from "../src/data.ts";
-import { apiConfig } from "./config.ts";
+import { buildCountryConfig } from "../src/platform/marketPolicy.ts";
+import { accountDatabasePath, apiConfig } from "./config.ts";
 import {
   configQuerySchema,
   positiveDecimalIdSchema,
@@ -27,6 +28,13 @@ const idempotentResponses = new Map<
 >();
 const webRoot = resolve("dist");
 const webEntry = resolve(webRoot, "index.html");
+// Load SQLite only for the explicitly enabled local development adapter.
+const accounts = accountDatabasePath
+  ? (await import("./accounts.ts")).createAccountRouter({
+      databasePath: accountDatabasePath,
+      allowedOrigins: apiConfig.allowedOrigins,
+    })
+  : null;
 
 app.disable("x-powered-by");
 app.set("query parser", "simple");
@@ -35,6 +43,14 @@ app.use((request, response, next) => {
     request.header("x-request-id")?.slice(0, 100) || randomUUID();
   response.setHeader("x-request-id", requestId);
   response.setHeader("x-kasa-data-mode", "synthetic-demo");
+  const path = request.path.toLowerCase();
+  if (path === "/api/v1/account" || path.startsWith("/api/v1/account/")) {
+    response.setHeader("cache-control", "no-store");
+    response.setHeader(
+      "x-kasa-data-mode",
+      accounts ? "local-persisted" : "disabled",
+    );
+  }
   response.locals.requestId = requestId;
   next();
 });
@@ -83,7 +99,16 @@ app.use(
     },
   }),
 );
-app.use(express.json({ limit: "250kb", strict: true }));
+const catalogueJson = express.json({ limit: "250kb", strict: true });
+app.use((request, response, next) => {
+  // Account routes apply their own limits, including authenticated file uploads.
+  const path = request.path.toLowerCase();
+  if (path === "/api/v1/account" || path.startsWith("/api/v1/account/")) {
+    next();
+    return;
+  }
+  catalogueJson(request, response, next);
+});
 app.use(
   "/api",
   rateLimit({
@@ -200,12 +225,46 @@ app.get("/api/v1/ready", (_request, response) => {
   response.status(ready ? 200 : 503).json({
     status: ready ? "ready" : "unavailable",
     mode: apiConfig.publicPilot ? "read_only_demo" : "local_demo",
-    data: "synthetic",
-    persistence: "not_configured",
+    data: accounts ? "synthetic_catalogue_and_local_test_records" : "synthetic",
+    persistence: accounts
+      ? "local_accounts_and_property_workspaces"
+      : "not_configured",
+    ...(accounts
+      ? {
+          accounts: "local_development",
+          workflows: "local_property_membership_and_maintenance",
+          documents: "local_private_files",
+          notifications: "local_in_app",
+          rentRecords: "local_direct_transfer_records",
+          marketplace: "local_test_listings_and_private_chat",
+          viewings: "local_participant_viewing_requests",
+          otherWorkflows: "synthetic_not_persisted",
+        }
+      : {}),
     productionReady: false,
     web: apiConfig.serveWeb ? (ready ? "available" : "missing") : "not_served",
   });
 });
+
+app.use("/api/v1/account", (_request, response, next) => {
+  response.setHeader("cache-control", "no-store");
+  response.setHeader(
+    "x-kasa-data-mode",
+    accounts ? "local-persisted" : "disabled",
+  );
+  if (accounts) {
+    next();
+    return;
+  }
+  response.status(503).json({
+    error: {
+      code: "accounts_disabled",
+      message: "Local accounts are not enabled in this environment.",
+    },
+    requestId: response.locals.requestId,
+  });
+});
+if (accounts) app.use("/api/v1/account", accounts.router);
 
 app.get("/api/v1/config", (request, response) => {
   const parsed = configQuerySchema.safeParse(request.query);
@@ -216,22 +275,7 @@ app.get("/api/v1/config", (request, response) => {
     return;
   }
   const country = parsed.data.country ?? apiConfig.country;
-  response.json({
-    country,
-    currency: country === "ao" ? "AOA" : "EUR",
-    features: {
-      propertyDiscovery: true,
-      propertyOperations: true,
-      services: true,
-      spacesSports: true,
-      spacesEvents: true,
-      overnightSpaces: false,
-      rentCustody: false,
-      mortgageIntermediation: false,
-      externalVenuePayments: false,
-    },
-    readiness: country === "demo" ? "demo" : "requires_market_approval",
-  });
+  response.json(buildCountryConfig(country));
 });
 
 app.get("/api/v1/properties", (request, response) => {
@@ -485,7 +529,10 @@ const server = app.listen(apiConfig.port, apiConfig.host, () => {
 
 for (const signal of ["SIGTERM", "SIGINT"] as const) {
   process.once(signal, () => {
-    server.close(() => process.exit(0));
+    server.close(() => {
+      accounts?.close();
+      process.exit(0);
+    });
     setTimeout(() => process.exit(1), 10_000).unref();
   });
 }

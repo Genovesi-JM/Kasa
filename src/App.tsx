@@ -115,10 +115,7 @@ import {
   buildPropertyOperationsSummary,
   type PropertyOperationsSummary,
 } from "./components/propertyOperationsSummary";
-import {
-  NotificationsPopover,
-  NotificationsView,
-} from "./components/Notifications";
+import { NotificationsView } from "./components/Notifications";
 import {
   createInitialNotificationState,
   type KasaNotification,
@@ -216,6 +213,7 @@ import {
   PropertyGallery,
   PropertyShareButton,
 } from "./components/PropertyGallery";
+import { HowKasaWorks } from "./components/HowKasaWorks";
 import {
   MortgageCardEstimate,
   MortgageEstimator,
@@ -223,6 +221,17 @@ import {
 import { isPointInsideZone, type ZonePoint } from "./components/mapGeometry";
 import type { Property, Role, SpaceVenue, View } from "./types";
 import { appConfig } from "./platform/config";
+import { accountWorkspaceCopy } from "./components/accountWorkspaceCopy";
+import { connectedShellCopy } from "./components/connectedShellCopy";
+import {
+  buildConnectedUrl,
+  readConnectedSection,
+  type ConnectedSection,
+  type ConnectedAccountState,
+} from "./platform/connectedNavigation";
+import "./components/connectedShell.css";
+import { MarketReadiness } from "./components/MarketReadiness";
+import { marketReadinessCopy } from "./components/marketReadinessCopy";
 import type { DemoTarget } from "./presentation/journeys";
 import {
   getApiHealth,
@@ -244,6 +253,9 @@ const Messages = lazy(() =>
   import("./components/Messages").then((module) => ({
     default: module.Messages,
   })),
+);
+const ConnectedAccountWorkspace = lazy(
+  () => import("./components/AccountWorkspace"),
 );
 const SpaceBookingsView = lazy(() =>
   import("./components/SpaceBookings").then((module) => ({
@@ -1675,13 +1687,16 @@ function ProfileView({
   go,
   onSettings,
   workspace,
+  onAccount,
 }: {
   onSwitch: () => void;
   go: (view: View) => void;
   onSettings: () => void;
   workspace: { initials: string; name: string; label: string };
+  onAccount: () => void;
 }) {
-  const { tr } = useKasaI18n();
+  const { tr, language } = useKasaI18n();
+  const accountCopy = accountWorkspaceCopy(language);
   return (
     <div className="simple-mobile-page profile-page">
       <section className="profile-identity-card">
@@ -1692,6 +1707,14 @@ function ProfileView({
         </span>
         <ChevronRight />
       </section>
+      <section className="profile-menu-card">
+        <button onClick={onAccount}>
+          <LockKeyhole />
+          <span>{accountCopy.entryLabel}</span>
+          <ChevronRight />
+        </button>
+      </section>
+      <p className="scope-note">{accountCopy.demoIdentity}</p>
       <section className="profile-menu-card">
         <button onClick={() => go("saved")}>
           <Heart />
@@ -1917,7 +1940,7 @@ function Discover({
       <section className="discovery-intro">
         <div>
           <span className="eyebrow light">{tr("discover.eyebrow")}</span>
-          <h2>{tr("discover.title")}</h2>
+          <h2 className="display-serif">{tr("discover.title")}</h2>
           <p>{tr("discover.subtitle")}</p>
         </div>
         <div className="intent-switch">
@@ -2252,6 +2275,7 @@ function Discover({
           </ActionButton>
         </div>
       )}
+      <HowKasaWorks />
     </div>
   );
 }
@@ -2344,33 +2368,21 @@ function PropertyDetail({
       <PropertyGallery
         property={property}
         viewPhotosLabel={tr("discover.viewPhotos")}
+        overlay={{
+          title: property.title,
+          location: `${property.neighbourhood}, ${property.city}`,
+          price: formatEuro(property.price),
+          priceCaption:
+            property.listingType === "Rent"
+              ? tr("discover.perMonth")
+              : tr("discover.askingPrice"),
+          addedLabel: tr("discover.addedDays"),
+          verified: property.verified,
+          verifiedLabel: tr("discover.listingChecked"),
+        }}
       />
       <div className="detail-layout">
         <main>
-          <section className="detail-heading">
-            <div>
-              <div className="trust-line">
-                {property.verified && (
-                  <StatusPill tone="mint">
-                    <BadgeCheck size={13} /> {tr("discover.listingChecked")}
-                  </StatusPill>
-                )}
-                <span>{tr("discover.addedDays")}</span>
-              </div>
-              <h2>{property.title}</h2>
-              <p>
-                <MapPin size={16} /> {property.neighbourhood}, {property.city}
-              </p>
-            </div>
-            <div className="detail-price">
-              <strong>{formatEuro(property.price)}</strong>
-              <span>
-                {property.listingType === "Rent"
-                  ? tr("discover.perMonth")
-                  : tr("discover.askingPrice")}
-              </span>
-            </div>
-          </section>
           <section className="fact-ribbon">
             <span>
               <BedDouble />
@@ -4252,7 +4264,10 @@ async function performLiveDiagnostics(): Promise<DiagnosticCheck[]> {
     countryRules.status === "fulfilled" &&
     !countryRules.value.features.rentCustody &&
     !countryRules.value.features.overnightSpaces &&
-    !countryRules.value.features.mortgageIntermediation;
+    !countryRules.value.features.mortgageIntermediation &&
+    !countryRules.value.features.depositCustody &&
+    !countryRules.value.features.propertySuccessFees &&
+    !countryRules.value.features.partyRepresentation;
 
   return [
     {
@@ -4285,11 +4300,16 @@ async function performLiveDiagnostics(): Promise<DiagnosticCheck[]> {
       state: safeCountryRules ? "operational" : "failed",
       detail: safeCountryRules ? "safe" : "unsafe",
     },
+    {
+      id: "marketLaunch",
+      state: countryRules.status === "fulfilled" ? "pending" : "failed",
+    },
   ];
 }
 
 function Diagnostics() {
   const { tr, language } = useKasaI18n();
+  const marketCopy = marketReadinessCopy(language);
   const [runId, setRunId] = useState(0);
   const [running, setRunning] = useState(true);
   const [lastChecked, setLastChecked] = useState<Date | null>(null);
@@ -4298,6 +4318,7 @@ function Diagnostics() {
     { id: "propertyCatalogue", state: "checking" },
     { id: "spacesCatalogue", state: "checking" },
     { id: "countryRules", state: "checking" },
+    { id: "marketLaunch", state: "checking" },
   ]);
 
   useEffect(() => {
@@ -4330,7 +4351,9 @@ function Diagnostics() {
   ];
   const checks = [...liveChecks, ...staticChecks];
   const count = (state: DiagnosticState) =>
-    checks.filter((check) => check.state === state).length;
+    checks.filter(
+      (check) => check.state === state && check.id !== "marketLaunch",
+    ).length;
   const stateLabels: Record<DiagnosticState, string> = {
     checking: tr("diagnostics.checking"),
     operational: tr("diagnostics.operational"),
@@ -4343,6 +4366,7 @@ function Diagnostics() {
     propertyCatalogue: Building2,
     spacesCatalogue: CalendarDays,
     countryRules: ShieldCheck,
+    marketLaunch: LockKeyhole,
     webRuntime: Smartphone,
     map: Map,
     localization: Globe2,
@@ -4360,12 +4384,8 @@ function Diagnostics() {
 
   const checkDetail = (check: DiagnosticCheck) => {
     if (check.state === "failed") return tr("diagnostics.unavailable");
-    if (check.id === "countryRules")
-      return tr(
-        check.detail === "safe"
-          ? "diagnostics.safeRules"
-          : "diagnostics.unsafeRules",
-      );
+    if (check.id === "marketLaunch") return marketCopy.diagnosticNote;
+    if (check.id === "countryRules") return marketCopy.technicalNote;
     if (
       (check.id === "propertyCatalogue" || check.id === "spacesCatalogue") &&
       check.detail
@@ -4449,7 +4469,13 @@ function Diagnostics() {
                   <Icon size={18} />
                 </span>
                 <div>
-                  <strong>{tr(`diagnostics.${check.id}`)}</strong>
+                  <strong>
+                    {check.id === "marketLaunch"
+                      ? marketCopy.diagnosticTitle
+                      : check.id === "countryRules"
+                        ? marketCopy.technicalTitle
+                        : tr(`diagnostics.${check.id}`)}
+                  </strong>
                   <small>{checkDetail(check)}</small>
                 </div>
                 <StatusPill
@@ -4463,13 +4489,16 @@ function Diagnostics() {
                           : "amber"
                   }
                 >
-                  {stateLabels[check.state]}
+                  {check.id === "marketLaunch" && check.state === "pending"
+                    ? marketCopy.blocked
+                    : stateLabels[check.state]}
                 </StatusPill>
               </article>
             );
           })}
         </div>
       </section>
+      <MarketReadiness language={language} />
       <div className="scope-note">
         <ShieldCheck size={17} />
         <span>{tr("diagnostics.guardrail")}</span>
@@ -4479,18 +4508,10 @@ function Diagnostics() {
 }
 
 function AdminConsole({ notify }: { notify: (message: string) => void }) {
-  const [flags, setFlags] = useState({
-    buy: false,
-    services: true,
-    spaces: true,
-    applications: true,
-    autoReconcile: false,
-  });
+  const { language } = useKasaI18n();
   const [queueType, setQueueType] = useState("All queues");
   const [riskFilter, setRiskFilter] = useState("All risk levels");
   const [moderationSort, setModerationSort] = useState("Highest risk");
-  const toggle = (key: keyof typeof flags) =>
-    setFlags((current) => ({ ...current, [key]: !current[key] }));
   const moderationItems = [
     [
       "Listing",
@@ -4666,108 +4687,8 @@ function AdminConsole({ notify }: { notify: (message: string) => void }) {
             </div>
           )}
         </section>
-        <aside className="card padded flag-card">
-          <div className="flag-heading">
-            <div className="flag-globe">
-              <Globe2 size={20} />
-            </div>
-            <div>
-              <span className="eyebrow">EXAMPLE COUNTRY CONFIG</span>
-              <h2>Spain · Barcelona</h2>
-            </div>
-            <button className="icon-button">
-              <ChevronDown />
-            </button>
-          </div>
-          <p>
-            Release capabilities by market without changing the global product
-            model. This location is demo data, not a launch-market decision.
-          </p>
-          {[
-            ["buy", "Property sales", "Discovery and direct contact"],
-            ["services", "Kasa Services", "Bookings, quotes and tracking"],
-            ["spaces", "Kasa Spaces", "Flexible requests and reservations"],
-            [
-              "applications",
-              "Tenant applications",
-              "Reusable verified profile",
-            ],
-            [
-              "autoReconcile",
-              "Bank auto-reconciliation",
-              "Off until compliant integration",
-            ],
-          ].map(([key, label, note]) => (
-            <button
-              className="flag-row"
-              key={key}
-              onClick={() => toggle(key as keyof typeof flags)}
-            >
-              <span>
-                <strong>{label}</strong>
-                <small>{note}</small>
-              </span>
-              <i className={flags[key as keyof typeof flags] ? "on" : ""}>
-                <b />
-              </i>
-            </button>
-          ))}
-          <div className="scope-note">
-            <ShieldCheck size={16} />
-            <span>
-              Rent custody and brokerage are platform-level hard constraints,
-              not configurable features.
-            </span>
-          </div>
-        </aside>
+        <MarketReadiness language={language} />
       </div>
-      <section className="card padded compliance-readiness">
-        <div className="compliance-readiness-heading">
-          <span className="eyebrow">ANGOLA · PRE-LAUNCH READINESS</span>
-          <h2>Compliance gates before live operation</h2>
-          <p>
-            Readiness controls only—the definitive launch market remains
-            undecided.
-          </p>
-        </div>
-        <div className="compliance-gate-grid">
-          {[
-            [
-              "Information-society classification",
-              "Formal confirmation required",
-              "amber",
-            ],
-            [
-              "Personal data and cloud transfers",
-              "Authority steps required",
-              "amber",
-            ],
-            [
-              "Property-mediation boundary",
-              "Written legal opinion pending",
-              "amber",
-            ],
-            ["Rent and deposit custody", "Disabled by design", "mint"],
-            [
-              "Reports, moderation and appeals",
-              "Required before launch",
-              "blue",
-            ],
-          ].map(([title, note, tone]) => (
-            <article key={title}>
-              <StatusPill tone={tone}>{note}</StatusPill>
-              <strong>{title}</strong>
-            </article>
-          ))}
-        </div>
-        <div className="scope-note">
-          <ShieldCheck size={16} />
-          <span>
-            Market release remains behind country configuration until legal,
-            privacy, payment and operating checks are complete.
-          </span>
-        </div>
-      </section>
       <section className="card padded trust-table">
         <SectionHeading title="Verification coverage" />
         <div>
@@ -4894,6 +4815,22 @@ function Plan({ notify }: { notify: (message: string) => void }) {
 
 function App({ demoTarget }: { demoTarget?: DemoTarget }) {
   const { tr, language } = useKasaI18n();
+  const connectedCopy = connectedShellCopy(language);
+  const [connectedSection, setConnectedSection] =
+    useState<ConnectedSection | null>(() =>
+      demoTarget ? null : readConnectedSection(window.location.search),
+    );
+  const [connection, setConnection] = useState<ConnectedAccountState>({
+    account: null,
+    phase: "checking",
+    unreadCount: 0,
+    busy: false,
+    dirty: false,
+  });
+  const handleConnection = useCallback(
+    (next: ConnectedAccountState) => setConnection(next),
+    [],
+  );
   const previewParams = new URLSearchParams(window.location.search);
   const previewDevice = previewParams.get("device");
   const [initialRoute] = useState(() =>
@@ -4918,7 +4855,8 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
   const [showOnboarding, setShowOnboarding] = useState(() =>
     demoTarget
       ? Boolean(demoTarget.welcome)
-      : previewParams.get("welcome") === "1",
+      : !readConnectedSection(window.location.search) &&
+        previewParams.get("welcome") === "1",
   );
   const [selectedProperty, setSelectedProperty] = useState<Property>(
     properties.find((property) => property.id === initialRoute.propertyId) ??
@@ -5133,8 +5071,25 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
       else document.documentElement.dataset.reduceMotion = previous;
     };
   }, [reduceMotion]);
-  const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [, setNotificationsOpen] = useState(false);
   const [workspaceMenuOpen, setWorkspaceMenuOpen] = useState(false);
+  const openConnected = useCallback(
+    (section: ConnectedSection) => {
+      if (demoTarget) {
+        window.location.assign(
+          buildConnectedUrl(window.location.href, section),
+        );
+        return;
+      }
+      setConnectedSection(section);
+      setShowOnboarding(false);
+      setMobileOpen(false);
+      setWorkspaceMenuOpen(false);
+      setNotificationsOpen(false);
+      window.scrollTo({ top: 0, behavior: "instant" });
+    },
+    [demoTarget],
+  );
   const mobileNavigationQuery = "(max-width: 980px)";
   const isMobileNavigation = useMediaQuery(mobileNavigationQuery);
   const closeMobileNavigation = () => {
@@ -5247,6 +5202,7 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
   >(initialRoute.returnTo);
   const [routeRevision, setRouteRevision] = useState(0);
   const previousRoute = useRef<AppRoute | null>(null);
+  const previousConnected = useRef<ConnectedSection | null>(connectedSection);
   const restoringHistory = useRef(false);
 
   useEffect(() => {
@@ -5270,27 +5226,38 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
     if (restoringHistory.current) {
       restoringHistory.current = false;
       previousRoute.current = route;
+      previousConnected.current = connectedSection;
       return;
     }
-    const url = appRouteUrl(route, window.location.search);
+    const publicUrl = appRouteUrl(route, window.location.search);
+    const url = buildConnectedUrl(
+      new URL(publicUrl, window.location.href).href,
+      connectedSection,
+    );
     const previous = previousRoute.current;
     const screenChanged =
       previous &&
-      (previous.role !== role ||
+      (previousConnected.current !== connectedSection ||
+        previous.role !== role ||
         previous.view !== view ||
         (view === "property" && previous.propertyId !== selectedProperty.id) ||
         (view === "spaceVenue" && previous.venueId !== selectedVenueId) ||
         (view === "services" && previous.service !== serviceLaunch));
     const historySnapshot = createDiscoverHistory(route, currentDiscoverSearch);
-    if (url !== window.location.search) {
+    if (
+      url !==
+      `${window.location.pathname}${window.location.search}${window.location.hash}`
+    ) {
       if (screenChanged) window.history.pushState(historySnapshot, "", url);
       else window.history.replaceState(historySnapshot, "", url);
     } else if (historySnapshot) {
       window.history.replaceState(historySnapshot, "", url);
     }
     previousRoute.current = route;
+    previousConnected.current = connectedSection;
   }, [
     demoTarget,
+    connectedSection,
     role,
     view,
     discoveryIntent,
@@ -5309,6 +5276,7 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
     if (demoTarget) return;
     const restore = () => {
       const route = readAppRoute(window.location.search);
+      setConnectedSection(readConnectedSection(window.location.search));
       restoringHistory.current = true;
       clearApplicationOpenRequest();
       clearMaintenanceOpenRequest();
@@ -5660,9 +5628,38 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
       label: tr("shell.adminWorkspace"),
     },
   }[role];
+  const connectedItems: Array<{ section: ConnectedSection; icon: LucideIcon }> =
+    [
+      { section: "listings", icon: Store },
+      { section: "messages", icon: MessageCircle },
+      { section: "properties", icon: Building2 },
+      { section: "rent", icon: WalletCards },
+      { section: "maintenance", icon: Wrench },
+      { section: "documents", icon: FileText },
+      { section: "notifications", icon: Bell },
+      { section: "profile", icon: CircleUserRound },
+    ];
+  const accountName = connection.account?.displayName ?? connectedCopy.signIn;
+  const accountInitials =
+    connection.account?.displayName
+      .trim()
+      .split(/\s+/)
+      .slice(0, 2)
+      .map((part) => [...part][0])
+      .join("")
+      .toLocaleUpperCase() || "K";
+  const accountStateLabel =
+    connection.phase === "checking"
+      ? connectedCopy.checking
+      : connection.phase === "unavailable"
+        ? connectedCopy.unavailable
+        : connection.account
+          ? connectedCopy.localNote
+          : connectedCopy.guest;
 
   const go = useCallback(
     (next: View, query?: string) => {
+      setConnectedSection(null);
       if (next !== "applications") clearApplicationOpenRequest();
       if (next !== "maintenance") clearMaintenanceOpenRequest();
       if (next !== "viewings") clearViewingOpenRequest();
@@ -5702,6 +5699,21 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
       clearViewingOpenRequest,
     ],
   );
+  const navigateMain = (next: View) => {
+    const savedDestinations: Partial<Record<View, ConnectedSection>> = {
+      portfolio: "properties",
+      rent: "rent",
+      maintenance: "maintenance",
+      documents: "documents",
+      profile: "profile",
+      notifications: "notifications",
+      messages: "messages",
+    };
+    const saved = savedDestinations[next];
+    if (saved && !demoTarget) openConnected(saved);
+    else if (role === "provider" && next === "services") openServices("hire");
+    else go(next);
+  };
   const openRentalApplication = (applicationId: number) => {
     if (role !== "tenant" && role !== "landlord") return;
     // A submission queues its new record before this callback runs.
@@ -5773,6 +5785,10 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
     const handleKeyboardNavigation = (event: KeyboardEvent) => {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
         event.preventDefault();
+        if (connectedSection) {
+          openConnected("listings");
+          return;
+        }
         go(
           role === "provider"
             ? "provider"
@@ -5792,7 +5808,7 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
     window.addEventListener("keydown", handleKeyboardNavigation);
     return () =>
       window.removeEventListener("keydown", handleKeyboardNavigation);
-  }, [role, go]);
+  }, [connectedSection, role, go, openConnected]);
   const notify = (message: string) => {
     if (toastTimer.current !== null) window.clearTimeout(toastTimer.current);
     setToast(message);
@@ -5858,6 +5874,7 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
     else go(notification.destination);
   };
   const selectWorkspace = (next: Role) => {
+    setConnectedSection(null);
     clearApplicationOpenRequest();
     clearMaintenanceOpenRequest();
     clearViewingOpenRequest();
@@ -5888,6 +5905,7 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
     nextView: View = "overview",
     nextDiscoveryIntent?: "Rent" | "Buy",
   ) => {
+    setConnectedSection(null);
     clearApplicationOpenRequest();
     clearMaintenanceOpenRequest();
     clearViewingOpenRequest();
@@ -6211,6 +6229,7 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
       case "profile":
         return (
           <ProfileView
+            onAccount={() => openConnected("profile")}
             go={go}
             workspace={workspace}
             onSettings={() => setWorkspaceTool("settings")}
@@ -6395,375 +6414,18 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
     }
   };
 
-  if (showOnboarding)
-    return (
-      <>
-        <OnboardingExperience
-          onEnter={enterDemo}
-          onOpenSimulator={() => setDeviceSimulatorOpen(true)}
-        />
-        {deviceSimulatorOpen && (
-          <DeviceSimulator
-            role="tenant"
-            view="discover"
-            onClose={() => setDeviceSimulatorOpen(false)}
-            labels={{
-              title: tr("common.deviceTitle"),
-              subtitle: tr("common.deviceSubtitle"),
-              compare: tr("common.compare"),
-              ios: tr("common.ios"),
-              android: tr("common.android"),
-              close: tr("common.closeSimulator"),
-            }}
-          />
-        )}
-      </>
-    );
-
-  return (
-    <div
-      className={`app-shell ${isDevicePreview ? `device-preview-${previewDevice}` : ""}`}
-    >
-      <a className="skip-link" href="#main-content">
-        {tr("shell.skipToContent")}
-      </a>
-      <aside
-        className={`sidebar ${mobileOpen ? "is-open" : ""}`}
-        id="workspace-navigation"
-        ref={sidebarRef}
-        inert={isMobileNavigation && !mobileOpen}
-        aria-hidden={isMobileNavigation && !mobileOpen ? true : undefined}
-        role={isMobileNavigation && mobileOpen ? "dialog" : undefined}
-        aria-modal={isMobileNavigation && mobileOpen ? true : undefined}
-        aria-label={isMobileNavigation ? tr("shell.mainNavigation") : undefined}
-        tabIndex={isMobileNavigation ? -1 : undefined}
-      >
-        <button
-          type="button"
-          className="brand"
-          onClick={() => go("overview")}
-          aria-label="Kasa"
-        >
-          <span className="brand-mark">
-            <Home size={20} />
-          </span>
-          <strong>Kasa</strong>
-        </button>
-        <button
-          className="mobile-close"
-          onClick={closeMobileNavigation}
-          aria-label={tr("shell.closeNavigation")}
-          data-dialog-initial-focus
-        >
-          <X />
-        </button>
-        <button
-          className="workspace-switcher"
-          onClick={() => setWorkspaceMenuOpen((open) => !open)}
-          aria-expanded={workspaceMenuOpen}
-        >
-          <Avatar initials={workspace.initials} />
-          <span>
-            <small>
-              {role === "landlord" || role === "spaceOperator"
-                ? tr("nav.switchWorkspace")
-                : tr("shell.demoSwitch")}
-            </small>
-            <strong>{workspace.short}</strong>
-          </span>
-          <ChevronDown
-            className={workspaceMenuOpen ? "chevron-open" : ""}
-            size={16}
-          />
-        </button>
-        {workspaceMenuOpen && (
-          <section
-            className="workspace-menu"
-            aria-label={tr("shell.accountsWorkspaces")}
-          >
-            <header>
-              <Avatar initials="OM" />
-              <span>
-                <strong>Olivia Martín</strong>
-                <small>{tr("nav.oneIdentity")}</small>
-              </span>
-            </header>
-            <span className="workspace-menu-label">
-              {tr("nav.myWorkspaces")}
-            </span>
-            <button
-              className={role === "landlord" ? "active" : ""}
-              onClick={() => selectWorkspace("landlord")}
-            >
-              <Building2 size={18} />
-              <span>
-                <strong>{tr("shell.propertyOwner")}</strong>
-                <small>{tr("shell.propertyOwnerNote")}</small>
-              </span>
-              {role === "landlord" && <Check size={16} />}
-            </button>
-            <button
-              className={role === "spaceOperator" ? "active" : ""}
-              onClick={() => selectWorkspace("spaceOperator")}
-            >
-              <CalendarDays size={18} />
-              <span>
-                <strong>{tr("shell.spaceOperator")}</strong>
-                <small>{tr("shell.spaceOperatorNote")}</small>
-              </span>
-              {role === "spaceOperator" && <Check size={16} />}
-            </button>
-            <div className="workspace-shared-note">
-              <ShieldCheck size={16} />
-              <span>{tr("shell.separateRoles")}</span>
-            </div>
-            <span className="workspace-menu-label">{tr("nav.otherDemos")}</span>
-            <button
-              className={role === "tenant" ? "active" : ""}
-              onClick={() => selectWorkspace("tenant")}
-            >
-              <Home size={18} />
-              <span>
-                <strong>Inês Duarte</strong>
-                <small>{tr("shell.tenant")}</small>
-              </span>
-              {role === "tenant" && <Check size={16} />}
-            </button>
-            <button
-              className={role === "provider" ? "active" : ""}
-              onClick={() => selectWorkspace("provider")}
-            >
-              <Wrench size={18} />
-              <span>
-                <strong>Volt & Co.</strong>
-                <small>{tr("shell.serviceProvider")}</small>
-              </span>
-              {role === "provider" && <Check size={16} />}
-            </button>
-            <button
-              className={role === "admin" ? "active" : ""}
-              onClick={() => selectWorkspace("admin")}
-            >
-              <ShieldCheck size={18} />
-              <span>
-                <strong>Kasa Trust</strong>
-                <small>{tr("shell.administrator")}</small>
-              </span>
-              {role === "admin" && <Check size={16} />}
-            </button>
-          </section>
-        )}
-        <nav aria-label={tr("shell.mainNavigation")}>
-          {visibleNav.map((item, index) => {
-            const Icon = item.icon;
-            const label = navKeyByView[item.id]
-              ? tr(navKeyByView[item.id]!)
-              : item.label;
-            const section = navigationSection(role, item.id);
-            const previousSection =
-              index > 0
-                ? navigationSection(role, visibleNav[index - 1].id)
-                : null;
-            const badge =
-              item.id === "messages"
-                ? messageUnread > 0
-                  ? String(messageUnread)
-                  : undefined
-                : item.id === "applications"
-                  ? applicationCount > 0
-                    ? String(applicationCount)
-                    : undefined
-                  : item.id === "viewings"
-                    ? viewingDecisionCount > 0
-                      ? String(viewingDecisionCount)
-                      : undefined
-                    : item.id === "maintenance"
-                      ? maintenanceCount > 0
-                        ? String(maintenanceCount)
-                        : undefined
-                      : item.badge;
-            const active =
-              view === item.id ||
-              (view === "property" && item.id === propertyReturnTo);
-            return (
-              <span className="nav-wrap" key={item.id}>
-                {section !== previousSection && (
-                  <span
-                    className={`nav-label ${index > 0 ? "nav-label-spaced" : ""}`}
-                  >
-                    {tr(section)}
-                  </span>
-                )}
-                <button
-                  className={active ? "active" : ""}
-                  aria-current={active ? "page" : undefined}
-                  onClick={() =>
-                    role === "provider" && item.id === "services"
-                      ? openServices("hire")
-                      : go(item.id)
-                  }
-                >
-                  <Icon size={18} />
-                  <span>{label}</span>
-                  {badge && <i>{badge}</i>}
-                </button>
-              </span>
-            );
-          })}
-        </nav>
-        <div className="sidebar-footer">
-          <button
-            onClick={() => {
-              closeMobileNavigation();
-              setShowOnboarding(true);
-            }}
-          >
-            <Smartphone size={18} /> {tr("nav.appWelcome")}
-          </button>
-          <button
-            onClick={() => {
-              closeMobileNavigation();
-              setWorkspaceTool("help");
-            }}
-          >
-            <LifeBuoy size={18} /> {tr("nav.help")}
-          </button>
-          <button
-            onClick={() => {
-              closeMobileNavigation();
-              setWorkspaceTool("settings");
-            }}
-          >
-            <Settings size={18} /> {tr("common.settings")}
-          </button>
-          <div className="scope-chip">
-            <ShieldCheck size={15} /> {tr("nav.nonBrokerage")}
-          </div>
-        </div>
-      </aside>
-      {isMobileNavigation && mobileOpen && (
-        <button
-          className="sidebar-scrim"
-          aria-hidden="true"
-          tabIndex={-1}
-          onClick={closeMobileNavigation}
-        />
-      )}
-      <main className="main-area" id="main-content" tabIndex={-1}>
-        <header className="topbar">
-          <button
-            className="menu-button"
-            onClick={() => setMobileOpen(true)}
-            aria-label={tr("shell.openNavigation")}
-            aria-expanded={isMobileNavigation && mobileOpen}
-            aria-controls="workspace-navigation"
-          >
-            <Menu />
-          </button>
-          <div className="page-title">
-            <span className="eyebrow">{localizedEyebrow}</span>
-            <h1>{localizedTitle}</h1>
-          </div>
-          <div className="topbar-actions">
-            {!isDevicePreview && (
-              <button
-                className="device-lab-button"
-                onClick={() => setDeviceSimulatorOpen(true)}
-                aria-label={tr("common.simulator")}
-              >
-                <Smartphone size={17} />
-                <span>{tr("common.simulator")}</span>
-              </button>
-            )}
-            <LanguageSwitcher short={isDevicePreview || isMobileNavigation} />
-            <button
-              className="top-search"
-              onClick={() =>
-                role === "provider"
-                  ? go("provider")
-                  : role === "spaceOperator"
-                    ? go("spaceOperator")
-                    : role === "admin"
-                      ? go("admin")
-                      : go("discover")
-              }
-            >
-              <Search size={17} />
-              <span>{tr("shell.keyboardSearch")}</span>
-              <kbd>⌘ K</kbd>
-            </button>
-            <NotificationsPopover
-              state={notificationState}
-              setState={setNotificationState}
-              role={role}
-              onNavigate={openNotification}
-              notify={notify}
-              open={notificationsOpen}
-              setOpen={setNotificationsOpen}
-              onViewAll={() => go("notifications")}
-            />
-            <button
-              className="profile-button"
-              onClick={() => {
-                setWorkspaceMenuOpen((open) => !open);
-                setMobileOpen(true);
-              }}
-              aria-expanded={workspaceMenuOpen}
-            >
-              <Avatar initials={workspace.initials} />
-              <span>
-                <strong>{workspace.name}</strong>
-                <small>{workspace.label}</small>
-              </span>
-              <ChevronDown size={16} />
-            </button>
-          </div>
-        </header>
-        <div className="content" key={routeRevision}>
-          <Suspense
-            fallback={
-              <div className="workspace-loading" role="status">
-                {tr("common.loadingWorkspace")}
-              </div>
-            }
-          >
-            {renderView()}
-          </Suspense>
-        </div>
-      </main>
-      {mobileDockItems.length > 0 && (
-        <nav
-          className="mobile-dock"
-          aria-label={tr("shell.mobileNavigation")}
-          style={
-            { "--dock-items": mobileDockItems.length } as React.CSSProperties
-          }
-        >
-          {mobileDockItems.map((item) => {
-            const Icon = item.icon;
-            const active = (item.activeViews ?? [item.id]).includes(view);
-            return (
-              <button
-                key={item.id}
-                className={active ? "active" : ""}
-                aria-current={active ? "page" : undefined}
-                onClick={() =>
-                  role === "provider" && item.id === "services"
-                    ? openServices("hire")
-                    : go(item.id)
-                }
-              >
-                <Icon />
-                <span>{item.label}</span>
-              </button>
-            );
-          })}
-        </nav>
-      )}
-      {deviceSimulatorOpen && !isDevicePreview && (
+  const onboarding = showOnboarding ? (
+    <>
+      <OnboardingExperience
+        onEnter={enterDemo}
+        onOpenSimulator={() => setDeviceSimulatorOpen(true)}
+      />
+      {deviceSimulatorOpen && (
         <DeviceSimulator
-          role={role}
-          view={view}
+          role="tenant"
+          view="discover"
+          discoveryIntent={discoveryIntent}
+          language={language}
           onClose={() => setDeviceSimulatorOpen(false)}
           labels={{
             title: tr("common.deviceTitle"),
@@ -6775,35 +6437,629 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
           }}
         />
       )}
-      {workspaceTool && (
-        <Suspense
-          fallback={
-            <div className="toast" role="status">
-              {tr("common.loadingWorkspace")}
-            </div>
+    </>
+  ) : null;
+
+  return (
+    <>
+      {onboarding}
+      <div
+        className={`app-shell ${isDevicePreview ? `device-preview-${previewDevice}` : ""}`}
+        hidden={showOnboarding}
+      >
+        <a className="skip-link" href="#main-content">
+          {tr("shell.skipToContent")}
+        </a>
+        <aside
+          className={`sidebar ${mobileOpen ? "is-open" : ""}`}
+          id="workspace-navigation"
+          ref={sidebarRef}
+          inert={isMobileNavigation && !mobileOpen}
+          aria-hidden={isMobileNavigation && !mobileOpen ? true : undefined}
+          role={isMobileNavigation && mobileOpen ? "dialog" : undefined}
+          aria-modal={isMobileNavigation && mobileOpen ? true : undefined}
+          aria-label={
+            isMobileNavigation ? tr("shell.mainNavigation") : undefined
           }
+          tabIndex={isMobileNavigation ? -1 : undefined}
         >
-          <WorkspaceTools
-            mode={workspaceTool}
-            role={role}
-            workspace={workspace}
-            reduceMotion={reduceMotion}
-            onReduceMotion={(value) => {
-              setReduceMotion(value);
-              return writePreference("kasa-reduce-motion", String(value));
-            }}
-            onClose={() => setWorkspaceTool(null)}
-            onNavigate={go}
+          <button
+            type="button"
+            className="brand"
+            onClick={() => go("overview")}
+            aria-label="Kasa"
+          >
+            <span className="brand-mark">
+              <Home size={20} />
+            </span>
+            <strong>Kasa</strong>
+          </button>
+          <button
+            className="mobile-close"
+            onClick={closeMobileNavigation}
+            aria-label={tr("shell.closeNavigation")}
+            data-dialog-initial-focus
+          >
+            <X />
+          </button>
+          <button
+            className="workspace-switcher"
+            onClick={() => setWorkspaceMenuOpen((open) => !open)}
+            aria-expanded={workspaceMenuOpen}
+          >
+            <Avatar initials={workspace.initials} />
+            <span>
+              <small>{connectedCopy.examples}</small>
+              <strong>{workspace.short}</strong>
+            </span>
+            <ChevronDown
+              className={workspaceMenuOpen ? "chevron-open" : ""}
+              size={16}
+            />
+          </button>
+          {workspaceMenuOpen && (
+            <section
+              className="workspace-menu"
+              aria-label={tr("shell.accountsWorkspaces")}
+            >
+              <header>
+                <Avatar initials="OM" />
+                <span>
+                  <strong>Olivia Martín</strong>
+                  <small>{connectedCopy.exampleIdentity}</small>
+                </span>
+              </header>
+              <span className="workspace-menu-label">
+                {connectedCopy.examples}
+              </span>
+              <button
+                className={role === "landlord" ? "active" : ""}
+                onClick={() => selectWorkspace("landlord")}
+              >
+                <Building2 size={18} />
+                <span>
+                  <strong>{tr("shell.propertyOwner")}</strong>
+                  <small>{tr("shell.propertyOwnerNote")}</small>
+                </span>
+                {role === "landlord" && <Check size={16} />}
+              </button>
+              <button
+                className={role === "spaceOperator" ? "active" : ""}
+                onClick={() => selectWorkspace("spaceOperator")}
+              >
+                <CalendarDays size={18} />
+                <span>
+                  <strong>{tr("shell.spaceOperator")}</strong>
+                  <small>{tr("shell.spaceOperatorNote")}</small>
+                </span>
+                {role === "spaceOperator" && <Check size={16} />}
+              </button>
+              <div className="workspace-shared-note">
+                <ShieldCheck size={16} />
+                <span>{tr("shell.separateRoles")}</span>
+              </div>
+              <span className="workspace-menu-label">
+                {tr("nav.otherDemos")}
+              </span>
+              <button
+                className={role === "tenant" ? "active" : ""}
+                onClick={() => selectWorkspace("tenant")}
+              >
+                <Home size={18} />
+                <span>
+                  <strong>Inês Duarte</strong>
+                  <small>{tr("shell.tenant")}</small>
+                </span>
+                {role === "tenant" && <Check size={16} />}
+              </button>
+              <button
+                className={role === "provider" ? "active" : ""}
+                onClick={() => selectWorkspace("provider")}
+              >
+                <Wrench size={18} />
+                <span>
+                  <strong>Volt & Co.</strong>
+                  <small>{tr("shell.serviceProvider")}</small>
+                </span>
+                {role === "provider" && <Check size={16} />}
+              </button>
+              <button
+                className={role === "admin" ? "active" : ""}
+                onClick={() => selectWorkspace("admin")}
+              >
+                <ShieldCheck size={18} />
+                <span>
+                  <strong>Kasa Trust</strong>
+                  <small>{tr("shell.administrator")}</small>
+                </span>
+                {role === "admin" && <Check size={16} />}
+              </button>
+            </section>
+          )}
+          <nav aria-label={tr("shell.mainNavigation")}>
+            {!demoTarget && (
+              <>
+                <span className="nav-label connected-saved-label">
+                  {connectedCopy.account}
+                </span>
+                {connectedItems.map(({ section, icon: Icon }) => (
+                  <button
+                    type="button"
+                    key={`saved-${section}`}
+                    className={connectedSection === section ? "active" : ""}
+                    aria-current={
+                      connectedSection === section ? "page" : undefined
+                    }
+                    onClick={() => openConnected(section)}
+                  >
+                    <Icon size={18} />
+                    <span>{connectedCopy[section]}</span>
+                    {section === "notifications" &&
+                      connection.unreadCount > 0 && (
+                        <i>{connection.unreadCount}</i>
+                      )}
+                  </button>
+                ))}
+                <span className="nav-label connected-example-label">
+                  {connectedCopy.preview}
+                </span>
+              </>
+            )}
+            {visibleNav.map((item, index) => {
+              if (
+                !demoTarget &&
+                [
+                  "portfolio",
+                  "rent",
+                  "maintenance",
+                  "documents",
+                  "profile",
+                  "notifications",
+                  "messages",
+                ].includes(item.id)
+              )
+                return null;
+              const Icon = item.icon;
+              const label = navKeyByView[item.id]
+                ? tr(navKeyByView[item.id]!)
+                : item.label;
+              const section = navigationSection(role, item.id);
+              const previousSection =
+                index > 0
+                  ? navigationSection(role, visibleNav[index - 1].id)
+                  : null;
+              const badge =
+                item.id === "messages"
+                  ? messageUnread > 0
+                    ? String(messageUnread)
+                    : undefined
+                  : item.id === "applications"
+                    ? applicationCount > 0
+                      ? String(applicationCount)
+                      : undefined
+                    : item.id === "viewings"
+                      ? viewingDecisionCount > 0
+                        ? String(viewingDecisionCount)
+                        : undefined
+                      : item.id === "maintenance"
+                        ? maintenanceCount > 0
+                          ? String(maintenanceCount)
+                          : undefined
+                        : item.badge;
+              const active =
+                !connectedSection &&
+                (view === item.id ||
+                  (view === "property" && item.id === propertyReturnTo));
+              return (
+                <span className="nav-wrap" key={item.id}>
+                  {section !== previousSection && (
+                    <span
+                      className={`nav-label ${index > 0 ? "nav-label-spaced" : ""}`}
+                    >
+                      {tr(section)}
+                    </span>
+                  )}
+                  <button
+                    className={active ? "active" : ""}
+                    aria-current={active ? "page" : undefined}
+                    onClick={() => navigateMain(item.id)}
+                  >
+                    <Icon size={18} />
+                    <span>{label}</span>
+                    {badge && <i>{badge}</i>}
+                  </button>
+                </span>
+              );
+            })}
+          </nav>
+          <div className="sidebar-footer">
+            <button onClick={() => openConnected("profile")}>
+              <LockKeyhole size={18} /> {connectedCopy.account}
+            </button>
+            <button
+              onClick={() => {
+                closeMobileNavigation();
+                setConnectedSection(null);
+                setShowOnboarding(true);
+              }}
+            >
+              <Smartphone size={18} /> {tr("nav.appWelcome")}
+            </button>
+            <button
+              onClick={() => {
+                closeMobileNavigation();
+                setWorkspaceTool("help");
+              }}
+            >
+              <LifeBuoy size={18} /> {tr("nav.help")}
+            </button>
+            <button
+              onClick={() => {
+                closeMobileNavigation();
+                setWorkspaceTool("settings");
+              }}
+            >
+              <Settings size={18} /> {tr("common.settings")}
+            </button>
+            <div className="scope-chip">
+              <ShieldCheck size={15} /> {tr("nav.nonBrokerage")}
+            </div>
+          </div>
+        </aside>
+        {isMobileNavigation && mobileOpen && (
+          <button
+            className="sidebar-scrim"
+            aria-hidden="true"
+            tabIndex={-1}
+            onClick={closeMobileNavigation}
           />
-        </Suspense>
-      )}
-      {toast && (
-        <div className="toast" role="status">
-          <CheckCircle2 size={18} />
-          {toast}
-        </div>
-      )}
-    </div>
+        )}
+        <main className="main-area" id="main-content" tabIndex={-1}>
+          <header className="topbar">
+            <button
+              className="menu-button"
+              onClick={() => setMobileOpen(true)}
+              aria-label={tr("shell.openNavigation")}
+              aria-expanded={isMobileNavigation && mobileOpen}
+              aria-controls="workspace-navigation"
+            >
+              <Menu />
+            </button>
+            <div className="page-title">
+              <span className="eyebrow">
+                {connectedSection ? connectedCopy.account : localizedEyebrow}
+              </span>
+              <h1>
+                {connectedSection
+                  ? connectedCopy[connectedSection]
+                  : localizedTitle}
+              </h1>
+            </div>
+            <div className="topbar-actions">
+              {!isDevicePreview && (
+                <button
+                  className="device-lab-button"
+                  onClick={() => setDeviceSimulatorOpen(true)}
+                  aria-label={tr("common.simulator")}
+                >
+                  <Smartphone size={17} />
+                  <span>{tr("common.simulator")}</span>
+                </button>
+              )}
+              <LanguageSwitcher short={isDevicePreview || isMobileNavigation} />
+              <button
+                className="top-search"
+                onClick={() =>
+                  connectedSection
+                    ? openConnected("listings")
+                    : role === "provider"
+                      ? go("provider")
+                      : role === "spaceOperator"
+                        ? go("spaceOperator")
+                        : role === "admin"
+                          ? go("admin")
+                          : go("discover")
+                }
+              >
+                <Search size={17} />
+                <span>{tr("shell.keyboardSearch")}</span>
+                <kbd>⌘ K</kbd>
+              </button>
+              <button
+                type="button"
+                className="icon-button connected-header-alert"
+                aria-label={connectedCopy.notifications}
+                onClick={() => openConnected("notifications")}
+              >
+                <Bell size={19} />
+                {connection.unreadCount > 0 && (
+                  <i className="connected-unread">{connection.unreadCount}</i>
+                )}
+              </button>
+              <button
+                className="profile-button connected-account-button"
+                onClick={() => openConnected("profile")}
+                aria-label={`${connectedCopy.account}: ${accountName}`}
+              >
+                <Avatar initials={accountInitials} />
+                <span>
+                  <strong>{accountName}</strong>
+                  <small>{accountStateLabel}</small>
+                </span>
+                <ChevronDown size={16} />
+              </button>
+            </div>
+          </header>
+          <nav className="connected-area-rail" aria-label={connectedCopy.areas}>
+            <button
+              type="button"
+              aria-current={
+                connectedSection === "listings" ||
+                (!connectedSection &&
+                  (view === "discover" || view === "property"))
+                  ? "page"
+                  : undefined
+              }
+              onClick={() =>
+                connection.account ? openConnected("listings") : go("discover")
+              }
+            >
+              <Search size={17} />
+              {connectedCopy.homes}
+            </button>
+            <button
+              type="button"
+              aria-current={
+                !connectedSection &&
+                (view === "spaces" || view === "spaceVenue")
+                  ? "page"
+                  : undefined
+              }
+              onClick={() => go("spaces")}
+            >
+              <CalendarDays size={17} />
+              {connectedCopy.spaces}
+            </button>
+            <button
+              type="button"
+              aria-current={
+                !connectedSection &&
+                view === "services" &&
+                serviceArea !== "work"
+                  ? "page"
+                  : undefined
+              }
+              onClick={() => openServices("discover")}
+            >
+              <Wrench size={17} />
+              {connectedCopy.services}
+            </button>
+            <button
+              type="button"
+              aria-current={
+                !connectedSection &&
+                view === "services" &&
+                serviceArea === "work"
+                  ? "page"
+                  : undefined
+              }
+              onClick={() => openServices("jobs")}
+            >
+              <BriefcaseBusiness size={17} />
+              {connectedCopy.work}
+            </button>
+            <button
+              type="button"
+              aria-current={
+                connectedSection && connectedSection !== "listings"
+                  ? "page"
+                  : undefined
+              }
+              onClick={() => openConnected("properties")}
+            >
+              <LockKeyhole size={17} />
+              {connectedCopy.account}
+            </button>
+          </nav>
+          <div
+            className="content connected-preview-panel"
+            key={routeRevision}
+            hidden={connectedSection !== null}
+          >
+            <aside
+              className="connected-scope"
+              aria-label={connectedCopy.preview}
+            >
+              <div>
+                <strong>
+                  {connectedCopy.preview} · {workspace.name}
+                </strong>
+                <p>{connectedCopy.previewNote}</p>
+                {connection.dirty && <p>{connectedCopy.drafts}</p>}
+              </div>
+              <button type="button" onClick={() => openConnected("properties")}>
+                {connectedCopy.account} <ArrowRight size={14} />
+              </button>
+              <button type="button" onClick={() => openConnected("listings")}>
+                {connectedCopy.listings} <ArrowRight size={14} />
+              </button>
+              <button type="button" onClick={() => go("notifications")}>
+                {connectedCopy.previewNotifications}
+              </button>
+            </aside>
+            <Suspense
+              fallback={
+                <div className="workspace-loading" role="status">
+                  {tr("common.loadingWorkspace")}
+                </div>
+              }
+            >
+              {renderView()}
+            </Suspense>
+          </div>
+          {!demoTarget && (
+            <div
+              className="content connected-private-panel"
+              hidden={connectedSection === null}
+            >
+              <nav
+                className="connected-area-rail connected-section-rail"
+                aria-label={connectedCopy.saved}
+              >
+                {connectedItems.map(({ section, icon: Icon }) => (
+                  <button
+                    type="button"
+                    key={section}
+                    aria-current={
+                      connectedSection === section ? "page" : undefined
+                    }
+                    onClick={() => openConnected(section)}
+                  >
+                    <Icon size={16} />
+                    {connectedCopy[section]}
+                  </button>
+                ))}
+              </nav>
+              <Suspense
+                fallback={
+                  connectedSection ? (
+                    <p role="status">{connectedCopy.checking}</p>
+                  ) : null
+                }
+              >
+                <ConnectedAccountWorkspace
+                  embedded
+                  active={connectedSection !== null && !showOnboarding}
+                  section={connectedSection ?? "profile"}
+                  onSectionChange={openConnected}
+                  onConnectionChange={handleConnection}
+                  onBack={() => setConnectedSection(null)}
+                />
+              </Suspense>
+            </div>
+          )}
+        </main>
+        {connectedSection ? (
+          <nav
+            className="mobile-dock"
+            aria-label={tr("shell.mobileNavigation")}
+            style={{ "--dock-items": 5 } as React.CSSProperties}
+          >
+            <button
+              type="button"
+              onClick={() => openConnected("listings")}
+              className={connectedSection === "listings" ? "active" : ""}
+              aria-current={
+                connectedSection === "listings" ? "page" : undefined
+              }
+            >
+              <Search />
+              <span>{tr("common.search")}</span>
+            </button>
+            {(
+              [
+                "messages",
+                "properties",
+                "notifications",
+                "profile",
+              ] as ConnectedSection[]
+            ).map((section) => {
+              const Icon = connectedItems.find(
+                (item) => item.section === section,
+              )!.icon;
+              return (
+                <button
+                  type="button"
+                  key={section}
+                  className={connectedSection === section ? "active" : ""}
+                  aria-current={
+                    connectedSection === section ? "page" : undefined
+                  }
+                  onClick={() => openConnected(section)}
+                >
+                  <Icon />
+                  <span>{connectedCopy[section]}</span>
+                </button>
+              );
+            })}
+          </nav>
+        ) : (
+          mobileDockItems.length > 0 && (
+            <nav
+              className="mobile-dock"
+              aria-label={tr("shell.mobileNavigation")}
+              style={
+                {
+                  "--dock-items": mobileDockItems.length,
+                } as React.CSSProperties
+              }
+            >
+              {mobileDockItems.map((item) => {
+                const Icon = item.icon;
+                const active = (item.activeViews ?? [item.id]).includes(view);
+                return (
+                  <button
+                    key={item.id}
+                    className={active ? "active" : ""}
+                    aria-current={active ? "page" : undefined}
+                    onClick={() => navigateMain(item.id)}
+                  >
+                    <Icon />
+                    <span>{item.label}</span>
+                  </button>
+                );
+              })}
+            </nav>
+          )
+        )}
+        {deviceSimulatorOpen && !isDevicePreview && !showOnboarding && (
+          <DeviceSimulator
+            role={role}
+            view={view}
+            discoveryIntent={discoveryIntent}
+            language={language}
+            savedSection={connectedSection ?? undefined}
+            onClose={() => setDeviceSimulatorOpen(false)}
+            labels={{
+              title: tr("common.deviceTitle"),
+              subtitle: tr("common.deviceSubtitle"),
+              compare: tr("common.compare"),
+              ios: tr("common.ios"),
+              android: tr("common.android"),
+              close: tr("common.closeSimulator"),
+            }}
+          />
+        )}
+        {workspaceTool && (
+          <Suspense
+            fallback={
+              <div className="toast" role="status">
+                {tr("common.loadingWorkspace")}
+              </div>
+            }
+          >
+            <WorkspaceTools
+              mode={workspaceTool}
+              role={role}
+              workspace={workspace}
+              reduceMotion={reduceMotion}
+              onReduceMotion={(value) => {
+                setReduceMotion(value);
+                return writePreference("kasa-reduce-motion", String(value));
+              }}
+              onClose={() => setWorkspaceTool(null)}
+              onNavigate={go}
+            />
+          </Suspense>
+        )}
+        {toast && (
+          <div className="toast" role="status">
+            <CheckCircle2 size={18} />
+            {toast}
+          </div>
+        )}
+      </div>
+    </>
   );
 }
 

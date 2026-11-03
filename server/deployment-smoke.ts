@@ -43,6 +43,7 @@ async function start(
       KASA_API_SERVE_WEB: "true",
       KASA_API_COUNTRY: "demo",
       KASA_API_DEMO_WRITES: "false",
+      KASA_API_LOCAL_ACCOUNTS: "false",
       KASA_API_ALLOWED_ORIGINS: "https://kasa-pilot.example",
       ...options.env,
     },
@@ -176,6 +177,22 @@ try {
   assert.equal(unsafe.child.exitCode, 1);
   assert.match(unsafe.output, /must keep KASA_API_DEMO_WRITES=false/);
   passed("production launch refuses demo-write overrides even with a key");
+
+  const localAccounts = await start({
+    env: { KASA_API_LOCAL_ACCOUNTS: "true" },
+  });
+  assert.equal(localAccounts.child.exitCode, 1);
+  assert.match(
+    localAccounts.output,
+    /Local accounts are not available in production/,
+  );
+  const disabledAccounts = await fetch(`${base}/api/v1/account/session`);
+  assert.equal(disabledAccounts.status, 503);
+  assert.equal(disabledAccounts.headers.get("cache-control"), "no-store");
+  assert.equal(disabledAccounts.headers.get("x-kasa-data-mode"), "disabled");
+  passed(
+    "production refuses the local account adapter and exposes no account data by default",
+  );
 
   const normalizedCountry = await start({ env: { KASA_API_COUNTRY: " AO " } });
   assert.equal(normalizedCountry.child.exitCode, null);

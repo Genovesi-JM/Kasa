@@ -1,6 +1,7 @@
 import { config as loadEnv } from "dotenv";
 import { z } from "zod";
 import { countrySchema } from "./schemas.ts";
+import { validateLocalAccountConfig } from "./account-config.ts";
 
 loadEnv({ path: process.env.KASA_API_ENV_FILE || ".env.api", quiet: true });
 
@@ -22,6 +23,11 @@ const envSchema = z.object({
     z.string().min(16).optional(),
   ),
   KASA_API_COUNTRY: countrySchema.default("demo"),
+  KASA_API_LOCAL_ACCOUNTS: z
+    .enum(["true", "false"])
+    .default("false")
+    .transform((value) => value === "true"),
+  KASA_API_ACCOUNT_DB: z.string().optional(),
   KASA_API_SERVE_WEB: z
     .enum(["true", "false"])
     .default("false")
@@ -46,7 +52,28 @@ export const apiConfig = {
   demoKey: parsed.data.KASA_API_DEMO_KEY,
   country: parsed.data.KASA_API_COUNTRY,
   serveWeb: parsed.data.KASA_API_SERVE_WEB,
+  localAccounts: parsed.data.KASA_API_LOCAL_ACCOUNTS,
 } as const;
+
+export const accountDatabasePath = (() => {
+  try {
+    return validateLocalAccountConfig({
+      enabled: apiConfig.localAccounts,
+      production: apiConfig.publicPilot,
+      host: apiConfig.host,
+      allowedOrigins: apiConfig.allowedOrigins,
+      databasePath: parsed.data.KASA_API_ACCOUNT_DB,
+      projectRoot: process.cwd(),
+    });
+  } catch (error) {
+    console.error(
+      error instanceof Error
+        ? error.message
+        : "Invalid local account configuration.",
+    );
+    process.exit(1);
+  }
+})();
 
 if (apiConfig.publicPilot && apiConfig.demoWrites) {
   console.error(

@@ -3,6 +3,10 @@ import { spawn } from "node:child_process";
 import { createServer } from "node:http";
 import { ipKeyGenerator } from "express-rate-limit";
 import { rentProofSchema } from "./schemas.ts";
+import {
+  buildCountryConfig,
+  countryConfigSchema,
+} from "../src/platform/marketPolicy.ts";
 
 const port = 8791;
 const baseUrl = `http://127.0.0.1:${port}/api/v1`;
@@ -18,6 +22,7 @@ const child = spawn(process.execPath, ["--import", "tsx", "server/index.ts"], {
     KASA_API_DEMO_WRITES: "true",
     KASA_API_DEMO_KEY: demoKey,
     KASA_API_COUNTRY: "demo",
+    KASA_API_LOCAL_ACCOUNTS: "false",
   },
   stdio: ["ignore", "pipe", "pipe"],
 });
@@ -112,18 +117,35 @@ try {
   assert.equal(features.rentCustody, false);
   assert.equal(features.overnightSpaces, false);
   assert.equal(features.mortgageIntermediation, false);
-  passed("country flags preserve regulated product boundaries");
+  assert.equal(features.depositCustody, false);
+  assert.equal(features.propertySuccessFees, false);
+  assert.equal(features.partyRepresentation, false);
+  assert.deepEqual(
+    countryConfigSchema.parse(config.payload),
+    buildCountryConfig("ao"),
+  );
+  passed(
+    "country flags preserve product boundaries without implying legal or launch approval",
+  );
 
   const defaultConfig = await json("/config");
   assert.equal(defaultConfig.response.status, 200);
   assert.equal(defaultConfig.payload.country, "demo");
   assert.equal(defaultConfig.payload.readiness, "demo");
+  assert.deepEqual(
+    countryConfigSchema.parse(defaultConfig.payload),
+    buildCountryConfig("demo"),
+  );
   for (const country of ["AO", " AO ", "ao"]) {
     const result = await json(`/config?country=${encodeURIComponent(country)}`);
     assert.equal(result.response.status, 200);
     assert.equal(result.payload.country, "ao");
     assert.equal(result.payload.currency, "AOA");
     assert.equal(result.payload.readiness, "requires_market_approval");
+    assert.deepEqual(
+      countryConfigSchema.parse(result.payload),
+      buildCountryConfig("ao"),
+    );
   }
   for (const country of ["ZZ", "ABCDEFGHIJKL"]) {
     const result = await json(`/config?country=${country}`);
@@ -131,6 +153,10 @@ try {
     assert.equal(result.payload.country, country.toLowerCase());
     assert.equal(result.payload.currency, "EUR");
     assert.equal(result.payload.readiness, "requires_market_approval");
+    assert.deepEqual(
+      countryConfigSchema.parse(result.payload),
+      buildCountryConfig(country),
+    );
   }
   for (const query of [
     "country=",

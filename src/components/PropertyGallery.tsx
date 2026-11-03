@@ -7,12 +7,14 @@ import {
 } from "react";
 import { useTranslation } from "react-i18next";
 import {
+  BadgeCheck,
   Camera,
   Check,
   ChevronLeft,
   ChevronRight,
   Copy,
   ImageOff,
+  MapPin,
   X,
 } from "lucide-react";
 import type { Property } from "../types";
@@ -281,16 +283,124 @@ function GalleryViewer({
   );
 }
 
+export type PropertyHeroOverlay = {
+  title: string;
+  location: string;
+  price: string;
+  priceCaption: string;
+  addedLabel: string;
+  verified: boolean;
+  verifiedLabel: string;
+};
+
 export function PropertyGallery({
   property,
   viewPhotosLabel,
+  overlay,
 }: {
   property: Property;
   viewPhotosLabel: string;
+  overlay?: PropertyHeroOverlay;
 }) {
   const [openIndex, setOpenIndex] = useState<number | null>(null);
   const copy = useGalleryCopy();
   const photos = property.gallery.length ? property.gallery : [property.image];
+  const railPhotos = photos.slice(1, 3);
+
+  const viewer =
+    openIndex !== null ? (
+      <GalleryViewer
+        property={property}
+        photos={photos}
+        startIndex={openIndex}
+        onClose={() => setOpenIndex(null)}
+      />
+    ) : null;
+
+  // Cinematic hero: a full-bleed lead image under a forest scrim carries the
+  // listing's identity, with secondary photos in a side rail. Falls back to
+  // the plain media grid when no overlay content is supplied.
+  if (overlay) {
+    return (
+      <>
+        <section
+          className="property-hero"
+          data-rail={railPhotos.length}
+          aria-label={copy.gallery}
+        >
+          <button
+            type="button"
+            className="property-hero-lead"
+            onClick={() => setOpenIndex(0)}
+            aria-label={`${viewPhotosLabel} · ${copy.photo} 1`}
+          >
+            <GalleryPhoto
+              src={photos[0]}
+              alt={`${property.title} · ${copy.photo} 1`}
+            />
+            <span className="property-hero-scrim" aria-hidden="true" />
+            <span className="property-hero-overlay">
+              <span className="property-hero-top">
+                {overlay.verified && (
+                  <span className="property-hero-badge">
+                    <BadgeCheck size={14} aria-hidden="true" />{" "}
+                    {overlay.verifiedLabel}
+                  </span>
+                )}
+                <span className="property-hero-added">
+                  {overlay.addedLabel}
+                </span>
+              </span>
+              <span className="property-hero-foot">
+                <span className="property-hero-headline">
+                  <span className="display-serif property-hero-title">
+                    {overlay.title}
+                  </span>
+                  <span className="property-hero-location">
+                    <MapPin size={15} aria-hidden="true" /> {overlay.location}
+                  </span>
+                </span>
+                <span className="property-hero-price">
+                  <strong>{overlay.price}</strong>
+                  <small>{overlay.priceCaption}</small>
+                </span>
+              </span>
+            </span>
+          </button>
+          {railPhotos.length > 0 && (
+            <div className="property-hero-rail">
+              {railPhotos.map((photo, index) => (
+                <button
+                  type="button"
+                  className="property-hero-rail-tile"
+                  key={`${photo}-${index}`}
+                  onClick={() => setOpenIndex(index + 1)}
+                  aria-label={`${viewPhotosLabel} · ${copy.photo} ${index + 2}`}
+                >
+                  <GalleryPhoto
+                    src={photo}
+                    alt={`${property.title} · ${copy.photo} ${index + 2}`}
+                  />
+                </button>
+              ))}
+            </div>
+          )}
+          <button
+            type="button"
+            className="property-media-open property-hero-open"
+            onClick={() => setOpenIndex(0)}
+            aria-label={`${viewPhotosLabel} (${photos.length})`}
+          >
+            <Camera size={17} aria-hidden="true" />{" "}
+            <span className="property-hero-open-label">{viewPhotosLabel} </span>
+            <span>({photos.length})</span>
+          </button>
+        </section>
+        {viewer}
+      </>
+    );
+  }
+
   return (
     <>
       <section
@@ -322,14 +432,7 @@ export function PropertyGallery({
           <span>({photos.length})</span>
         </button>
       </section>
-      {openIndex !== null && (
-        <GalleryViewer
-          property={property}
-          photos={photos}
-          startIndex={openIndex}
-          onClose={() => setOpenIndex(null)}
-        />
-      )}
+      {viewer}
     </>
   );
 }

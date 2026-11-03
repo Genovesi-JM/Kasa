@@ -7,12 +7,1422 @@ info:
     services and sports/event-spaces platform. Demo write endpoints never hold
     rent, deposits or venue funds. Responses include an x-request-id header;
     JSON errors include the same requestId. Malformed JSON returns 400,
-    disallowed origins return 403, bodies above 250 KB return 413, and the API
+    disallowed origins return 403, catalogue bodies above 250 KB return 413, and the API
     rate limit returns 429. Unexpected internal errors return a sanitized 500.
+    Local account routes enforce their own smaller JSON limits; only an authenticated,
+    CSRF-protected document upload accepts a larger body. Local files are test-only,
+    not malware-scanned or approved for real customer data.
 servers:
   - url: http://127.0.0.1:8787/api/v1
     description: Local development
 paths:
+  "/account/market/conversations/{conversationId}/viewings":
+    parameters:
+      - in: path
+        name: conversationId
+        required: true
+        schema:
+          type: string
+          format: uuid
+    get:
+      operationId: listSavedViewingRequests
+      summary: List this conversation's viewing summaries
+      description:
+        Authenticated local test accounts only. Participant identity is derived
+        server-side. No external appointment, calendar invite, payment or broker representation
+        is supplied. Whole-minute UTC instants are displayed in Africa/Luanda. Writes
+        use exact actor-scoped mutation retries and optimistic versions.
+      security:
+        - LocalAccountCookie: []
+      responses:
+        "200":
+          description: Current authorized records
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/SavedViewingPage"
+        default:
+          "$ref": "#/components/responses/AccountFailure"
+      parameters:
+        - in: query
+          name: offset
+          schema:
+            type: integer
+            minimum: 0
+            maximum: 1000000
+            default: 0
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 20
+    post:
+      operationId: createSavedViewingRequest
+      summary: Interested participant requests a future viewing
+      description:
+        Authenticated local test accounts only. Participant identity is derived
+        server-side. No external appointment, calendar invite, payment or broker representation
+        is supplied. Whole-minute UTC instants are displayed in Africa/Luanda. Writes
+        use exact actor-scoped mutation retries and optimistic versions.
+      security:
+        - LocalAccountCookie: []
+      parameters:
+        - "$ref": "#/components/parameters/AccountOrigin"
+        - "$ref": "#/components/parameters/AccountCsrf"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/SavedViewingCreate"
+      responses:
+        "200":
+          description: Current authorized result for an exact retry
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/SavedViewingMutation"
+        "201":
+          description: Viewing request recorded locally
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/SavedViewingMutation"
+        default:
+          "$ref": "#/components/responses/AccountFailure"
+  "/account/market/viewings/{viewingId}":
+    parameters:
+      - in: path
+        name: viewingId
+        required: true
+        schema:
+          type: string
+          format: uuid
+    get:
+      operationId: readSavedViewingRequest
+      summary: Read current viewing terms and immutable history
+      description:
+        Authenticated local test accounts only. Participant identity is derived
+        server-side. No external appointment, calendar invite, payment or broker representation
+        is supplied. Whole-minute UTC instants are displayed in Africa/Luanda. Writes
+        use exact actor-scoped mutation retries and optimistic versions.
+      security:
+        - LocalAccountCookie: []
+      responses:
+        "200":
+          description: Current authorized records
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/SavedViewingDetail"
+        default:
+          "$ref": "#/components/responses/AccountFailure"
+  "/account/market/viewings/{viewingId}/actions":
+    parameters:
+      - in: path
+        name: viewingId
+        required: true
+        schema:
+          type: string
+          format: uuid
+    post:
+      operationId: actOnSavedViewingRequest
+      summary: Propose, confirm, accept, decline or cancel a viewing
+      description:
+        Authenticated local test accounts only. Participant identity is derived
+        server-side. No external appointment, calendar invite, payment or broker representation
+        is supplied. Whole-minute UTC instants are displayed in Africa/Luanda. Writes
+        use exact actor-scoped mutation retries and optimistic versions.
+      security:
+        - LocalAccountCookie: []
+      parameters:
+        - "$ref": "#/components/parameters/AccountOrigin"
+        - "$ref": "#/components/parameters/AccountCsrf"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/SavedViewingAction"
+      responses:
+        "200":
+          description: Current authorized records
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/SavedViewingMutation"
+        default:
+          "$ref": "#/components/responses/AccountFailure"
+  "/account/market/listings":
+    get:
+      operationId: listSavedTestListings
+      summary: Search visible listings in the authenticated local test catalogue
+      description:
+        Authenticated local test data only; not a public market or production
+        service.
+      security:
+        - LocalAccountCookie: []
+      parameters:
+        - in: query
+          name: offset
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+            maximum: 1000000
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 24
+        - in: query
+          name: q
+          schema:
+            type: string
+            maxLength: 120
+        - in: query
+          name: city
+          schema:
+            type: string
+            maxLength: 80
+        - in: query
+          name: intent
+          schema:
+            enum:
+              - Rent
+              - Buy
+        - in: query
+          name: type
+          schema:
+            enum:
+              - apartment
+              - house
+              - room
+              - land
+              - commercial
+        - in: query
+          name: pets
+          schema:
+            enum:
+              - allowed
+              - not_allowed
+              - ask
+        - in: query
+          name: minPriceMinor
+          schema:
+            type: integer
+            minimum: 0
+            maximum: 10000000000000
+        - in: query
+          name: maxPriceMinor
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 10000000000000
+        - in: query
+          name: sort
+          schema:
+            enum:
+              - recent
+              - price_asc
+              - price_desc
+            default: recent
+      responses:
+        "200":
+          description: Authorized local test records
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/MarketListingPage"
+        default:
+          "$ref": "#/components/responses/AccountFailure"
+    post:
+      operationId: createSavedTestListing
+      summary: Owner creates a local draft, never copies private property address
+      description:
+        Authenticated local test data only; not a public market or production
+        service.
+      security:
+        - LocalAccountCookie: []
+      parameters:
+        - "$ref": "#/components/parameters/AccountOrigin"
+        - "$ref": "#/components/parameters/AccountCsrf"
+      responses:
+        "200":
+          description: Authorized local test records
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/MarketListingMutation"
+        default:
+          "$ref": "#/components/responses/AccountFailure"
+        "201":
+          description: Created locally; identical authorized retry returns 200
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/MarketListingMutation"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/MarketListingCreate"
+  "/account/market/my-listings":
+    get:
+      operationId: listOwnSavedListings
+      summary: List own drafts, visible and paused listings
+      description:
+        Authenticated local test data only; not a public market or production
+        service.
+      security:
+        - LocalAccountCookie: []
+      parameters:
+        - in: query
+          name: offset
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+            maximum: 1000000
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 24
+      responses:
+        "200":
+          description: Authorized local test records
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/MarketListingPage"
+        default:
+          "$ref": "#/components/responses/AccountFailure"
+  "/account/market/listings/{listingId}":
+    parameters:
+      - in: path
+        name: listingId
+        required: true
+        schema:
+          type: string
+          format: uuid
+    get:
+      operationId: getSavedTestListing
+      summary: Read an authorized listing, source property ID only for owner
+      description:
+        Authenticated local test data only; not a public market or production
+        service.
+      security:
+        - LocalAccountCookie: []
+      parameters: []
+      responses:
+        "200":
+          description: Authorized local test records
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/MarketListingDetail"
+        default:
+          "$ref": "#/components/responses/AccountFailure"
+    patch:
+      operationId: editSavedTestListing
+      summary: Owner edits a listing with version and retry protection
+      description:
+        Authenticated local test data only; not a public market or production
+        service.
+      security:
+        - LocalAccountCookie: []
+      parameters:
+        - "$ref": "#/components/parameters/AccountOrigin"
+        - "$ref": "#/components/parameters/AccountCsrf"
+      responses:
+        "200":
+          description: Authorized local test records
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/MarketListingMutation"
+        default:
+          "$ref": "#/components/responses/AccountFailure"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/MarketListingEdit"
+  "/account/market/listings/{listingId}/enquiries":
+    parameters:
+      - in: path
+        name: listingId
+        required: true
+        schema:
+          type: string
+          format: uuid
+    post:
+      operationId: enquireSavedTestListing
+      summary: Send an enquiry to the listing owner derived by the server
+      description:
+        Authenticated local test data only; not a public market or production
+        service.
+      security:
+        - LocalAccountCookie: []
+      parameters:
+        - "$ref": "#/components/parameters/AccountOrigin"
+        - "$ref": "#/components/parameters/AccountCsrf"
+      responses:
+        "200":
+          description: Authorized local test records
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/MarketMessageMutation"
+        default:
+          "$ref": "#/components/responses/AccountFailure"
+        "201":
+          description: Created locally; identical authorized retry returns 200
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/MarketMessageMutation"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/MarketMessageInput"
+  "/account/market/conversations":
+    get:
+      operationId: listPrivateListingConversations
+      summary: List only the signed-in participant's conversations
+      description:
+        Authenticated local test data only; not a public market or production
+        service.
+      security:
+        - LocalAccountCookie: []
+      parameters:
+        - in: query
+          name: offset
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+            maximum: 1000000
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 24
+      responses:
+        "200":
+          description: Authorized local test records
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/MarketConversationPage"
+        default:
+          "$ref": "#/components/responses/AccountFailure"
+  "/account/market/conversations/{conversationId}/messages":
+    parameters:
+      - in: path
+        name: conversationId
+        required: true
+        schema:
+          type: string
+          format: uuid
+    get:
+      operationId: listPrivateListingMessages
+      summary: Return ordered messages; nextBefore loads older history
+      description:
+        Authenticated local test data only; not a public market or production
+        service.
+      security:
+        - LocalAccountCookie: []
+      parameters:
+        - in: query
+          name: before
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        "200":
+          description: Authorized local test records
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/MarketMessagesPage"
+        default:
+          "$ref": "#/components/responses/AccountFailure"
+    post:
+      operationId: sendPrivateListingMessage
+      summary: Persist a plain-text message; either participant's block prevents sending
+      description:
+        Authenticated local test data only; not a public market or production
+        service.
+      security:
+        - LocalAccountCookie: []
+      parameters:
+        - "$ref": "#/components/parameters/AccountOrigin"
+        - "$ref": "#/components/parameters/AccountCsrf"
+      responses:
+        "200":
+          description: Authorized local test records
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/MarketMessageMutation"
+        default:
+          "$ref": "#/components/responses/AccountFailure"
+        "201":
+          description: Created locally; identical authorized retry returns 200
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/MarketMessageMutation"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/MarketMessageInput"
+  "/account/market/conversations/{conversationId}/read":
+    parameters:
+      - in: path
+        name: conversationId
+        required: true
+        schema:
+          type: string
+          format: uuid
+    post:
+      operationId: readPrivateListingMessages
+      summary: Acknowledge displayed sequence monotonically; do not use unloaded latestSequence
+      description:
+        Authenticated local test data only; not a public market or production
+        service.
+      security:
+        - LocalAccountCookie: []
+      parameters:
+        - "$ref": "#/components/parameters/AccountOrigin"
+        - "$ref": "#/components/parameters/AccountCsrf"
+      responses:
+        "200":
+          description: Authorized local test records
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/MarketConversationRead"
+        default:
+          "$ref": "#/components/responses/AccountFailure"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/MarketReadInput"
+  "/account/market/conversations/{conversationId}/block":
+    parameters:
+      - in: path
+        name: conversationId
+        required: true
+        schema:
+          type: string
+          format: uuid
+    patch:
+      operationId: blockPrivateListingConversation
+      summary: Update only the caller's block setting with version and retry protection
+      description:
+        Authenticated local test data only; not a public market or production
+        service.
+      security:
+        - LocalAccountCookie: []
+      parameters:
+        - "$ref": "#/components/parameters/AccountOrigin"
+        - "$ref": "#/components/parameters/AccountCsrf"
+      responses:
+        "200":
+          description: Authorized local test records
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/MarketConversationMutation"
+        default:
+          "$ref": "#/components/responses/AccountFailure"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/MarketBlockInput"
+  /account/properties/{propertyId}/rent-records:
+    parameters:
+      - { $ref: "#/components/parameters/LocalPropertyId" }
+    get:
+      operationId: listLocalRentRecords
+      summary: List authorized rent summaries; never bank balances
+      security: [{ LocalAccountCookie: [] }]
+      parameters:
+        - in: query
+          name: before
+          description: Opaque nextCursor from the previous response.
+          schema: { type: string }
+      responses:
+        "200":
+          description: Up to 20 records, newest first; detail history loads separately
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [records, nextCursor]
+                properties:
+                  records:
+                    type: array
+                    maxItems: 20
+                    items: { $ref: "#/components/schemas/LocalRentSummary" }
+                  nextCursor: { type: [string, "null"] }
+        default: { $ref: "#/components/responses/AccountFailure" }
+    post:
+      operationId: createLocalRentRecord
+      summary: Owner records expected monthly rent for an active assigned tenant
+      description: >-
+        Local invented-data bookkeeping, AOA only. No payment is initiated, collected,
+        held or bank-verified. Only one non-voided record per property/tenant/month.
+        mutationId identifies this logical action; identical authorized retries return
+        the current record without duplicate history or notifications.
+      security: [{ LocalAccountCookie: [] }]
+      parameters:
+        - { $ref: "#/components/parameters/AccountOrigin" }
+        - { $ref: "#/components/parameters/AccountCsrf" }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required:
+                [
+                  mutationId,
+                  tenantAccountId,
+                  period,
+                  currency,
+                  amountDueMinor,
+                  dueOn,
+                ]
+              properties:
+                mutationId: { type: string, format: uuid }
+                tenantAccountId: { type: string, format: uuid }
+                period:
+                  { type: string, pattern: '^(19|20|21)\d{2}-(0[1-9]|1[0-2])$' }
+                currency: { const: AOA }
+                amountDueMinor: { $ref: "#/components/schemas/LocalRentAmount" }
+                dueOn:
+                  {
+                    type: string,
+                    format: date,
+                    pattern: '^(19|20|21)\d{2}-\d{2}-\d{2}$',
+                    description: Must fall within period.,
+                  }
+      responses:
+        "201": { $ref: "#/components/responses/LocalRentMutationResult" }
+        "200": { $ref: "#/components/responses/LocalRentMutationResult" }
+        default: { $ref: "#/components/responses/AccountFailure" }
+  /account/rent-records/{recordId}:
+    parameters:
+      - { $ref: "#/components/parameters/LocalRentId" }
+    get:
+      operationId: getLocalRentRecord
+      summary: Read an authorized rent record and its immutable history
+      security: [{ LocalAccountCookie: [] }]
+      responses:
+        "200":
+          description: Current rent record; removed memberships never regain old access by rejoining
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [record]
+                properties:
+                  record: { $ref: "#/components/schemas/LocalRentRecord" }
+        default: { $ref: "#/components/responses/AccountFailure" }
+    patch:
+      operationId: editLocalRentTerms
+      summary: Owner corrects expected amount and due date before any transfer report
+      security: [{ LocalAccountCookie: [] }]
+      parameters:
+        - { $ref: "#/components/parameters/AccountOrigin" }
+        - { $ref: "#/components/parameters/AccountCsrf" }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [mutationId, version, amountDueMinor, dueOn]
+              properties:
+                mutationId: { type: string, format: uuid }
+                version: { type: integer, minimum: 1 }
+                amountDueMinor: { $ref: "#/components/schemas/LocalRentAmount" }
+                dueOn: { $ref: "#/components/schemas/LocalRentDate" }
+      responses:
+        "200": { $ref: "#/components/responses/LocalRentMutationResult" }
+        default: { $ref: "#/components/responses/AccountFailure" }
+  /account/rent-records/{recordId}/transfer:
+    parameters:
+      - { $ref: "#/components/parameters/LocalRentId" }
+    post:
+      operationId: reportLocalRentTransfer
+      summary: Assigned tenant records or revises a direct-to-owner transfer report
+      description: >-
+        One current report, not an instalment ledger. Dates cannot be later than today
+        in Africa/Luanda. Evidence must already be an active tenant-uploaded document
+        in this property explicitly shared with its owner; this action never widens
+        file access. The report and evidence are not bank-verified.
+      security: [{ LocalAccountCookie: [] }]
+      parameters:
+        - { $ref: "#/components/parameters/AccountOrigin" }
+        - { $ref: "#/components/parameters/AccountCsrf" }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required:
+                [mutationId, version, amountMinor, transferredOn, reference]
+              properties:
+                mutationId: { type: string, format: uuid }
+                version: { type: integer, minimum: 1 }
+                amountMinor: { $ref: "#/components/schemas/LocalRentAmount" }
+                transferredOn: { $ref: "#/components/schemas/LocalRentDate" }
+                reference: { type: string, minLength: 1, maxLength: 100 }
+                note: { type: string, maxLength: 1000, default: "" }
+                evidenceDocumentId: { type: [string, "null"], format: uuid }
+      responses:
+        "200": { $ref: "#/components/responses/LocalRentMutationResult" }
+        default: { $ref: "#/components/responses/AccountFailure" }
+  /account/rent-records/{recordId}/review:
+    parameters:
+      - { $ref: "#/components/parameters/LocalRentId" }
+    post:
+      operationId: reviewLocalRentTransfer
+      summary: Owner explicitly confirms a matching report or requests a correction
+      description: >-
+        Confirmation requires awaiting_confirmation and an exact amount match; it is
+        the owner's statement, not bank verification, a tax receipt or a Kasa payment.
+        A correction requires a reason. Confirmed and voided records cannot be changed.
+      security: [{ LocalAccountCookie: [] }]
+      parameters:
+        - { $ref: "#/components/parameters/AccountOrigin" }
+        - { $ref: "#/components/parameters/AccountCsrf" }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [mutationId, version, decision]
+              allOf:
+                - if:
+                    properties:
+                      decision: { const: request_correction }
+                  then:
+                    required: [reason]
+                  else:
+                    not:
+                      required: [reason]
+              properties:
+                mutationId: { type: string, format: uuid }
+                version: { type: integer, minimum: 1 }
+                decision: { enum: [confirm, request_correction] }
+                reason: { type: string, minLength: 1, maxLength: 500 }
+      responses:
+        "200": { $ref: "#/components/responses/LocalRentMutationResult" }
+        default: { $ref: "#/components/responses/AccountFailure" }
+  /account/rent-records/{recordId}/void:
+    parameters:
+      - { $ref: "#/components/parameters/LocalRentId" }
+    post:
+      operationId: voidLocalRentRecord
+      summary: Owner voids an unconfirmed record while preserving its history
+      description: Not deletion, a refund or cancellation of a real-world debt or tenancy.
+      security: [{ LocalAccountCookie: [] }]
+      parameters:
+        - { $ref: "#/components/parameters/AccountOrigin" }
+        - { $ref: "#/components/parameters/AccountCsrf" }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [mutationId, version, reason]
+              properties:
+                mutationId: { type: string, format: uuid }
+                version: { type: integer, minimum: 1 }
+                reason: { type: string, minLength: 1, maxLength: 500 }
+      responses:
+        "200": { $ref: "#/components/responses/LocalRentMutationResult" }
+        default: { $ref: "#/components/responses/AccountFailure" }
+  /account/properties/{propertyId}/documents:
+    parameters:
+      - { $ref: "#/components/parameters/LocalPropertyId" }
+    get:
+      operationId: listLocalPrivateDocuments
+      summary: List own files and files explicitly shared with this account
+      description: Current property membership is required. Only the uploader sees archived files. Owners do not see tenant-private files.
+      security: [{ LocalAccountCookie: [] }]
+      responses:
+        "200":
+          description: Authorized metadata only; file bytes are never returned in lists
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [documents]
+                properties:
+                  documents:
+                    type: array
+                    items: { $ref: "#/components/schemas/LocalDocument" }
+        default: { $ref: "#/components/responses/AccountFailure" }
+    post:
+      operationId: uploadLocalPrivateDocument
+      summary: Store one test document, private unless sharing is explicitly chosen
+      description: >-
+        PDF, JPEG or PNG only; canonical base64, matching byte signature and decoded
+        size at most 1048576 bytes. No public URL or inline preview. Shared owner files
+        require one active tenant recipient; tenant sharing targets the owner server-side.
+        Filename must not contain path separators or control characters. Storage is bounded
+        to 25 files per property and 128 MiB total bytes, including archived files.
+      security: [{ LocalAccountCookie: [] }]
+      parameters:
+        - { $ref: "#/components/parameters/AccountOrigin" }
+        - { $ref: "#/components/parameters/AccountCsrf" }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [title, filename, mimeType, contentBase64]
+              properties:
+                title: { type: string, minLength: 1, maxLength: 140 }
+                filename: { type: string, minLength: 1, maxLength: 255 }
+                mimeType: { enum: [application/pdf, image/jpeg, image/png] }
+                contentBase64:
+                  { type: string, contentEncoding: base64, maxLength: 1398104 }
+                sharing: { enum: [private, shared], default: private }
+                recipientAccountId: { type: string, format: uuid }
+      responses:
+        "201": { $ref: "#/components/responses/LocalDocumentResult" }
+        default: { $ref: "#/components/responses/AccountFailure" }
+  /account/documents/{documentId}:
+    parameters:
+      - { $ref: "#/components/parameters/LocalDocumentId" }
+    patch:
+      operationId: updateLocalDocument
+      summary: Uploader renames, shares, unshares, archives or restores their file
+      description: >-
+        Bytes are immutable. Updates require the current version; unchanged metadata is
+        a no-op. Archiving is reversible and hides the file from recipients. Removing a
+        tenant permanently removes sharing for that owner-tenant pair, even after rejoining.
+      security: [{ LocalAccountCookie: [] }]
+      parameters:
+        - { $ref: "#/components/parameters/AccountOrigin" }
+        - { $ref: "#/components/parameters/AccountCsrf" }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [version, title, sharing, archived]
+              properties:
+                version: { type: integer, minimum: 1 }
+                title: { type: string, minLength: 1, maxLength: 140 }
+                sharing: { enum: [private, shared] }
+                recipientAccountId: { type: string, format: uuid }
+                archived: { type: boolean }
+      responses:
+        "200": { $ref: "#/components/responses/LocalDocumentResult" }
+        default: { $ref: "#/components/responses/AccountFailure" }
+  /account/documents/{documentId}/content:
+    parameters:
+      - { $ref: "#/components/parameters/LocalDocumentId" }
+    get:
+      operationId: downloadLocalPrivateDocument
+      summary: Download authorized file bytes after a fresh membership and sharing check
+      security: [{ LocalAccountCookie: [] }]
+      responses:
+        "200":
+          description: Attachment only, never an inline or public file URL
+          headers:
+            Content-Disposition:
+              {
+                schema: { type: string },
+                description: attachment with a safely encoded filename,
+              }
+            Cache-Control: { schema: { const: no-store } }
+            X-Content-Type-Options: { schema: { const: nosniff } }
+          content:
+            application/octet-stream:
+              schema: { type: string, format: binary }
+        default: { $ref: "#/components/responses/AccountFailure" }
+  /account/notifications:
+    get:
+      operationId: listLocalNotifications
+      summary: List persisted in-app activity that the account may still access
+      security: [{ LocalAccountCookie: [] }]
+      parameters:
+        - in: query
+          name: before
+          description: Opaque nextCursor returned by the previous page; do not construct it.
+          schema: { type: string }
+      responses:
+        "200":
+          description: Up to 50 visible events, newest first; unreadCount covers all currently accessible events
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [notifications, unreadCount, nextCursor]
+                properties:
+                  notifications:
+                    type: array
+                    maxItems: 50
+                    items: { $ref: "#/components/schemas/LocalNotification" }
+                  unreadCount: { type: integer, minimum: 0 }
+                  nextCursor: { type: [string, "null"] }
+        default: { $ref: "#/components/responses/AccountFailure" }
+  /account/notifications/{notificationId}:
+    parameters:
+      - in: path
+        name: notificationId
+        required: true
+        schema: { type: string, format: uuid }
+    patch:
+      operationId: readLocalNotification
+      summary: Mark one currently accessible notification as read
+      security: [{ LocalAccountCookie: [] }]
+      parameters:
+        - { $ref: "#/components/parameters/AccountOrigin" }
+        - { $ref: "#/components/parameters/AccountCsrf" }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [read]
+              properties:
+                read: { const: true }
+      responses:
+        "200":
+          description: Read state saved; repeating the action does not create a new event
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [notification]
+                properties:
+                  notification:
+                    { $ref: "#/components/schemas/LocalNotification" }
+        default: { $ref: "#/components/responses/AccountFailure" }
+  /account/notifications/read-all:
+    post:
+      operationId: readAllLocalNotifications
+      summary: Mark all currently accessible notifications as read, including older pages
+      security: [{ LocalAccountCookie: [] }]
+      parameters:
+        - { $ref: "#/components/parameters/AccountOrigin" }
+        - { $ref: "#/components/parameters/AccountCsrf" }
+      requestBody: { $ref: "#/components/requestBodies/LocalEmptyInput" }
+      responses:
+        "200":
+          description: Read state saved for the authenticated account only
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [updated]
+                properties:
+                  updated: { type: integer, minimum: 0 }
+        default: { $ref: "#/components/responses/AccountFailure" }
+  /account/workspaces:
+    get:
+      operationId: listLocalWorkspaces
+      summary: List only owned workspaces and assigned private properties
+      security: [{ LocalAccountCookie: [] }]
+      responses:
+        "200":
+          description: Local persisted workspaces; never includes unrelated properties
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [workspaces]
+                properties:
+                  workspaces:
+                    type: array
+                    items: { $ref: "#/components/schemas/LocalWorkspace" }
+        default: { $ref: "#/components/responses/AccountFailure" }
+    post:
+      operationId: createLocalWorkspace
+      summary: Create a private owner workspace for the signed-in test account
+      security: [{ LocalAccountCookie: [] }]
+      parameters:
+        - { $ref: "#/components/parameters/AccountOrigin" }
+        - { $ref: "#/components/parameters/AccountCsrf" }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [name]
+              properties:
+                name: { type: string, minLength: 1, maxLength: 100 }
+      responses:
+        "201":
+          description: Created workspace, owner role assigned server-side
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [workspace]
+                properties:
+                  workspace: { $ref: "#/components/schemas/LocalWorkspace" }
+        default: { $ref: "#/components/responses/AccountFailure" }
+  /account/workspaces/{workspaceId}/properties:
+    parameters:
+      - {
+          in: path,
+          name: workspaceId,
+          required: true,
+          schema: { type: string, format: uuid },
+        }
+    post:
+      operationId: createLocalPrivateProperty
+      summary: Owner creates a private property; not a public listing
+      security: [{ LocalAccountCookie: [] }]
+      parameters:
+        - { $ref: "#/components/parameters/AccountOrigin" }
+        - { $ref: "#/components/parameters/AccountCsrf" }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/LocalPropertyInput" }
+      responses:
+        "201": { $ref: "#/components/responses/LocalPropertyResult" }
+        default: { $ref: "#/components/responses/AccountFailure" }
+  /account/properties/{propertyId}:
+    parameters:
+      - { $ref: "#/components/parameters/LocalPropertyId" }
+    patch:
+      operationId: editLocalPrivateProperty
+      summary: Owner edits property name/address with stale-version protection
+      security: [{ LocalAccountCookie: [] }]
+      parameters:
+        - { $ref: "#/components/parameters/AccountOrigin" }
+        - { $ref: "#/components/parameters/AccountCsrf" }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [name, address, version]
+              properties:
+                name: { type: string, minLength: 1, maxLength: 100 }
+                address: { type: string, minLength: 1, maxLength: 300 }
+                version: { type: integer, minimum: 1 }
+      responses:
+        "200": { $ref: "#/components/responses/LocalPropertyResult" }
+        default: { $ref: "#/components/responses/AccountFailure" }
+  /account/properties/{propertyId}/access:
+    parameters:
+      - { $ref: "#/components/parameters/LocalPropertyId" }
+    get:
+      operationId: getLocalPropertyAccess
+      summary: Owner reads tenant memberships and invitation status without email or codes
+      security: [{ LocalAccountCookie: [] }]
+      responses:
+        "200":
+          description: Owner-only access details
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [tenants, invitations]
+                properties:
+                  tenants:
+                    type: array
+                    items:
+                      type: object
+                      required: [accountId, displayName]
+                      properties:
+                        accountId: { type: string, format: uuid }
+                        displayName: { type: string }
+                  invitations:
+                    type: array
+                    items:
+                      type: object
+                      required: [id, accountId, expiresAt, status]
+                      properties:
+                        id: { type: string, format: uuid }
+                        accountId: { type: string, format: uuid }
+                        expiresAt: { type: string, format: date-time }
+                        status: { enum: [pending, accepted, revoked, expired] }
+        default: { $ref: "#/components/responses/AccountFailure" }
+  /account/properties/{propertyId}/invitations:
+    parameters:
+      - { $ref: "#/components/parameters/LocalPropertyId" }
+    post:
+      operationId: inviteLocalTenant
+      summary: Owner invites an existing account ID; no email is sent
+      description: Single-use code expires in 24 hours. Only the target account can accept. The code is returned only on creation, never listed or stored in plaintext.
+      security: [{ LocalAccountCookie: [] }]
+      parameters:
+        - { $ref: "#/components/parameters/AccountOrigin" }
+        - { $ref: "#/components/parameters/AccountCsrf" }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [accountId]
+              properties:
+                accountId: { type: string, format: uuid }
+      responses:
+        "201":
+          description: Share the invitation code manually with its intended test account
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [invitation]
+                properties:
+                  invitation:
+                    type: object
+                    required: [id, propertyId, accountId, code, expiresAt]
+                    properties:
+                      id: { type: string, format: uuid }
+                      propertyId: { type: string, format: uuid }
+                      accountId: { type: string, format: uuid }
+                      code: { type: string, pattern: "^[A-Za-z0-9_-]{43}$" }
+                      expiresAt: { type: string, format: date-time }
+        default: { $ref: "#/components/responses/AccountFailure" }
+  /account/invitations/{invitationId}:
+    parameters:
+      - {
+          in: path,
+          name: invitationId,
+          required: true,
+          schema: { type: string, format: uuid },
+        }
+    delete:
+      operationId: revokeLocalInvitation
+      summary: Owner revokes a pending invitation
+      security: [{ LocalAccountCookie: [] }]
+      parameters:
+        - { $ref: "#/components/parameters/AccountOrigin" }
+        - { $ref: "#/components/parameters/AccountCsrf" }
+      requestBody: { $ref: "#/components/requestBodies/LocalEmptyInput" }
+      responses:
+        "200":
+          description: Invitation revoked
+          content:
+            application/json:
+              schema:
+                {
+                  type: object,
+                  required: [revoked],
+                  properties: { revoked: { const: true } },
+                }
+        default: { $ref: "#/components/responses/AccountFailure" }
+  /account/invitations/accept:
+    post:
+      operationId: acceptLocalInvitation
+      summary: Intended account explicitly accepts a valid one-time invitation
+      security: [{ LocalAccountCookie: [] }]
+      parameters:
+        - { $ref: "#/components/parameters/AccountOrigin" }
+        - { $ref: "#/components/parameters/AccountCsrf" }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [code]
+              properties:
+                code: { type: string, pattern: "^[A-Za-z0-9_-]{43}$" }
+      responses:
+        "200":
+          description: Property membership created
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [propertyId, workspaceId]
+                properties:
+                  propertyId: { type: string, format: uuid }
+                  workspaceId: { type: string, format: uuid }
+        default: { $ref: "#/components/responses/AccountFailure" }
+  /account/properties/{propertyId}/tenants/{accountId}:
+    parameters:
+      - { $ref: "#/components/parameters/LocalPropertyId" }
+      - {
+          in: path,
+          name: accountId,
+          required: true,
+          schema: { type: string, format: uuid },
+        }
+    delete:
+      operationId: removeLocalTenantAccess
+      summary: Owner removes tenant access and pending invitations; retains maintenance history
+      security: [{ LocalAccountCookie: [] }]
+      parameters:
+        - { $ref: "#/components/parameters/AccountOrigin" }
+        - { $ref: "#/components/parameters/AccountCsrf" }
+      requestBody: { $ref: "#/components/requestBodies/LocalEmptyInput" }
+      responses:
+        "200":
+          description: Access removed
+          content:
+            application/json:
+              schema:
+                {
+                  type: object,
+                  required: [removed],
+                  properties: { removed: { const: true } },
+                }
+        default: { $ref: "#/components/responses/AccountFailure" }
+  /account/properties/{propertyId}/maintenance:
+    parameters:
+      - { $ref: "#/components/parameters/LocalPropertyId" }
+    get:
+      operationId: listLocalMaintenance
+      summary: Owner reads property requests; tenant reads only requests they created
+      security: [{ LocalAccountCookie: [] }]
+      responses:
+        "200":
+          description: Permission-scoped maintenance records and dated history
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [requests]
+                properties:
+                  requests:
+                    type: array
+                    items: { $ref: "#/components/schemas/LocalMaintenance" }
+        default: { $ref: "#/components/responses/AccountFailure" }
+    post:
+      operationId: createLocalMaintenance
+      summary: Owner or assigned tenant creates a maintenance request
+      security: [{ LocalAccountCookie: [] }]
+      parameters:
+        - { $ref: "#/components/parameters/AccountOrigin" }
+        - { $ref: "#/components/parameters/AccountCsrf" }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [title, description, priority]
+              properties:
+                title: { type: string, minLength: 1, maxLength: 140 }
+                description: { type: string, minLength: 1, maxLength: 4000 }
+                priority: { enum: [normal, urgent] }
+      responses:
+        "201": { $ref: "#/components/responses/LocalMaintenanceResult" }
+        default: { $ref: "#/components/responses/AccountFailure" }
+  /account/maintenance/{requestId}:
+    parameters:
+      - {
+          in: path,
+          name: requestId,
+          required: true,
+          schema: { type: string, format: uuid },
+        }
+    patch:
+      operationId: updateLocalMaintenance
+      summary: Append a comment or owner-only status change with version protection
+      description: At least one of message/status is required. An owner can reopen a resolved request. Tenants cannot set status, including an unchanged status.
+      security: [{ LocalAccountCookie: [] }]
+      parameters:
+        - { $ref: "#/components/parameters/AccountOrigin" }
+        - { $ref: "#/components/parameters/AccountCsrf" }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [version]
+              anyOf: [{ required: [message] }, { required: [status] }]
+              properties:
+                version: { type: integer, minimum: 1 }
+                message: { type: string, minLength: 1, maxLength: 2000 }
+                status: { enum: [open, in_progress, resolved] }
+      responses:
+        "200": { $ref: "#/components/responses/LocalMaintenanceResult" }
+        default: { $ref: "#/components/responses/AccountFailure" }
+  /account/session:
+    get:
+      operationId: getLocalAccountSession
+      summary: Restore a local development account session
+      description: >-
+        Opt-in loopback-only development feature, disabled in production. Uses
+        an HTTP-only SameSite=Strict cookie scoped to /api/v1/account. Returns
+        only the signed-in account, never sample workspace identities or roles.
+        No session returns null account and null csrfToken. Never cache responses.
+      responses:
+        "200": { $ref: "#/components/responses/AccountSession" }
+        "503": { $ref: "#/components/responses/AccountFailure" }
+  /account/register:
+    post:
+      operationId: registerLocalAccount
+      summary: Create an isolated local test account
+      description: >-
+        Use invented details only. Requires exact approved loopback Origin and
+        application/json, limited to 16 KB. Email ownership is not verified.
+        No roles or operational workspace permissions are granted. Sets a new
+        session cookie; sessions last up to seven days. Unexpected fields fail.
+      parameters:
+        - { $ref: "#/components/parameters/AccountOrigin" }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [displayName, email, password, locale]
+              properties:
+                displayName: { type: string, minLength: 1, maxLength: 100 }
+                email: { type: string, format: email, maxLength: 254 }
+                password:
+                  {
+                    type: string,
+                    minLength: 12,
+                    maxLength: 128,
+                    writeOnly: true,
+                  }
+                locale: { $ref: "#/components/schemas/AccountLocale" }
+      responses:
+        "201": { $ref: "#/components/responses/AccountSession" }
+        "403": { $ref: "#/components/responses/AccountFailure" }
+        "409": { $ref: "#/components/responses/AccountFailure" }
+        "422": { $ref: "#/components/responses/AccountFailure" }
+        "429": { $ref: "#/components/responses/AccountFailure" }
+        "503": { $ref: "#/components/responses/AccountFailure" }
+  /account/login:
+    post:
+      operationId: loginLocalAccount
+      summary: Sign in to a local test account
+      parameters:
+        - { $ref: "#/components/parameters/AccountOrigin" }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [email, password]
+              properties:
+                email: { type: string, format: email, maxLength: 254 }
+                password:
+                  {
+                    type: string,
+                    minLength: 12,
+                    maxLength: 128,
+                    writeOnly: true,
+                  }
+      responses:
+        "200": { $ref: "#/components/responses/AccountSession" }
+        "401": { $ref: "#/components/responses/AccountFailure" }
+        "403": { $ref: "#/components/responses/AccountFailure" }
+        "422": { $ref: "#/components/responses/AccountFailure" }
+        "429": { $ref: "#/components/responses/AccountFailure" }
+        "503": { $ref: "#/components/responses/AccountFailure" }
+  /account/profile:
+    patch:
+      operationId: updateOwnLocalProfile
+      summary: Save the signed-in account's name and language
+      description: >-
+        Own account only. Never accepts account ID, role, privileges or email
+        changes. Requires current record version; stale edits return 409.
+      security:
+        - LocalAccountCookie: []
+      parameters:
+        - { $ref: "#/components/parameters/AccountOrigin" }
+        - { $ref: "#/components/parameters/AccountCsrf" }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [displayName, locale, version]
+              properties:
+                displayName: { type: string, minLength: 1, maxLength: 100 }
+                locale: { $ref: "#/components/schemas/AccountLocale" }
+                version:
+                  { type: integer, minimum: 1, maximum: 9007199254740990 }
+      responses:
+        "200": { $ref: "#/components/responses/AccountSession" }
+        "401": { $ref: "#/components/responses/AccountFailure" }
+        "403": { $ref: "#/components/responses/AccountFailure" }
+        "409": { $ref: "#/components/responses/AccountFailure" }
+        "422": { $ref: "#/components/responses/AccountFailure" }
+        "503": { $ref: "#/components/responses/AccountFailure" }
+  /account/logout:
+    post:
+      operationId: logoutLocalAccount
+      summary: Revoke current session and clear the cookie
+      security:
+        - LocalAccountCookie: []
+      parameters:
+        - { $ref: "#/components/parameters/AccountOrigin" }
+        - { $ref: "#/components/parameters/AccountCsrf" }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              { type: object, additionalProperties: false, maxProperties: 0 }
+      responses:
+        "200": { $ref: "#/components/responses/AccountSession" }
+        "401": { $ref: "#/components/responses/AccountFailure" }
+        "403": { $ref: "#/components/responses/AccountFailure" }
+        "503": { $ref: "#/components/responses/AccountFailure" }
   /health:
     get:
       operationId: getHealth
@@ -26,7 +1436,9 @@ paths:
       summary: Check synthetic demo API and optional web bundle readiness
       description: >-
         This is not a production database or identity readiness check.
-        Responses explicitly identify synthetic data and productionReady=false.
+        Responses identify synthetic catalogues and productionReady=false.
+        When local accounts are explicitly enabled, they also identify persisted
+        property workflows, local_private_files and local_in_app notifications.
       responses:
         "200":
           description: Synthetic demo runtime is ready
@@ -35,7 +1447,12 @@ paths:
   /config:
     get:
       operationId: getCountryConfig
-      summary: Read server-enforced country and feature configuration
+      summary: Read prototype country capabilities and blocked launch policy
+      description: >-
+        Features describe synthetic-demo capabilities, not legal approval or
+        live availability. All launch gates remain pending in this prototype.
+        Neither country selection nor a successful health check authorizes
+        live publication, promotion, bookings or payments.
       parameters:
         - in: query
           name: country
@@ -43,7 +1460,10 @@ paths:
           schema: { type: string, minLength: 2, maxLength: 12 }
       responses:
         "200":
-          description: Country configuration
+          description: Synthetic-demo configuration; live launch remains blocked
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CountryConfig" }
         "400": { $ref: "#/components/responses/BadRequest" }
   /properties:
     get:
@@ -247,12 +1667,51 @@ paths:
         "503": { description: Demo writes are disabled }
 components:
   securitySchemes:
+    LocalAccountCookie:
+      type: apiKey
+      in: cookie
+      name: kasa_account_session
+      description: >-
+        Local development only; never use demo roles as account authorization.
+        Workspace endpoints also accept optional X-Kasa-Account-Id as a stale-tab
+        guard. A supplied ID must match the session or returns 401 ACCOUNT_CHANGED;
+        the header never grants authority. All reads are non-cacheable. Local
+        capacity limits return 409 LIMIT_REACHED, rate limits return 429, stale
+        versions return 409 VERSION_CONFLICT, and inaccessible
+        objects return generic 404. No endpoint activates a public listing/payment.
     DemoKey:
       type: apiKey
       in: header
       name: x-kasa-demo-key
       description: Local demo only; replace with reviewed authentication.
   parameters:
+    LocalRentId:
+      in: path
+      name: recordId
+      required: true
+      schema: { type: string, format: uuid }
+    LocalDocumentId:
+      in: path
+      name: documentId
+      required: true
+      schema: { type: string, format: uuid }
+    LocalPropertyId:
+      in: path
+      name: propertyId
+      required: true
+      schema: { type: string, format: uuid }
+    AccountOrigin:
+      in: header
+      name: Origin
+      required: true
+      description: Exact configured loopback web origin, supplied by the browser.
+      schema: { type: string }
+    AccountCsrf:
+      in: header
+      name: X-CSRF-Token
+      required: true
+      description: Token from the current session response, kept in memory only.
+      schema: { type: string }
     NumericId:
       in: path
       name: id
@@ -278,7 +1737,2043 @@ components:
         payloads return 400 before replay lookup. Restarting the server clears
         this cache.
       schema: { type: string, minLength: 16, maxLength: 200 }
+  requestBodies:
+    LocalEmptyInput:
+      required: true
+      content:
+        application/json:
+          schema: { type: object, additionalProperties: false }
   schemas:
+    SavedViewing:
+      type: object
+      properties:
+        status:
+          type: string
+          enum:
+            - requested
+            - proposed
+            - confirmed
+            - declined
+            - cancelled
+        startsAt:
+          type: string
+          format: date-time
+          pattern: "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+        endsAt:
+          type: string
+          format: date-time
+          pattern: "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+        durationMinutes:
+          type: integer
+          minimum: 15
+          maximum: 180
+          multipleOf: 15
+        id:
+          type: string
+          format: uuid
+          pattern: "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        conversationId:
+          type: string
+          format: uuid
+          pattern: "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        listingId:
+          type: string
+          format: uuid
+          pattern: "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        listingTitle:
+          type: string
+          minLength: 5
+          maxLength: 120
+        isListingOwner:
+          type: boolean
+        timeZone:
+          type: string
+          const: Africa/Luanda
+        note:
+          type: string
+          maxLength: 1000
+        version:
+          type: integer
+          exclusiveMinimum: 0
+          maximum: 9007199254740990
+        createdAt:
+          type: string
+          format: date-time
+          pattern: "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+        updatedAt:
+          type: string
+          format: date-time
+          pattern: "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+      required:
+        - status
+        - startsAt
+        - endsAt
+        - durationMinutes
+        - id
+        - conversationId
+        - listingId
+        - listingTitle
+        - isListingOwner
+        - timeZone
+        - note
+        - version
+        - createdAt
+        - updatedAt
+      additionalProperties: false
+    SavedViewingEvent:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          pattern: "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        sequence:
+          type: integer
+          minimum: 1
+          maximum: 50
+        action:
+          type: string
+          enum:
+            - request
+            - propose
+            - confirm
+            - accept
+            - decline
+            - cancel
+        actorRole:
+          type: string
+          enum:
+            - owner
+            - requester
+        mine:
+          type: boolean
+        note:
+          type: string
+          maxLength: 1000
+        before:
+          anyOf:
+            - "$ref": "#/components/schemas/SavedViewingSnapshot"
+            - type: "null"
+        after:
+          "$ref": "#/components/schemas/SavedViewingSnapshot"
+        createdAt:
+          type: string
+          format: date-time
+          pattern: "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+      required:
+        - id
+        - sequence
+        - action
+        - actorRole
+        - mine
+        - note
+        - before
+        - after
+        - createdAt
+      additionalProperties: false
+    SavedViewingSnapshot:
+      type: object
+      properties:
+        status:
+          type: string
+          enum:
+            - requested
+            - proposed
+            - confirmed
+            - declined
+            - cancelled
+        startsAt:
+          type: string
+          format: date-time
+          pattern: "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+        endsAt:
+          type: string
+          format: date-time
+          pattern: "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+        durationMinutes:
+          type: integer
+          minimum: 15
+          maximum: 180
+          multipleOf: 15
+      required:
+        - status
+        - startsAt
+        - endsAt
+        - durationMinutes
+      additionalProperties: false
+    SavedViewingCreate:
+      type: object
+      properties:
+        mutationId:
+          type: string
+          format: uuid
+          pattern: "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        startsAt:
+          type: string
+          format: date-time
+          pattern: "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+        durationMinutes:
+          type: integer
+          minimum: 15
+          maximum: 180
+          multipleOf: 15
+        note:
+          default: ""
+          type: string
+          maxLength: 1000
+      required:
+        - mutationId
+        - startsAt
+        - durationMinutes
+      additionalProperties: false
+    SavedViewingAction:
+      oneOf:
+        - type: object
+          properties:
+            mutationId:
+              type: string
+              format: uuid
+              pattern: "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            version:
+              type: integer
+              exclusiveMinimum: 0
+              maximum: 9007199254740990
+            note:
+              default: ""
+              type: string
+              maxLength: 1000
+            action:
+              type: string
+              const: propose
+            startsAt:
+              type: string
+              format: date-time
+              pattern: "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+            durationMinutes:
+              type: integer
+              minimum: 15
+              maximum: 180
+              multipleOf: 15
+          required:
+            - mutationId
+            - version
+            - action
+            - startsAt
+            - durationMinutes
+          additionalProperties: false
+        - type: object
+          properties:
+            mutationId:
+              type: string
+              format: uuid
+              pattern: "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            version:
+              type: integer
+              exclusiveMinimum: 0
+              maximum: 9007199254740990
+            note:
+              default: ""
+              type: string
+              maxLength: 1000
+            action:
+              type: string
+              const: confirm
+          required:
+            - mutationId
+            - version
+            - action
+          additionalProperties: false
+        - type: object
+          properties:
+            mutationId:
+              type: string
+              format: uuid
+              pattern: "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            version:
+              type: integer
+              exclusiveMinimum: 0
+              maximum: 9007199254740990
+            note:
+              default: ""
+              type: string
+              maxLength: 1000
+            action:
+              type: string
+              const: accept
+          required:
+            - mutationId
+            - version
+            - action
+          additionalProperties: false
+        - type: object
+          properties:
+            mutationId:
+              type: string
+              format: uuid
+              pattern: "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            version:
+              type: integer
+              exclusiveMinimum: 0
+              maximum: 9007199254740990
+            note:
+              default: ""
+              type: string
+              maxLength: 1000
+            action:
+              type: string
+              const: decline
+          required:
+            - mutationId
+            - version
+            - action
+          additionalProperties: false
+        - type: object
+          properties:
+            mutationId:
+              type: string
+              format: uuid
+              pattern: "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            version:
+              type: integer
+              exclusiveMinimum: 0
+              maximum: 9007199254740990
+            note:
+              default: ""
+              type: string
+              maxLength: 1000
+            action:
+              type: string
+              const: cancel
+          required:
+            - mutationId
+            - version
+            - action
+          additionalProperties: false
+    SavedViewingPage:
+      type: object
+      additionalProperties: false
+      properties:
+        viewings:
+          type: array
+          items:
+            "$ref": "#/components/schemas/SavedViewing"
+          maxItems: 50
+        total:
+          type: integer
+          minimum: 0
+        nextOffset:
+          type:
+            - integer
+            - "null"
+          minimum: 0
+      required:
+        - viewings
+        - total
+        - nextOffset
+    SavedViewingDetail:
+      type: object
+      additionalProperties: false
+      properties:
+        viewing:
+          "$ref": "#/components/schemas/SavedViewing"
+        history:
+          type: array
+          minItems: 1
+          maxItems: 50
+          items:
+            "$ref": "#/components/schemas/SavedViewingEvent"
+      required:
+        - viewing
+        - history
+    SavedViewingMutation:
+      type: object
+      additionalProperties: false
+      properties:
+        viewing:
+          "$ref": "#/components/schemas/SavedViewing"
+        history:
+          type: array
+          minItems: 1
+          maxItems: 50
+          items:
+            "$ref": "#/components/schemas/SavedViewingEvent"
+        replayed:
+          type: boolean
+      required:
+        - viewing
+        - history
+        - replayed
+    MarketListingInput:
+      {
+        "type": "object",
+        "properties":
+          {
+            "title": { "type": "string", "minLength": 5, "maxLength": 120 },
+            "description":
+              { "type": "string", "minLength": 20, "maxLength": 3000 },
+            "city": { "type": "string", "minLength": 1, "maxLength": 80 },
+            "area": { "type": "string", "minLength": 1, "maxLength": 100 },
+            "intent": { "type": "string", "enum": ["Rent", "Buy"] },
+            "propertyType":
+              {
+                "type": "string",
+                "enum": ["apartment", "house", "room", "land", "commercial"],
+              },
+            "bedrooms": { "type": "integer", "minimum": 0, "maximum": 50 },
+            "bathrooms": { "type": "integer", "minimum": 0, "maximum": 50 },
+            "areaSqm": { "type": "integer", "minimum": 1, "maximum": 1000000 },
+            "priceMinor":
+              { "type": "integer", "minimum": 1, "maximum": 10000000000000 },
+            "currency": { "type": "string", "const": "AOA" },
+            "furnished": { "type": "boolean" },
+            "pets":
+              { "type": "string", "enum": ["allowed", "not_allowed", "ask"] },
+          },
+        "required":
+          [
+            "title",
+            "description",
+            "city",
+            "area",
+            "intent",
+            "propertyType",
+            "bedrooms",
+            "bathrooms",
+            "areaSqm",
+            "priceMinor",
+            "currency",
+            "furnished",
+            "pets",
+          ],
+        "additionalProperties": false,
+      }
+    MarketListingCreate:
+      {
+        "type": "object",
+        "properties":
+          {
+            "title": { "type": "string", "minLength": 5, "maxLength": 120 },
+            "description":
+              { "type": "string", "minLength": 20, "maxLength": 3000 },
+            "city": { "type": "string", "minLength": 1, "maxLength": 80 },
+            "area": { "type": "string", "minLength": 1, "maxLength": 100 },
+            "intent": { "type": "string", "enum": ["Rent", "Buy"] },
+            "propertyType":
+              {
+                "type": "string",
+                "enum": ["apartment", "house", "room", "land", "commercial"],
+              },
+            "bedrooms": { "type": "integer", "minimum": 0, "maximum": 50 },
+            "bathrooms": { "type": "integer", "minimum": 0, "maximum": 50 },
+            "areaSqm": { "type": "integer", "minimum": 1, "maximum": 1000000 },
+            "priceMinor":
+              { "type": "integer", "minimum": 1, "maximum": 10000000000000 },
+            "currency": { "type": "string", "const": "AOA" },
+            "furnished": { "type": "boolean" },
+            "pets":
+              { "type": "string", "enum": ["allowed", "not_allowed", "ask"] },
+            "mutationId":
+              {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              },
+            "propertyId":
+              {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              },
+          },
+        "required":
+          [
+            "title",
+            "description",
+            "city",
+            "area",
+            "intent",
+            "propertyType",
+            "bedrooms",
+            "bathrooms",
+            "areaSqm",
+            "priceMinor",
+            "currency",
+            "furnished",
+            "pets",
+            "mutationId",
+            "propertyId",
+          ],
+        "additionalProperties": false,
+      }
+    MarketListingEdit:
+      {
+        "type": "object",
+        "properties":
+          {
+            "title": { "type": "string", "minLength": 5, "maxLength": 120 },
+            "description":
+              { "type": "string", "minLength": 20, "maxLength": 3000 },
+            "city": { "type": "string", "minLength": 1, "maxLength": 80 },
+            "area": { "type": "string", "minLength": 1, "maxLength": 100 },
+            "intent": { "type": "string", "enum": ["Rent", "Buy"] },
+            "propertyType":
+              {
+                "type": "string",
+                "enum": ["apartment", "house", "room", "land", "commercial"],
+              },
+            "bedrooms": { "type": "integer", "minimum": 0, "maximum": 50 },
+            "bathrooms": { "type": "integer", "minimum": 0, "maximum": 50 },
+            "areaSqm": { "type": "integer", "minimum": 1, "maximum": 1000000 },
+            "priceMinor":
+              { "type": "integer", "minimum": 1, "maximum": 10000000000000 },
+            "currency": { "type": "string", "const": "AOA" },
+            "furnished": { "type": "boolean" },
+            "pets":
+              { "type": "string", "enum": ["allowed", "not_allowed", "ask"] },
+            "mutationId":
+              {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              },
+            "version":
+              {
+                "type": "integer",
+                "exclusiveMinimum": 0,
+                "maximum": 9007199254740991,
+              },
+            "status":
+              { "type": "string", "enum": ["draft", "visible", "paused"] },
+          },
+        "required":
+          [
+            "title",
+            "description",
+            "city",
+            "area",
+            "intent",
+            "propertyType",
+            "bedrooms",
+            "bathrooms",
+            "areaSqm",
+            "priceMinor",
+            "currency",
+            "furnished",
+            "pets",
+            "mutationId",
+            "version",
+            "status",
+          ],
+        "additionalProperties": false,
+      }
+    MarketListing:
+      {
+        "type": "object",
+        "properties":
+          {
+            "title": { "type": "string", "minLength": 5, "maxLength": 120 },
+            "description":
+              { "type": "string", "minLength": 20, "maxLength": 3000 },
+            "city": { "type": "string", "minLength": 1, "maxLength": 80 },
+            "area": { "type": "string", "minLength": 1, "maxLength": 100 },
+            "intent": { "type": "string", "enum": ["Rent", "Buy"] },
+            "propertyType":
+              {
+                "type": "string",
+                "enum": ["apartment", "house", "room", "land", "commercial"],
+              },
+            "bedrooms": { "type": "integer", "minimum": 0, "maximum": 50 },
+            "bathrooms": { "type": "integer", "minimum": 0, "maximum": 50 },
+            "areaSqm": { "type": "integer", "minimum": 1, "maximum": 1000000 },
+            "priceMinor":
+              { "type": "integer", "minimum": 1, "maximum": 10000000000000 },
+            "currency": { "type": "string", "const": "AOA" },
+            "furnished": { "type": "boolean" },
+            "pets":
+              { "type": "string", "enum": ["allowed", "not_allowed", "ask"] },
+            "id":
+              {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              },
+            "propertyId":
+              {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              },
+            "ownerName": { "type": "string", "minLength": 1, "maxLength": 100 },
+            "isOwner": { "type": "boolean" },
+            "status":
+              { "type": "string", "enum": ["draft", "visible", "paused"] },
+            "version":
+              {
+                "type": "integer",
+                "exclusiveMinimum": 0,
+                "maximum": 9007199254740991,
+              },
+            "createdAt":
+              {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+              },
+            "updatedAt":
+              {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+              },
+          },
+        "required":
+          [
+            "title",
+            "description",
+            "city",
+            "area",
+            "intent",
+            "propertyType",
+            "bedrooms",
+            "bathrooms",
+            "areaSqm",
+            "priceMinor",
+            "currency",
+            "furnished",
+            "pets",
+            "id",
+            "ownerName",
+            "isOwner",
+            "status",
+            "version",
+            "createdAt",
+            "updatedAt",
+          ],
+        "additionalProperties": false,
+      }
+    MarketListingPage:
+      {
+        "type": "object",
+        "properties":
+          {
+            "listings":
+              {
+                "maxItems": 50,
+                "type": "array",
+                "items":
+                  {
+                    "type": "object",
+                    "properties":
+                      {
+                        "title":
+                          {
+                            "type": "string",
+                            "minLength": 5,
+                            "maxLength": 120,
+                          },
+                        "description":
+                          {
+                            "type": "string",
+                            "minLength": 20,
+                            "maxLength": 3000,
+                          },
+                        "city":
+                          { "type": "string", "minLength": 1, "maxLength": 80 },
+                        "area":
+                          {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 100,
+                          },
+                        "intent": { "type": "string", "enum": ["Rent", "Buy"] },
+                        "propertyType":
+                          {
+                            "type": "string",
+                            "enum":
+                              [
+                                "apartment",
+                                "house",
+                                "room",
+                                "land",
+                                "commercial",
+                              ],
+                          },
+                        "bedrooms":
+                          { "type": "integer", "minimum": 0, "maximum": 50 },
+                        "bathrooms":
+                          { "type": "integer", "minimum": 0, "maximum": 50 },
+                        "areaSqm":
+                          {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 1000000,
+                          },
+                        "priceMinor":
+                          {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 10000000000000,
+                          },
+                        "currency": { "type": "string", "const": "AOA" },
+                        "furnished": { "type": "boolean" },
+                        "pets":
+                          {
+                            "type": "string",
+                            "enum": ["allowed", "not_allowed", "ask"],
+                          },
+                        "id":
+                          {
+                            "type": "string",
+                            "format": "uuid",
+                            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                          },
+                        "propertyId":
+                          {
+                            "type": "string",
+                            "format": "uuid",
+                            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                          },
+                        "ownerName":
+                          {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 100,
+                          },
+                        "isOwner": { "type": "boolean" },
+                        "status":
+                          {
+                            "type": "string",
+                            "enum": ["draft", "visible", "paused"],
+                          },
+                        "version":
+                          {
+                            "type": "integer",
+                            "exclusiveMinimum": 0,
+                            "maximum": 9007199254740991,
+                          },
+                        "createdAt":
+                          {
+                            "type": "string",
+                            "format": "date-time",
+                            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                          },
+                        "updatedAt":
+                          {
+                            "type": "string",
+                            "format": "date-time",
+                            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                          },
+                      },
+                    "required":
+                      [
+                        "title",
+                        "description",
+                        "city",
+                        "area",
+                        "intent",
+                        "propertyType",
+                        "bedrooms",
+                        "bathrooms",
+                        "areaSqm",
+                        "priceMinor",
+                        "currency",
+                        "furnished",
+                        "pets",
+                        "id",
+                        "ownerName",
+                        "isOwner",
+                        "status",
+                        "version",
+                        "createdAt",
+                        "updatedAt",
+                      ],
+                    "additionalProperties": false,
+                  },
+              },
+            "total":
+              { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+            "nextOffset":
+              {
+                "anyOf":
+                  [
+                    {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991,
+                    },
+                    { "type": "null" },
+                  ],
+              },
+          },
+        "required": ["listings", "total", "nextOffset"],
+        "additionalProperties": false,
+      }
+    MarketListingDetail:
+      {
+        "type": "object",
+        "properties":
+          {
+            "listing":
+              {
+                "type": "object",
+                "properties":
+                  {
+                    "title":
+                      { "type": "string", "minLength": 5, "maxLength": 120 },
+                    "description":
+                      { "type": "string", "minLength": 20, "maxLength": 3000 },
+                    "city":
+                      { "type": "string", "minLength": 1, "maxLength": 80 },
+                    "area":
+                      { "type": "string", "minLength": 1, "maxLength": 100 },
+                    "intent": { "type": "string", "enum": ["Rent", "Buy"] },
+                    "propertyType":
+                      {
+                        "type": "string",
+                        "enum":
+                          ["apartment", "house", "room", "land", "commercial"],
+                      },
+                    "bedrooms":
+                      { "type": "integer", "minimum": 0, "maximum": 50 },
+                    "bathrooms":
+                      { "type": "integer", "minimum": 0, "maximum": 50 },
+                    "areaSqm":
+                      { "type": "integer", "minimum": 1, "maximum": 1000000 },
+                    "priceMinor":
+                      {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 10000000000000,
+                      },
+                    "currency": { "type": "string", "const": "AOA" },
+                    "furnished": { "type": "boolean" },
+                    "pets":
+                      {
+                        "type": "string",
+                        "enum": ["allowed", "not_allowed", "ask"],
+                      },
+                    "id":
+                      {
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                      },
+                    "propertyId":
+                      {
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                      },
+                    "ownerName":
+                      { "type": "string", "minLength": 1, "maxLength": 100 },
+                    "isOwner": { "type": "boolean" },
+                    "status":
+                      {
+                        "type": "string",
+                        "enum": ["draft", "visible", "paused"],
+                      },
+                    "version":
+                      {
+                        "type": "integer",
+                        "exclusiveMinimum": 0,
+                        "maximum": 9007199254740991,
+                      },
+                    "createdAt":
+                      {
+                        "type": "string",
+                        "format": "date-time",
+                        "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                      },
+                    "updatedAt":
+                      {
+                        "type": "string",
+                        "format": "date-time",
+                        "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                      },
+                  },
+                "required":
+                  [
+                    "title",
+                    "description",
+                    "city",
+                    "area",
+                    "intent",
+                    "propertyType",
+                    "bedrooms",
+                    "bathrooms",
+                    "areaSqm",
+                    "priceMinor",
+                    "currency",
+                    "furnished",
+                    "pets",
+                    "id",
+                    "ownerName",
+                    "isOwner",
+                    "status",
+                    "version",
+                    "createdAt",
+                    "updatedAt",
+                  ],
+                "additionalProperties": false,
+              },
+          },
+        "required": ["listing"],
+        "additionalProperties": false,
+      }
+    MarketListingMutation:
+      {
+        "type": "object",
+        "properties":
+          {
+            "listing":
+              {
+                "type": "object",
+                "properties":
+                  {
+                    "title":
+                      { "type": "string", "minLength": 5, "maxLength": 120 },
+                    "description":
+                      { "type": "string", "minLength": 20, "maxLength": 3000 },
+                    "city":
+                      { "type": "string", "minLength": 1, "maxLength": 80 },
+                    "area":
+                      { "type": "string", "minLength": 1, "maxLength": 100 },
+                    "intent": { "type": "string", "enum": ["Rent", "Buy"] },
+                    "propertyType":
+                      {
+                        "type": "string",
+                        "enum":
+                          ["apartment", "house", "room", "land", "commercial"],
+                      },
+                    "bedrooms":
+                      { "type": "integer", "minimum": 0, "maximum": 50 },
+                    "bathrooms":
+                      { "type": "integer", "minimum": 0, "maximum": 50 },
+                    "areaSqm":
+                      { "type": "integer", "minimum": 1, "maximum": 1000000 },
+                    "priceMinor":
+                      {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 10000000000000,
+                      },
+                    "currency": { "type": "string", "const": "AOA" },
+                    "furnished": { "type": "boolean" },
+                    "pets":
+                      {
+                        "type": "string",
+                        "enum": ["allowed", "not_allowed", "ask"],
+                      },
+                    "id":
+                      {
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                      },
+                    "propertyId":
+                      {
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                      },
+                    "ownerName":
+                      { "type": "string", "minLength": 1, "maxLength": 100 },
+                    "isOwner": { "type": "boolean" },
+                    "status":
+                      {
+                        "type": "string",
+                        "enum": ["draft", "visible", "paused"],
+                      },
+                    "version":
+                      {
+                        "type": "integer",
+                        "exclusiveMinimum": 0,
+                        "maximum": 9007199254740991,
+                      },
+                    "createdAt":
+                      {
+                        "type": "string",
+                        "format": "date-time",
+                        "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                      },
+                    "updatedAt":
+                      {
+                        "type": "string",
+                        "format": "date-time",
+                        "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                      },
+                  },
+                "required":
+                  [
+                    "title",
+                    "description",
+                    "city",
+                    "area",
+                    "intent",
+                    "propertyType",
+                    "bedrooms",
+                    "bathrooms",
+                    "areaSqm",
+                    "priceMinor",
+                    "currency",
+                    "furnished",
+                    "pets",
+                    "id",
+                    "ownerName",
+                    "isOwner",
+                    "status",
+                    "version",
+                    "createdAt",
+                    "updatedAt",
+                  ],
+                "additionalProperties": false,
+              },
+            "replayed": { "type": "boolean" },
+          },
+        "required": ["listing", "replayed"],
+        "additionalProperties": false,
+      }
+    MarketMessageInput:
+      {
+        "type": "object",
+        "properties":
+          {
+            "mutationId":
+              {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              },
+            "body": { "type": "string", "minLength": 1, "maxLength": 2000 },
+          },
+        "required": ["mutationId", "body"],
+        "additionalProperties": false,
+      }
+    MarketConversationPage:
+      {
+        "type": "object",
+        "properties":
+          {
+            "conversations":
+              {
+                "maxItems": 50,
+                "type": "array",
+                "items":
+                  {
+                    "type": "object",
+                    "properties":
+                      {
+                        "id":
+                          {
+                            "type": "string",
+                            "format": "uuid",
+                            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                          },
+                        "listingId":
+                          {
+                            "type": "string",
+                            "format": "uuid",
+                            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                          },
+                        "listingTitle":
+                          {
+                            "type": "string",
+                            "minLength": 5,
+                            "maxLength": 120,
+                          },
+                        "listingIntent":
+                          { "type": "string", "enum": ["Rent", "Buy"] },
+                        "listingStatus":
+                          {
+                            "type": "string",
+                            "enum": ["draft", "visible", "paused"],
+                          },
+                        "counterpartName":
+                          {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 100,
+                          },
+                        "isListingOwner": { "type": "boolean" },
+                        "blockedByMe": { "type": "boolean" },
+                        "blockedByOther": { "type": "boolean" },
+                        "version":
+                          {
+                            "type": "integer",
+                            "exclusiveMinimum": 0,
+                            "maximum": 9007199254740991,
+                          },
+                        "updatedAt":
+                          {
+                            "type": "string",
+                            "format": "date-time",
+                            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                          },
+                        "unreadCount":
+                          {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991,
+                          },
+                        "lastMessage":
+                          {
+                            "anyOf":
+                              [
+                                {
+                                  "type": "object",
+                                  "properties":
+                                    {
+                                      "body":
+                                        {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 2000,
+                                        },
+                                      "mine": { "type": "boolean" },
+                                      "createdAt":
+                                        {
+                                          "type": "string",
+                                          "format": "date-time",
+                                          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                                        },
+                                    },
+                                  "required": ["body", "mine", "createdAt"],
+                                  "additionalProperties": false,
+                                },
+                                { "type": "null" },
+                              ],
+                          },
+                      },
+                    "required":
+                      [
+                        "id",
+                        "listingId",
+                        "listingTitle",
+                        "listingIntent",
+                        "listingStatus",
+                        "counterpartName",
+                        "isListingOwner",
+                        "blockedByMe",
+                        "blockedByOther",
+                        "version",
+                        "updatedAt",
+                        "unreadCount",
+                        "lastMessage",
+                      ],
+                    "additionalProperties": false,
+                  },
+              },
+            "total":
+              { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+            "nextOffset":
+              {
+                "anyOf":
+                  [
+                    {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991,
+                    },
+                    { "type": "null" },
+                  ],
+              },
+          },
+        "required": ["conversations", "total", "nextOffset"],
+        "additionalProperties": false,
+      }
+    MarketMessagesPage:
+      {
+        "type": "object",
+        "properties":
+          {
+            "conversation":
+              {
+                "type": "object",
+                "properties":
+                  {
+                    "id":
+                      {
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                      },
+                    "listingId":
+                      {
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                      },
+                    "listingTitle":
+                      { "type": "string", "minLength": 5, "maxLength": 120 },
+                    "listingIntent":
+                      { "type": "string", "enum": ["Rent", "Buy"] },
+                    "listingStatus":
+                      {
+                        "type": "string",
+                        "enum": ["draft", "visible", "paused"],
+                      },
+                    "counterpartName":
+                      { "type": "string", "minLength": 1, "maxLength": 100 },
+                    "isListingOwner": { "type": "boolean" },
+                    "blockedByMe": { "type": "boolean" },
+                    "blockedByOther": { "type": "boolean" },
+                    "version":
+                      {
+                        "type": "integer",
+                        "exclusiveMinimum": 0,
+                        "maximum": 9007199254740991,
+                      },
+                    "updatedAt":
+                      {
+                        "type": "string",
+                        "format": "date-time",
+                        "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                      },
+                    "unreadCount":
+                      {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991,
+                      },
+                    "lastMessage":
+                      {
+                        "anyOf":
+                          [
+                            {
+                              "type": "object",
+                              "properties":
+                                {
+                                  "body":
+                                    {
+                                      "type": "string",
+                                      "minLength": 1,
+                                      "maxLength": 2000,
+                                    },
+                                  "mine": { "type": "boolean" },
+                                  "createdAt":
+                                    {
+                                      "type": "string",
+                                      "format": "date-time",
+                                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                                    },
+                                },
+                              "required": ["body", "mine", "createdAt"],
+                              "additionalProperties": false,
+                            },
+                            { "type": "null" },
+                          ],
+                      },
+                  },
+                "required":
+                  [
+                    "id",
+                    "listingId",
+                    "listingTitle",
+                    "listingIntent",
+                    "listingStatus",
+                    "counterpartName",
+                    "isListingOwner",
+                    "blockedByMe",
+                    "blockedByOther",
+                    "version",
+                    "updatedAt",
+                    "unreadCount",
+                    "lastMessage",
+                  ],
+                "additionalProperties": false,
+              },
+            "messages":
+              {
+                "maxItems": 50,
+                "type": "array",
+                "items":
+                  {
+                    "type": "object",
+                    "properties":
+                      {
+                        "id":
+                          {
+                            "type": "string",
+                            "format": "uuid",
+                            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                          },
+                        "sequence":
+                          {
+                            "type": "integer",
+                            "exclusiveMinimum": 0,
+                            "maximum": 9007199254740991,
+                          },
+                        "mine": { "type": "boolean" },
+                        "body":
+                          {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 2000,
+                          },
+                        "createdAt":
+                          {
+                            "type": "string",
+                            "format": "date-time",
+                            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                          },
+                      },
+                    "required": ["id", "sequence", "mine", "body", "createdAt"],
+                    "additionalProperties": false,
+                  },
+              },
+            "nextBefore":
+              {
+                "anyOf":
+                  [
+                    {
+                      "type": "integer",
+                      "exclusiveMinimum": 0,
+                      "maximum": 9007199254740991,
+                    },
+                    { "type": "null" },
+                  ],
+              },
+            "latestSequence":
+              { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+          },
+        "required":
+          ["conversation", "messages", "nextBefore", "latestSequence"],
+        "additionalProperties": false,
+      }
+    MarketMessageMutation:
+      {
+        "type": "object",
+        "properties":
+          {
+            "conversation":
+              {
+                "type": "object",
+                "properties":
+                  {
+                    "id":
+                      {
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                      },
+                    "listingId":
+                      {
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                      },
+                    "listingTitle":
+                      { "type": "string", "minLength": 5, "maxLength": 120 },
+                    "listingIntent":
+                      { "type": "string", "enum": ["Rent", "Buy"] },
+                    "listingStatus":
+                      {
+                        "type": "string",
+                        "enum": ["draft", "visible", "paused"],
+                      },
+                    "counterpartName":
+                      { "type": "string", "minLength": 1, "maxLength": 100 },
+                    "isListingOwner": { "type": "boolean" },
+                    "blockedByMe": { "type": "boolean" },
+                    "blockedByOther": { "type": "boolean" },
+                    "version":
+                      {
+                        "type": "integer",
+                        "exclusiveMinimum": 0,
+                        "maximum": 9007199254740991,
+                      },
+                    "updatedAt":
+                      {
+                        "type": "string",
+                        "format": "date-time",
+                        "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                      },
+                    "unreadCount":
+                      {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991,
+                      },
+                    "lastMessage":
+                      {
+                        "anyOf":
+                          [
+                            {
+                              "type": "object",
+                              "properties":
+                                {
+                                  "body":
+                                    {
+                                      "type": "string",
+                                      "minLength": 1,
+                                      "maxLength": 2000,
+                                    },
+                                  "mine": { "type": "boolean" },
+                                  "createdAt":
+                                    {
+                                      "type": "string",
+                                      "format": "date-time",
+                                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                                    },
+                                },
+                              "required": ["body", "mine", "createdAt"],
+                              "additionalProperties": false,
+                            },
+                            { "type": "null" },
+                          ],
+                      },
+                  },
+                "required":
+                  [
+                    "id",
+                    "listingId",
+                    "listingTitle",
+                    "listingIntent",
+                    "listingStatus",
+                    "counterpartName",
+                    "isListingOwner",
+                    "blockedByMe",
+                    "blockedByOther",
+                    "version",
+                    "updatedAt",
+                    "unreadCount",
+                    "lastMessage",
+                  ],
+                "additionalProperties": false,
+              },
+            "message":
+              {
+                "type": "object",
+                "properties":
+                  {
+                    "id":
+                      {
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                      },
+                    "sequence":
+                      {
+                        "type": "integer",
+                        "exclusiveMinimum": 0,
+                        "maximum": 9007199254740991,
+                      },
+                    "mine": { "type": "boolean" },
+                    "body":
+                      { "type": "string", "minLength": 1, "maxLength": 2000 },
+                    "createdAt":
+                      {
+                        "type": "string",
+                        "format": "date-time",
+                        "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                      },
+                  },
+                "required": ["id", "sequence", "mine", "body", "createdAt"],
+                "additionalProperties": false,
+              },
+            "replayed": { "type": "boolean" },
+          },
+        "required": ["conversation", "message", "replayed"],
+        "additionalProperties": false,
+      }
+    MarketConversationMutation:
+      {
+        "type": "object",
+        "properties":
+          {
+            "conversation":
+              {
+                "type": "object",
+                "properties":
+                  {
+                    "id":
+                      {
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                      },
+                    "listingId":
+                      {
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                      },
+                    "listingTitle":
+                      { "type": "string", "minLength": 5, "maxLength": 120 },
+                    "listingIntent":
+                      { "type": "string", "enum": ["Rent", "Buy"] },
+                    "listingStatus":
+                      {
+                        "type": "string",
+                        "enum": ["draft", "visible", "paused"],
+                      },
+                    "counterpartName":
+                      { "type": "string", "minLength": 1, "maxLength": 100 },
+                    "isListingOwner": { "type": "boolean" },
+                    "blockedByMe": { "type": "boolean" },
+                    "blockedByOther": { "type": "boolean" },
+                    "version":
+                      {
+                        "type": "integer",
+                        "exclusiveMinimum": 0,
+                        "maximum": 9007199254740991,
+                      },
+                    "updatedAt":
+                      {
+                        "type": "string",
+                        "format": "date-time",
+                        "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                      },
+                    "unreadCount":
+                      {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991,
+                      },
+                    "lastMessage":
+                      {
+                        "anyOf":
+                          [
+                            {
+                              "type": "object",
+                              "properties":
+                                {
+                                  "body":
+                                    {
+                                      "type": "string",
+                                      "minLength": 1,
+                                      "maxLength": 2000,
+                                    },
+                                  "mine": { "type": "boolean" },
+                                  "createdAt":
+                                    {
+                                      "type": "string",
+                                      "format": "date-time",
+                                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                                    },
+                                },
+                              "required": ["body", "mine", "createdAt"],
+                              "additionalProperties": false,
+                            },
+                            { "type": "null" },
+                          ],
+                      },
+                  },
+                "required":
+                  [
+                    "id",
+                    "listingId",
+                    "listingTitle",
+                    "listingIntent",
+                    "listingStatus",
+                    "counterpartName",
+                    "isListingOwner",
+                    "blockedByMe",
+                    "blockedByOther",
+                    "version",
+                    "updatedAt",
+                    "unreadCount",
+                    "lastMessage",
+                  ],
+                "additionalProperties": false,
+              },
+            "replayed": { "type": "boolean" },
+          },
+        "required": ["conversation", "replayed"],
+        "additionalProperties": false,
+      }
+    MarketConversationRead:
+      {
+        "type": "object",
+        "properties":
+          {
+            "conversation":
+              {
+                "type": "object",
+                "properties":
+                  {
+                    "id":
+                      {
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                      },
+                    "listingId":
+                      {
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                      },
+                    "listingTitle":
+                      { "type": "string", "minLength": 5, "maxLength": 120 },
+                    "listingIntent":
+                      { "type": "string", "enum": ["Rent", "Buy"] },
+                    "listingStatus":
+                      {
+                        "type": "string",
+                        "enum": ["draft", "visible", "paused"],
+                      },
+                    "counterpartName":
+                      { "type": "string", "minLength": 1, "maxLength": 100 },
+                    "isListingOwner": { "type": "boolean" },
+                    "blockedByMe": { "type": "boolean" },
+                    "blockedByOther": { "type": "boolean" },
+                    "version":
+                      {
+                        "type": "integer",
+                        "exclusiveMinimum": 0,
+                        "maximum": 9007199254740991,
+                      },
+                    "updatedAt":
+                      {
+                        "type": "string",
+                        "format": "date-time",
+                        "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                      },
+                    "unreadCount":
+                      {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991,
+                      },
+                    "lastMessage":
+                      {
+                        "anyOf":
+                          [
+                            {
+                              "type": "object",
+                              "properties":
+                                {
+                                  "body":
+                                    {
+                                      "type": "string",
+                                      "minLength": 1,
+                                      "maxLength": 2000,
+                                    },
+                                  "mine": { "type": "boolean" },
+                                  "createdAt":
+                                    {
+                                      "type": "string",
+                                      "format": "date-time",
+                                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                                    },
+                                },
+                              "required": ["body", "mine", "createdAt"],
+                              "additionalProperties": false,
+                            },
+                            { "type": "null" },
+                          ],
+                      },
+                  },
+                "required":
+                  [
+                    "id",
+                    "listingId",
+                    "listingTitle",
+                    "listingIntent",
+                    "listingStatus",
+                    "counterpartName",
+                    "isListingOwner",
+                    "blockedByMe",
+                    "blockedByOther",
+                    "version",
+                    "updatedAt",
+                    "unreadCount",
+                    "lastMessage",
+                  ],
+                "additionalProperties": false,
+              },
+          },
+        "required": ["conversation"],
+        "additionalProperties": false,
+      }
+    MarketReadInput:
+      {
+        "type": "object",
+        "properties":
+          {
+            "throughSequence":
+              { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+          },
+        "required": ["throughSequence"],
+        "additionalProperties": false,
+      }
+    MarketBlockInput:
+      {
+        "type": "object",
+        "properties":
+          {
+            "mutationId":
+              {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              },
+            "version":
+              {
+                "type": "integer",
+                "exclusiveMinimum": 0,
+                "maximum": 9007199254740991,
+              },
+            "blocked": { "type": "boolean" },
+          },
+        "required": ["mutationId", "version", "blocked"],
+        "additionalProperties": false,
+      }
+    LocalRentDate:
+      type: string
+      format: date
+      pattern: '^(19|20|21)\d{2}-\d{2}-\d{2}$'
+      description: A real calendar date from 1900 through 2199.
+    LocalRentAmount:
+      type: integer
+      minimum: 1
+      maximum: 100000000000
+      description: AOA minor units (100 per kwanza); no fractional minor units.
+    LocalRentStatus:
+      enum:
+        [
+          awaiting_transfer,
+          awaiting_confirmation,
+          needs_correction,
+          confirmed,
+          voided,
+        ]
+    LocalRentTransfer:
+      type: object
+      required:
+        [amountMinor, transferredOn, reference, note, evidenceDocumentId]
+      properties:
+        amountMinor: { $ref: "#/components/schemas/LocalRentAmount" }
+        transferredOn: { $ref: "#/components/schemas/LocalRentDate" }
+        reference: { type: string, minLength: 1, maxLength: 100 }
+        note: { type: string, maxLength: 1000 }
+        evidenceDocumentId: { type: [string, "null"], format: uuid }
+    LocalRentSnapshot:
+      type: object
+      required:
+        [
+          amountDueMinor,
+          dueOn,
+          status,
+          transfer,
+          correctionReason,
+          voidReason,
+          confirmedAt,
+        ]
+      properties:
+        amountDueMinor: { $ref: "#/components/schemas/LocalRentAmount" }
+        dueOn: { $ref: "#/components/schemas/LocalRentDate" }
+        status: { $ref: "#/components/schemas/LocalRentStatus" }
+        transfer:
+          oneOf:
+            - { $ref: "#/components/schemas/LocalRentTransfer" }
+            - { type: "null" }
+        correctionReason: { type: [string, "null"], maxLength: 500 }
+        voidReason: { type: [string, "null"], maxLength: 500 }
+        confirmedAt: { type: [string, "null"], format: date-time }
+    LocalRentSummary:
+      allOf:
+        - { $ref: "#/components/schemas/LocalRentSnapshot" }
+        - type: object
+          required:
+            [
+              id,
+              propertyId,
+              tenantAccountId,
+              tenantName,
+              period,
+              currency,
+              tenantAccessActive,
+              version,
+              createdAt,
+              updatedAt,
+            ]
+          properties:
+            id: { type: string, format: uuid }
+            propertyId: { type: string, format: uuid }
+            tenantAccountId: { type: string, format: uuid }
+            tenantName: { type: string, minLength: 1, maxLength: 100 }
+            period:
+              { type: string, pattern: '^(19|20|21)\d{2}-(0[1-9]|1[0-2])$' }
+            currency: { const: AOA }
+            tenantAccessActive: { type: boolean }
+            version: { type: integer, minimum: 1 }
+            createdAt: { type: string, format: date-time }
+            updatedAt: { type: string, format: date-time }
+    LocalRentRecord:
+      allOf:
+        - { $ref: "#/components/schemas/LocalRentSummary" }
+        - type: object
+          required: [history]
+          properties:
+            history:
+              type: array
+              minItems: 1
+              maxItems: 100
+              items:
+                type: object
+                required:
+                  [
+                    id,
+                    actorId,
+                    actorName,
+                    kind,
+                    version,
+                    before,
+                    after,
+                    createdAt,
+                  ]
+                properties:
+                  id: { type: string, format: uuid }
+                  actorId: { type: string, format: uuid }
+                  actorName: { type: string, minLength: 1, maxLength: 100 }
+                  kind:
+                    {
+                      enum:
+                        [
+                          created,
+                          terms_updated,
+                          transfer_reported,
+                          correction_requested,
+                          confirmed,
+                          voided,
+                        ],
+                    }
+                  version: { type: integer, minimum: 1 }
+                  before:
+                    oneOf:
+                      - { $ref: "#/components/schemas/LocalRentSnapshot" }
+                      - { type: "null" }
+                  after: { $ref: "#/components/schemas/LocalRentSnapshot" }
+                  createdAt: { type: string, format: date-time }
+    LocalDocument:
+      type: object
+      required:
+        [
+          id,
+          propertyId,
+          title,
+          filename,
+          mimeType,
+          byteSize,
+          sharing,
+          recipientAccountId,
+          uploadedBy,
+          uploadedByName,
+          version,
+          archived,
+          createdAt,
+          updatedAt,
+        ]
+      properties:
+        id: { type: string, format: uuid }
+        propertyId: { type: string, format: uuid }
+        title: { type: string, minLength: 1, maxLength: 140 }
+        filename: { type: string, minLength: 1, maxLength: 255 }
+        mimeType: { enum: [application/pdf, image/jpeg, image/png] }
+        byteSize: { type: integer, minimum: 1, maximum: 1048576 }
+        sharing: { enum: [private, shared] }
+        recipientAccountId: { type: [string, "null"], format: uuid }
+        uploadedBy: { type: string, format: uuid }
+        uploadedByName: { type: string }
+        version: { type: integer, minimum: 1 }
+        archived: { type: boolean }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    LocalNotification:
+      type: object
+      required: [id, kind, propertyId, resourceId, actorName, createdAt, readAt]
+      properties:
+        id: { type: string, format: uuid }
+        kind:
+          enum:
+            [
+              maintenance_created,
+              maintenance_updated,
+              document_shared,
+              rent_created,
+              rent_terms_updated,
+              rent_transfer_reported,
+              rent_correction_requested,
+              rent_confirmed,
+              rent_voided,
+            ]
+        propertyId: { type: string, format: uuid }
+        resourceId: { type: string, format: uuid }
+        actorName: { type: string }
+        createdAt: { type: string, format: date-time }
+        readAt: { type: [string, "null"], format: date-time }
+    LocalPropertyInput:
+      type: object
+      additionalProperties: false
+      required: [name, address]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 100 }
+        address: { type: string, minLength: 1, maxLength: 300 }
+    LocalPrivateProperty:
+      type: object
+      required: [id, workspaceId, name, address, version, tenantCount]
+      properties:
+        id: { type: string, format: uuid }
+        workspaceId: { type: string, format: uuid }
+        name: { type: string }
+        address: { type: string }
+        version: { type: integer, minimum: 1 }
+        tenantCount: { type: integer, minimum: 0 }
+    LocalWorkspace:
+      type: object
+      required: [id, name, role, version, properties]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        role: { enum: [owner, tenant] }
+        version: { type: integer, minimum: 1 }
+        properties:
+          type: array
+          items: { $ref: "#/components/schemas/LocalPrivateProperty" }
+    LocalMaintenance:
+      type: object
+      required:
+        [
+          id,
+          propertyId,
+          title,
+          description,
+          priority,
+          status,
+          version,
+          createdAt,
+          updatedAt,
+          createdBy,
+          history,
+        ]
+      properties:
+        id: { type: string, format: uuid }
+        propertyId: { type: string, format: uuid }
+        title: { type: string }
+        description: { type: string }
+        priority: { enum: [normal, urgent] }
+        status: { enum: [open, in_progress, resolved] }
+        version: { type: integer, minimum: 1 }
+        createdBy: { type: string, format: uuid }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+        history:
+          type: array
+          items:
+            type: object
+            required: [id, actorId, actorName, kind, message, status, createdAt]
+            properties:
+              id: { type: string, format: uuid }
+              actorId: { type: string, format: uuid }
+              actorName: { type: string }
+              kind: { enum: [created, status_changed, comment] }
+              message: { type: string }
+              status: { enum: [open, in_progress, resolved] }
+              createdAt: { type: string, format: date-time }
+    AccountLocale:
+      enum: [pt, en, es, fr, ar, zh]
+    LocalAccount:
+      type: object
+      additionalProperties: false
+      required: [id, displayName, email, locale, version, emailVerified]
+      properties:
+        id: { type: string, format: uuid }
+        displayName: { type: string }
+        email: { type: string, format: email }
+        locale: { $ref: "#/components/schemas/AccountLocale" }
+        version: { type: integer, minimum: 1 }
+        emailVerified: { const: false }
+    LocalAccountSession:
+      oneOf:
+        - type: object
+          required: [account, csrfToken]
+          properties:
+            account: { $ref: "#/components/schemas/LocalAccount" }
+            csrfToken: { type: string }
+        - type: object
+          required: [account, csrfToken]
+          properties:
+            account: { type: "null" }
+            csrfToken: { type: "null" }
+    CountryConfig:
+      type: object
+      required:
+        [country, currency, capabilityScope, features, readiness, launch]
+      properties:
+        country: { type: string, minLength: 2, maxLength: 12 }
+        currency: { type: string, minLength: 3, maxLength: 3 }
+        capabilityScope: { const: synthetic_demo }
+        readiness: { enum: [demo, requires_market_approval] }
+        features:
+          type: object
+          required:
+            [
+              propertyDiscovery,
+              propertyOperations,
+              services,
+              spacesSports,
+              spacesEvents,
+              overnightSpaces,
+              rentCustody,
+              depositCustody,
+              propertySuccessFees,
+              partyRepresentation,
+              mortgageIntermediation,
+              externalVenuePayments,
+            ]
+          properties:
+            propertyDiscovery: { type: boolean }
+            propertyOperations: { type: boolean }
+            services: { type: boolean }
+            spacesSports: { type: boolean }
+            spacesEvents: { type: boolean }
+            overnightSpaces: { const: false }
+            rentCustody: { const: false }
+            depositCustody: { const: false }
+            propertySuccessFees: { const: false }
+            partyRepresentation: { const: false }
+            mortgageIntermediation: { const: false }
+            externalVenuePayments: { const: false }
+        launch:
+          type: object
+          required: [status, productionReady, liveCapabilities, gates]
+          properties:
+            status: { const: blocked }
+            productionReady: { const: false }
+            liveCapabilities:
+              type: object
+              required:
+                [
+                  propertyPublication,
+                  paidPropertyPromotion,
+                  liveSpaceBookings,
+                  jobPublication,
+                  connectedPayments,
+                ]
+              properties:
+                propertyPublication: { const: false }
+                paidPropertyPromotion: { const: false }
+                liveSpaceBookings: { const: false }
+                jobPublication: { const: false }
+                connectedPayments: { const: false }
+            gates:
+              type: object
+              required:
+                [
+                  propertyClassification,
+                  privacyHosting,
+                  paymentsTax,
+                  trustSafety,
+                  productionSystems,
+                ]
+              properties:
+                propertyClassification: { const: pending }
+                privacyHosting: { const: pending }
+                paymentsTax: { const: pending }
+                trustSafety: { const: pending }
+                productionSystems: { const: pending }
     ApiError:
       type: object
       required: [message, requestId]
@@ -289,6 +3784,71 @@ components:
           type: array
           items: { type: object }
   responses:
+    LocalRentMutationResult:
+      description: >-
+        Current authorized saved record and history, with replayed true for an identical
+        previous logical action. Cache-Control no-store. No payment or bank verification.
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [record, replayed]
+            properties:
+              record: { $ref: "#/components/schemas/LocalRentRecord" }
+              replayed: { type: boolean }
+    LocalDocumentResult:
+      description: Saved metadata only; no file bytes, public URL or private contact details
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [document]
+            properties:
+              document: { $ref: "#/components/schemas/LocalDocument" }
+    LocalPropertyResult:
+      description: Saved private property; Cache-Control no-store
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [property]
+            properties:
+              property: { $ref: "#/components/schemas/LocalPrivateProperty" }
+    LocalMaintenanceResult:
+      description: Saved maintenance request and history; Cache-Control no-store
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [request]
+            properties:
+              request: { $ref: "#/components/schemas/LocalMaintenance" }
+    AccountSession:
+      description: Local account session; Cache-Control no-store, workspace permissions resolved separately
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/LocalAccountSession" }
+    AccountFailure:
+      description: >-
+        Account request failed; nested error.code and error.message. Origin/global
+        API middleware may return the standard ApiError instead. Disabled accounts
+        return 503. Never retry a mutation automatically after an unknown outcome.
+      content:
+        application/json:
+          schema:
+            oneOf:
+              - $ref: "#/components/schemas/ApiError"
+              - type: object
+                required: [error]
+                properties:
+                  error:
+                    type: object
+                    required: [code, message]
+                    properties:
+                      code: { type: string }
+                      message: { type: string }
+                      fields: { type: object }
+                  requestId: { type: string }
     BadRequest:
       description: Invalid request
       content:

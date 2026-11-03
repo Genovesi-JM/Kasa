@@ -1,3 +1,28 @@
+/* Fraunces — editorial display serif, self-hosted (SIL OFL 1.1, see src/fonts/Fraunces-OFL.txt).
+   Reserved for large, emotional hero headlines; body and UI stay on the humanist sans. */
+@font-face {
+  font-family: "Fraunces";
+  font-style: normal;
+  font-weight: 300 700;
+  font-display: swap;
+  src: url("./fonts/fraunces-latin.woff2") format("woff2");
+  unicode-range:
+    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC,
+    U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212,
+    U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "Fraunces";
+  font-style: normal;
+  font-weight: 300 700;
+  font-display: swap;
+  src: url("./fonts/fraunces-latinext.woff2") format("woff2");
+  unicode-range:
+    U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304,
+    U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB,
+    U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
 :root {
   font-family: "Avenir Next", Avenir, "Segoe UI", system-ui, sans-serif;
   color: #153a33;
@@ -18,6 +43,48 @@
   --amber: #f5ead5;
   --shadow: 0 8px 24px rgba(21, 58, 51, 0.055);
   --font-heading: "Avenir Next", Avenir, "Segoe UI", system-ui, sans-serif;
+  /* Editorial display serif. Latin-script only; Arabic/CJK fall back to the sans. */
+  --font-serif: "Fraunces", Georgia, "Times New Roman", serif;
+  --display: var(--font-serif);
+}
+
+/* Large editorial headline accent — V1 "Repose" register. Opt-in only. */
+.display-serif {
+  font-family: var(--font-serif);
+  font-optical-sizing: auto;
+  letter-spacing: -0.02em;
+  font-weight: 460;
+}
+/* Fraunces has no Arabic/CJK glyphs; keep those scripts on the humanist sans. */
+:lang(ar) .display-serif,
+:lang(zh) .display-serif {
+  font-family: var(--font-heading);
+  letter-spacing: -0.035em;
+  font-weight: 700;
+}
+
+/* Scroll-reveal — gentle rise-and-fade as sections enter the viewport.
+   Elements start hidden only once JS has armed them (data-reveal), so a
+   no-JS or pre-hydration render shows everything. Honours reduced motion. */
+[data-reveal="armed"] {
+  opacity: 0;
+  transform: translateY(18px);
+  transition:
+    opacity 0.7s cubic-bezier(0.22, 0.61, 0.36, 1),
+    transform 0.7s cubic-bezier(0.22, 0.61, 0.36, 1);
+  transition-delay: var(--reveal-delay, 0ms);
+  will-change: opacity, transform;
+}
+[data-reveal="shown"] {
+  opacity: 1;
+  transform: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-reveal] {
+    opacity: 1 !important;
+    transform: none !important;
+    transition: none !important;
+  }
 }
 
 * {
@@ -2759,10 +2826,11 @@ kbd {
   width: 100%;
 }
 .discovery-intro {
-  min-height: 188px;
-  padding: 28px 34px;
+  position: relative;
+  min-height: clamp(230px, 30vw, 330px);
+  padding: clamp(28px, 3.4vw, 46px);
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   justify-content: space-between;
   gap: 25px;
   overflow: hidden;
@@ -2770,33 +2838,44 @@ kbd {
   color: white;
   background:
     radial-gradient(
-      circle at 86% 10%,
-      rgba(232, 185, 103, 0.22),
-      transparent 30%
+      circle at 88% 8%,
+      rgba(232, 185, 103, 0.26),
+      transparent 32%
     ),
-    linear-gradient(120deg, #1b463e, #2e665b);
+    linear-gradient(
+      100deg,
+      rgba(12, 34, 28, 0.93) 0%,
+      rgba(20, 52, 45, 0.74) 44%,
+      rgba(20, 52, 45, 0.32) 100%
+    ),
+    url("https://images.unsplash.com/photo-1600607687920-4e2a09cf159d?auto=format&fit=crop&w=1600&q=80")
+      center / cover no-repeat;
+  box-shadow: var(--shadow);
 }
 .discovery-intro > div:first-child {
   max-width: 680px;
 }
 .discovery-intro h2 {
-  margin: 6px 0 6px;
-  font-size: 30px;
+  margin: 10px 0 12px;
+  font-size: clamp(30px, 4.4vw, 50px);
+  line-height: 1.02;
+  text-shadow: 0 2px 24px rgba(6, 18, 14, 0.4);
 }
 .discovery-intro p {
-  max-width: 650px;
+  max-width: 620px;
   margin: 0;
-  color: #c6d9d2;
-  font-size: 11px;
+  color: #d6e4de;
+  font-size: 12.5px;
   line-height: 1.55;
 }
 .intent-switch {
   flex: 0 0 auto;
   padding: 5px;
   display: flex;
-  border: 1px solid rgba(255, 255, 255, 0.14);
+  border: 1px solid rgba(255, 255, 255, 0.22);
   border-radius: 12px;
-  background: rgba(255, 255, 255, 0.08);
+  background: rgba(13, 34, 28, 0.42);
+  backdrop-filter: blur(10px);
 }
 .intent-switch button {
   min-width: 85px;
@@ -5603,7 +5682,6 @@ kbd {
 }
 
 /* Canonical Kasa visual language: calm residential surfaces shared by every role. */
-.discovery-intro,
 .services-hero,
 .provider-hero {
   background:

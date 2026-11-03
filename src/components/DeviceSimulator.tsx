@@ -1,6 +1,9 @@
 import { useEffect, useState } from "react";
 import { Columns2, Smartphone, X } from "lucide-react";
 import type { Role, View } from "../types";
+import type { ConnectedSection } from "../platform/connectedNavigation";
+import type { LanguageCode } from "../i18n";
+import { connectedShellCopy } from "./connectedShellCopy";
 
 type SimulatorMode = "compare" | "ios" | "android";
 
@@ -12,6 +15,9 @@ const deviceProfiles = {
 interface DeviceSimulatorProps {
   role: Role;
   view: View;
+  savedSection?: ConnectedSection;
+  discoveryIntent?: "Rent" | "Buy";
+  language?: LanguageCode;
   onClose: () => void;
   labels: {
     title: string;
@@ -27,13 +33,23 @@ function DeviceFrame({
   platform,
   role,
   view,
+  savedSection,
+  discoveryIntent,
 }: {
   platform: "ios" | "android";
   role: Role;
   view: View;
+  savedSection?: ConnectedSection;
+  discoveryIntent?: "Rent" | "Buy";
 }) {
   const profile = deviceProfiles[platform];
-  const source = `?device=${platform}&role=${role}&view=${view}`;
+  const parameters = new URLSearchParams({ device: platform, role, view });
+  if (discoveryIntent) parameters.set("intent", discoveryIntent);
+  if (savedSection) {
+    parameters.set("app", "1");
+    parameters.set("saved", savedSection);
+  }
+  const source = `?${parameters}`;
   return (
     <article className={`device-preview ${platform}`}>
       <header>
@@ -64,6 +80,9 @@ function DeviceFrame({
 export function DeviceSimulator({
   role,
   view,
+  savedSection,
+  discoveryIntent,
+  language = "pt",
   onClose,
   labels,
 }: DeviceSimulatorProps) {
@@ -95,6 +114,15 @@ export function DeviceSimulator({
             <span className="eyebrow">KASA DEVICE LAB</span>
             <h2>{labels.title}</h2>
             <p>{labels.subtitle}</p>
+            {savedSection && (
+              <p
+                className="device-account-notice"
+                role="note"
+                dir={language === "ar" ? "rtl" : undefined}
+              >
+                {connectedShellCopy(language).previewShared}
+              </p>
+            )}
           </div>
           <button
             className="icon-button"
@@ -129,10 +157,22 @@ export function DeviceSimulator({
         </nav>
         <section className={`device-stage ${mode}`}>
           {(mode === "compare" || mode === "ios") && (
-            <DeviceFrame platform="ios" role={role} view={view} />
+            <DeviceFrame
+              platform="ios"
+              role={role}
+              view={view}
+              savedSection={savedSection}
+              discoveryIntent={discoveryIntent}
+            />
           )}
           {(mode === "compare" || mode === "android") && (
-            <DeviceFrame platform="android" role={role} view={view} />
+            <DeviceFrame
+              platform="android"
+              role={role}
+              view={view}
+              savedSection={savedSection}
+              discoveryIntent={discoveryIntent}
+            />
           )}
         </section>
       </div>

@@ -1,0 +1,97 @@
+.market-readiness {
+  min-width: 0;
+  padding: clamp(16px, 2.4vw, 28px);
+  align-self: start;
+  text-align: start;
+}
+.market-readiness h2 {
+  margin: 8px 0 12px;
+}
+.market-readiness p {
+  font-size: 13px;
+  line-height: 1.65;
+  color: var(--muted);
+}
+.market-readiness > small {
+  display: block;
+  font-size: 11px;
+  line-height: 1.6;
+  color: var(--muted);
+}
+.market-launch-blocked {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 10px;
+  border-radius: 9px;
+  background: #fff2d7;
+  color: #765013;
+  font-size: 12px;
+  font-weight: 600;
+}
+.market-gates {
+  margin: 18px 0;
+  display: grid;
+  gap: 8px;
+}
+.market-gates details,
+.market-legal-note {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #fafbf8;
+  overflow-wrap: anywhere;
+}
+.market-readiness summary {
+  min-height: 48px;
+  padding: 14px;
+  cursor: pointer;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.market-readiness summary:focus-visible {
+  outline: 2px solid #2d6a4f;
+  outline-offset: 3px;
+}
+.market-gates summary strong {
+  font-weight: 600;
+}
+.market-gates summary span {
+  display: block;
+  margin-inline-start: 16px;
+  color: #765013;
+  font-size: 11px;
+}
+.market-readiness details p {
+  margin: 0;
+  padding: 0 14px 14px;
+}
+.market-source-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 0 14px 14px;
+}
+.market-source-links a {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  color: #245b49;
+  font-size: 12px;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.market-source-links svg,
+.market-boundary > svg {
+  flex-shrink: 0;
+}
+.market-boundary {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding-block: 16px;
+  border-block: 1px solid var(--line);
+}
+.market-boundary > svg {
+  margin-top: 3px;
+  color: #245b49;
+}
