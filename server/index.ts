@@ -33,6 +33,7 @@ const accounts = accountDatabasePath
   ? (await import("./accounts.ts")).createAccountRouter({
       databasePath: accountDatabasePath,
       allowedOrigins: apiConfig.allowedOrigins,
+      documentKey: apiConfig.documentKey,
     })
   : null;
 

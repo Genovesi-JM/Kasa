@@ -1366,7 +1366,7 @@ try {
   assert.equal(newMigrated.record.tenantAccessActive, true);
   await stop();
   const migrated = new DatabaseSync(migrationPath);
-  assert.equal(migrated.prepare("PRAGMA user_version").get()?.user_version, 6);
+  assert.equal(migrated.prepare("PRAGMA user_version").get()?.user_version, 7);
   assert.deepEqual(
     migrated
       .prepare(

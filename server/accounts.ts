@@ -132,8 +132,11 @@ export function createAccountRouter(options: {
   databasePath: string;
   allowedOrigins: string[];
   secureCookies?: boolean;
+  documentKey?: Buffer | null;
 }) {
-  const store = createAccountStore(options.databasePath);
+  const store = createAccountStore(options.databasePath, {
+    documentKey: options.documentKey ?? null,
+  });
   const router = express.Router();
   const origins = new Set(options.allowedOrigins);
   const cookieOptions = {

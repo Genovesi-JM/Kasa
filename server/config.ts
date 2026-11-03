@@ -32,6 +32,30 @@ const envSchema = z.object({
     .enum(["true", "false"])
     .default("false")
     .transform((value) => value === "true"),
+  // AES-256-GCM key for encrypting private documents at rest. 32 bytes,
+  // supplied as 64 hex chars or base64 (base64url accepted). Empty disables
+  // at-rest encryption (new uploads are stored in the clear).
+  KASA_API_DOCUMENT_KEY: z.preprocess(
+    (value) => (value === "" ? undefined : value),
+    z
+      .string()
+      .optional()
+      .transform((value, ctx) => {
+        if (value === undefined) return null;
+        const key = /^[0-9a-fA-F]{64}$/.test(value)
+          ? Buffer.from(value, "hex")
+          : Buffer.from(value, "base64");
+        if (key.length !== 32) {
+          ctx.addIssue({
+            code: "custom",
+            message:
+              "KASA_API_DOCUMENT_KEY must be a 32-byte key (64 hex characters or base64).",
+          });
+          return z.NEVER;
+        }
+        return key;
+      }),
+  ),
 });
 
 const parsed = envSchema.safeParse(process.env);
@@ -53,6 +77,7 @@ export const apiConfig = {
   country: parsed.data.KASA_API_COUNTRY,
   serveWeb: parsed.data.KASA_API_SERVE_WEB,
   localAccounts: parsed.data.KASA_API_LOCAL_ACCOUNTS,
+  documentKey: parsed.data.KASA_API_DOCUMENT_KEY,
 } as const;
 
 export const accountDatabasePath = (() => {
