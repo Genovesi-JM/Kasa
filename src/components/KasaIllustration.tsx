@@ -19,7 +19,7 @@ export function KasaIllustration({
   alt = "",
 }: {
   name: string;
-  width?: number;
+  width?: number | string;
   className?: string;
   alt?: string;
 }) {

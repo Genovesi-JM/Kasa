@@ -212,6 +212,10 @@ import {
   PropertyShareButton,
 } from "./components/PropertyGallery";
 import { HowKasaWorks } from "./components/HowKasaWorks";
+import {
+  ExploreCategories,
+  type ExploreTarget,
+} from "./components/ExploreCategories";
 import { KasaIcon } from "./components/KasaIcon";
 import { KasaIllustration } from "./components/KasaIllustration";
 import {
@@ -1817,6 +1821,7 @@ function Discover({
   savedSearchState,
   setSavedSearchState,
   onManageSavedSearches,
+  onExplore,
 }: {
   favourites: number[];
   toggleFavourite: (id: number) => void;
@@ -1830,6 +1835,7 @@ function Discover({
   savedSearchState: SavedSearchState;
   setSavedSearchState: React.Dispatch<React.SetStateAction<SavedSearchState>>;
   onManageSavedSearches: () => void;
+  onExplore: (target: ExploreTarget) => void;
 }) {
   const { tr } = useKasaI18n();
   const [catalogProperties, setCatalogProperties] = useState(properties);
@@ -2323,6 +2329,7 @@ function Discover({
           </ActionButton>
         </div>
       )}
+      <ExploreCategories onExplore={onExplore} />
       <HowKasaWorks />
     </div>
   );
@@ -6074,6 +6081,13 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
               )
             }
             onOpen={(property) => openProperty(property, "discover")}
+            onExplore={(target) => {
+              if (target === "rent") setDiscoveryIntent("Rent");
+              else if (target === "buy") setDiscoveryIntent("Buy");
+              else if (target === "services") openServices("discover");
+              else if (target === "stays") go("spaces");
+              else go("portfolio");
+            }}
           />
         );
       case "saved":
