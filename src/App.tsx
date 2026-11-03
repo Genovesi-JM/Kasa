@@ -938,6 +938,9 @@ function OnboardingExperience({
                 <h2>{tr("landing.question")}</h2>
                 <p>{tr("landing.exploreFirst")}</p>
               </div>
+              <div className="welcome-art" aria-hidden="true">
+                <KasaIllustration name="hero-home" width={360} />
+              </div>
               <div className="intent-list">
                 {intentOptions.map((option) => {
                   const Icon = option.icon;
