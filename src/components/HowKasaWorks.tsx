@@ -1,12 +1,6 @@
 import type { CSSProperties } from "react";
 import { useTranslation } from "react-i18next";
-import {
-  CalendarCheck,
-  FileCheck2,
-  KeyRound,
-  Search,
-  ShieldCheck,
-} from "lucide-react";
+import { KasaIcon } from "./KasaIcon";
 import { useReveal } from "./useReveal";
 import "./howKasaWorks.css";
 
@@ -170,7 +164,7 @@ const howCopy: Record<string, Copy> = {
   },
 };
 
-const stepIcons = [Search, CalendarCheck, FileCheck2, KeyRound];
+const stepIcons = ["search", "calendar-check", "clipboard", "key"];
 
 export function HowKasaWorks() {
   const { i18n } = useTranslation();
@@ -191,7 +185,6 @@ export function HowKasaWorks() {
       </header>
       <ol className="how-kasa-steps">
         {copy.steps.map((step, index) => {
-          const Icon = stepIcons[index];
           return (
             <li
               key={step.title}
@@ -200,7 +193,7 @@ export function HowKasaWorks() {
             >
               <span className="how-kasa-index">{index + 1}</span>
               <span className="how-kasa-icon" aria-hidden="true">
-                <Icon size={20} />
+                <KasaIcon name={stepIcons[index]} size={21} />
               </span>
               <h3>{step.title}</h3>
               <p>{step.body}</p>
@@ -209,7 +202,7 @@ export function HowKasaWorks() {
         })}
       </ol>
       <p className="how-kasa-promise" data-reveal>
-        <ShieldCheck size={16} aria-hidden="true" /> {copy.promise}
+        <KasaIcon name="shield-check" size={16} /> {copy.promise}
       </p>
     </section>
   );

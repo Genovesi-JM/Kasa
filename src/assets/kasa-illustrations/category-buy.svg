@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="520" height="380" viewBox="0 0 520 380" fill="none" role="img">
+  <defs>
+    <filter id="shadow" x="-35%" y="-35%" width="170%" height="180%"><feDropShadow dx="0" dy="12" stdDeviation="13" flood-color="#153E30" flood-opacity="0.10"/></filter>
+    <linearGradient id="window" x1="0" x2="1" y1="0" y2="1"><stop stop-color="#BCD6CE"/><stop offset="1" stop-color="#6EADA1"/></linearGradient>
+    <linearGradient id="field" x1="0" x2="1" y1="0" y2="1"><stop stop-color="#F2F4EC"/><stop offset="1" stop-color="#E1EEE5"/></linearGradient>
+  </defs>
+  
+    <rect x="12" y="12" width="496" height="356" rx="34" fill="#FAF8F2"/>
+    <circle cx="286" cy="181" r="143" fill="#E7EEE5" />
+    <path d="M49 304Q187 276 263 302T471 307" stroke="#B5CEBF" stroke-width="2.5" stroke-linecap="round"/>
+    <ellipse cx="281" cy="314" rx="156" ry="15" fill="#B9CFBE" opacity="0.40"/>
+    
+  <g filter="url(#shadow)"><path d="M137 184 267 86l132 98v121H137z" fill="#FFFFFF"/><path d="M122 184 266 73l146 111" stroke="#20533F" stroke-width="16" stroke-linecap="round" stroke-linejoin="round"/><rect x="240" y="205" width="60" height="100" rx="4" fill="#C6A27D"/><rect x="167" y="206" width="53" height="59" rx="5" fill="url(#window)"/><rect x="323" y="206" width="49" height="59" rx="5" fill="url(#window)"/><path d="M193 206v59m154-59v59" stroke="#EEF5EF" stroke-width="3"/></g>
+  <circle cx="387" cy="109" r="31" fill="#E5C48D"/>
+  <g transform="translate(364 87)"><circle cx="10" cy="24" r="10" stroke="#174E3E" stroke-width="5"/><path d="m18 17 25-17 7 9-7 6 2 7-10 6-4-8-9 7" fill="none" stroke="#174E3E" stroke-width="5" stroke-linejoin="round"/></g>
+  <g transform="translate(113 277) scale(0.72)"><path d="M17 35Q7 21 8 12q16 5 16 23M20 36Q19 12 34 7q6 18-14 29M17 36Q0 26 2 21q15 0 19 15" fill="#83AF8E"/><path d="M20 36v8" stroke="#275E4C" stroke-width="3"/></g> <g transform="translate(384 282) scale(0.77)"><path d="M17 35Q7 21 8 12q16 5 16 23M20 36Q19 12 34 7q6 18-14 29M17 36Q0 26 2 21q15 0 19 15" fill="#83AF8E"/><path d="M20 36v8" stroke="#275E4C" stroke-width="3"/></g>
+
+    
+</svg>

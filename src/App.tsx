@@ -14,8 +14,6 @@ import {
   ArrowRight,
   BadgeCheck,
   BarChart3,
-  Bath,
-  BedDouble,
   Bell,
   BriefcaseBusiness,
   Building2,
@@ -215,6 +213,12 @@ import {
 } from "./components/PropertyGallery";
 import { HowKasaWorks } from "./components/HowKasaWorks";
 import {
+  ExploreCategories,
+  type ExploreTarget,
+} from "./components/ExploreCategories";
+import { KasaIcon } from "./components/KasaIcon";
+import { KasaIllustration } from "./components/KasaIllustration";
+import {
   MortgageCardEstimate,
   MortgageEstimator,
 } from "./components/MortgageEstimator";
@@ -246,6 +250,50 @@ const formatEuro = (value: number) =>
     currency: "EUR",
     maximumFractionDigits: 0,
   }).format(value);
+
+// Map an amenity label to a Kasa icon by keyword; falls back to a check mark.
+const AMENITY_ICONS: [RegExp, string][] = [
+  [/pool|piscina/i, "pool"],
+  [/wifi|internet|wi-fi/i, "wifi"],
+  [/air|ac\b|condition|ar.?condicion|climati/i, "ac"],
+  [/garage|garagem|parking|estacion/i, "garage"],
+  [/lift|elevator|elevador/i, "elevator"],
+  [/balcon|terrace|terra[çc]|varanda/i, "balcony"],
+  [/pet|animal/i, "pet"],
+  [/garden|outdoor|jardim|exterior|p[aá]tio/i, "tree"],
+  [/furnish|mobilad|sof[aá]/i, "sofa"],
+  [/floodlight|light|sun|sol/i, "sun"],
+  [/water|heating|aquecim|[áa]gua|droplet/i, "droplet"],
+  [/bill|utilit|conta|despesa/i, "wallet"],
+  [/storage|arruma|arrecad/i, "clipboard"],
+  [/changing|balne|vestiario|vestiário/i, "user"],
+  [/ball|equipa|rental|aluguer/i, "tag"],
+];
+const amenityIcon = (label: string): string => {
+  for (const [pattern, icon] of AMENITY_ICONS)
+    if (pattern.test(label)) return icon;
+  return "check";
+};
+
+// Maps the mobile dock's lucide icons to Kasa glyphs by identity, so the dock
+// items keep their existing definitions and anything unmapped falls back to
+// the lucide icon.
+const DOCK_KASA_ICON = new globalThis.Map<LucideIcon, string>([
+  [Search, "search"],
+  [MessageCircle, "message-circle"],
+  [Bell, "bell"],
+  [CircleUserRound, "user"],
+  [LayoutDashboard, "grid"],
+  [Building2, "buildings"],
+  [CalendarDays, "calendar-check"],
+  [FileCheck2, "file-check"],
+  [Wrench, "wrench"],
+  [Sparkles, "sparkles"],
+  [BriefcaseBusiness, "briefcase"],
+  [Users, "users"],
+  [ShieldCheck, "shield-check"],
+  [CheckCircle2, "check-circle"],
+]);
 
 type ServiceLaunchMode = AppRoute["service"];
 
@@ -894,6 +942,9 @@ function OnboardingExperience({
                 <h2>{tr("landing.question")}</h2>
                 <p>{tr("landing.exploreFirst")}</p>
               </div>
+              <div className="welcome-art" aria-hidden="true">
+                <KasaIllustration name="hero-home" width={360} />
+              </div>
               <div className="intent-list">
                 {intentOptions.map((option) => {
                   const Icon = option.icon;
@@ -1297,11 +1348,12 @@ function PropertyCard({
         </div>
         <div className="property-facts">
           <span>
-            <BedDouble size={16} /> {property.beds}{" "}
+            <KasaIcon name="bed" size={16} /> {property.beds}{" "}
             {tr("discover.bedroomCount")}
           </span>
           <span>
-            <Bath size={16} /> {property.baths} {tr("discover.bathroomCount")}
+            <KasaIcon name="bath" size={16} /> {property.baths}{" "}
+            {tr("discover.bathroomCount")}
           </span>
           <span>{property.sqm} m²</span>
         </div>
@@ -1484,7 +1536,7 @@ function UniversalHome({
           onClick={() => go("discover")}
         >
           <span className="universal-area-icon">
-            <Home />
+            <KasaIcon name="house" size={26} />
           </span>
           <span>
             <small>{tr("universalHome.live")}</small>
@@ -1498,7 +1550,7 @@ function UniversalHome({
           onClick={() => openServices("jobs")}
         >
           <span className="universal-area-icon">
-            <BriefcaseBusiness />
+            <KasaIcon name="briefcase" size={26} />
           </span>
           <span>
             <small>{tr("universalHome.earn")}</small>
@@ -1512,7 +1564,7 @@ function UniversalHome({
           onClick={() => openServices("discover")}
         >
           <span className="universal-area-icon">
-            <Wrench />
+            <KasaIcon name="wrench" size={26} />
           </span>
           <span>
             <small>{tr("universalHome.getHelp")}</small>
@@ -1526,7 +1578,7 @@ function UniversalHome({
           onClick={() => go("spaces")}
         >
           <span className="universal-area-icon">
-            <CalendarDays />
+            <KasaIcon name="calendar-check" size={26} />
           </span>
           <span>
             <small>{tr("universalHome.reserve")}</small>
@@ -1769,6 +1821,7 @@ function Discover({
   savedSearchState,
   setSavedSearchState,
   onManageSavedSearches,
+  onExplore,
 }: {
   favourites: number[];
   toggleFavourite: (id: number) => void;
@@ -1782,6 +1835,7 @@ function Discover({
   savedSearchState: SavedSearchState;
   setSavedSearchState: React.Dispatch<React.SetStateAction<SavedSearchState>>;
   onManageSavedSearches: () => void;
+  onExplore: (target: ExploreTarget) => void;
 }) {
   const { tr } = useKasaI18n();
   const [catalogProperties, setCatalogProperties] = useState(properties);
@@ -2267,7 +2321,7 @@ function Discover({
       )}
       {filtered.length === 0 && (
         <div className="empty-state">
-          <Search size={28} />
+          <KasaIllustration name="empty-search" width={260} />
           <h3>{tr("discover.noResults")}</h3>
           <p>{tr("discover.noResultsNote")}</p>
           <ActionButton secondary onClick={resetFilters}>
@@ -2275,6 +2329,7 @@ function Discover({
           </ActionButton>
         </div>
       )}
+      <ExploreCategories onExplore={onExplore} />
       <HowKasaWorks />
     </div>
   );
@@ -2385,22 +2440,22 @@ function PropertyDetail({
         <main>
           <section className="fact-ribbon">
             <span>
-              <BedDouble />
+              <KasaIcon name="bed" size={23} />
               <strong>{property.beds}</strong>
               <small>{tr("discover.bedrooms")}</small>
             </span>
             <span>
-              <Bath />
+              <KasaIcon name="bath" size={23} />
               <strong>{property.baths}</strong>
               <small>{tr("discover.bathrooms")}</small>
             </span>
             <span>
-              <Home />
+              <KasaIcon name="area" size={23} />
               <strong>{property.sqm}</strong>
               <small>m²</small>
             </span>
             <span>
-              <WalletCards />
+              <KasaIcon name="wallet" size={23} />
               <strong>
                 {property.listingType === "Rent"
                   ? formatEuro(property.deposit)
@@ -2429,7 +2484,7 @@ function PropertyDetail({
             <div className="amenity-grid">
               {property.amenities.map((amenity) => (
                 <span key={amenity}>
-                  <Check size={16} /> {amenity}
+                  <KasaIcon name={amenityIcon(amenity)} size={17} /> {amenity}
                 </span>
               ))}
             </div>
@@ -2583,7 +2638,7 @@ function Saved({
         </section>
       ) : (
         <div className="empty-state">
-          <Heart size={30} />
+          <KasaIllustration name="empty-favorites" width={250} />
           <h3>
             {copy("No saved homes match", "Nenhum imóvel guardado corresponde")}
           </h3>
@@ -4073,7 +4128,7 @@ function SpacesMarketplace({
       )}
       {visibleVenues.length === 0 && (
         <div className="empty-state">
-          <Search size={28} />
+          <KasaIllustration name="empty-search" width={260} />
           <h3>
             {tr(
               catalogVenues.length ? "space.noResults" : "space.emptyCatalogue",
@@ -6026,6 +6081,13 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
               )
             }
             onOpen={(property) => openProperty(property, "discover")}
+            onExplore={(target) => {
+              if (target === "rent") setDiscoveryIntent("Rent");
+              else if (target === "buy") setDiscoveryIntent("Buy");
+              else if (target === "services") openServices("discover");
+              else if (target === "stays") go("spaces");
+              else go("portfolio");
+            }}
           />
         );
       case "saved":
@@ -6996,6 +7058,7 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
             >
               {mobileDockItems.map((item) => {
                 const Icon = item.icon;
+                const kasaName = DOCK_KASA_ICON.get(item.icon);
                 const active = (item.activeViews ?? [item.id]).includes(view);
                 return (
                   <button
@@ -7004,7 +7067,11 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
                     aria-current={active ? "page" : undefined}
                     onClick={() => navigateMain(item.id)}
                   >
-                    <Icon />
+                    {kasaName ? (
+                      <KasaIcon name={kasaName} size={22} />
+                    ) : (
+                      <Icon />
+                    )}
                     <span>{item.label}</span>
                   </button>
                 );

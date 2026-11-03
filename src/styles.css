@@ -3207,7 +3207,8 @@ kbd {
 .fact-ribbon span:first-child {
   border-left: 0;
 }
-.fact-ribbon svg {
+.fact-ribbon svg,
+.fact-ribbon .kasa-icon {
   grid-area: icon;
   color: var(--green-2);
 }
@@ -3240,7 +3241,8 @@ kbd {
   color: #53655f;
   font-size: 10px;
 }
-.amenity-grid svg {
+.amenity-grid svg,
+.amenity-grid .kasa-icon {
   color: var(--green-2);
 }
 .location-preview {
@@ -5477,6 +5479,14 @@ kbd {
 .intent-heading p {
   margin: 0 0 15px;
   text-align: left;
+}
+.welcome-art {
+  display: flex;
+  justify-content: center;
+  margin: 2px 0 10px;
+}
+.welcome-art img {
+  width: min(360px, 82%);
 }
 .intent-list {
   display: flex;
