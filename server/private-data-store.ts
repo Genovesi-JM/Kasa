@@ -1,6 +1,36 @@
-import { randomUUID } from "node:crypto";
+import {
+  createCipheriv,
+  createDecipheriv,
+  randomBytes,
+  randomUUID,
+} from "node:crypto";
 import type { DatabaseSync } from "node:sqlite";
 import { WorkspaceError } from "./workspace-store.ts";
+
+// AES-256-GCM at-rest encryption for private document contents.
+// GCM ciphertext is the same length as the plaintext, so byte_size and the
+// `length(content) = byte_size` constraint stay valid; the 12-byte IV and
+// 16-byte auth tag live in dedicated columns. A document is encrypted only
+// when a key is configured; legacy rows (iv/tag NULL) are read as cleartext.
+const GCM_IV_BYTES = 12;
+
+function encryptContent(content: Buffer, key: Buffer) {
+  const iv = randomBytes(GCM_IV_BYTES);
+  const cipher = createCipheriv("aes-256-gcm", key, iv);
+  const ciphertext = Buffer.concat([cipher.update(content), cipher.final()]);
+  return { ciphertext, iv, tag: cipher.getAuthTag() };
+}
+
+function decryptContent(
+  ciphertext: Buffer,
+  key: Buffer,
+  iv: Buffer,
+  tag: Buffer,
+) {
+  const decipher = createDecipheriv("aes-256-gcm", key, iv);
+  decipher.setAuthTag(tag);
+  return Buffer.concat([decipher.update(ciphertext), decipher.final()]);
+}
 
 export type DocumentSharing = "private" | "shared";
 export type NotificationKind =
@@ -206,7 +236,39 @@ export function migratePrivateDataStore(database: DatabaseSync) {
   `);
 }
 
-export function createPrivateDataStore(database: DatabaseSync) {
+// Adds at-rest encryption columns for private document contents. Additive and
+// backward compatible: existing rows keep NULL iv/tag and are read as cleartext
+// until re-uploaded. GCM preserves length, so the content/byte_size constraint
+// is unaffected.
+export function migrateDocumentEncryption(database: DatabaseSync) {
+  // Idempotent: add each column only when absent so the step is safe to re-run
+  // against a database that already carries the encryption columns.
+  const existing = new Set(
+    (
+      database.prepare("PRAGMA table_info(local_documents)").all() as {
+        name: string;
+      }[]
+    ).map((column) => column.name),
+  );
+  const additions = [
+    ["content_iv", "ALTER TABLE local_documents ADD COLUMN content_iv BLOB;"],
+    ["content_tag", "ALTER TABLE local_documents ADD COLUMN content_tag BLOB;"],
+  ]
+    .filter(([name]) => !existing.has(name))
+    .map(([, statement]) => statement)
+    .join("\n");
+  database.exec(`
+    BEGIN IMMEDIATE;
+    ${additions}
+    PRAGMA user_version=7;
+    COMMIT;
+  `);
+}
+
+export function createPrivateDataStore(
+  database: DatabaseSync,
+  documentKey: Buffer | null = null,
+) {
   function transaction<T>(operation: () => T): T {
     database.exec("BEGIN IMMEDIATE");
     try {
@@ -422,9 +484,13 @@ export function createPrivateDataStore(database: DatabaseSync) {
           );
         const id = randomUUID();
         const now = Date.now();
+        // Encrypt at rest when a key is configured; otherwise store cleartext.
+        const stored = documentKey
+          ? encryptContent(file.content, documentKey)
+          : { ciphertext: file.content, iv: null, tag: null };
         database
           .prepare(
-            "INSERT INTO local_documents(id,property_id,uploaded_by,uploaded_by_name,title,filename,mime_type,byte_size,content,sharing,recipient_account_id,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            "INSERT INTO local_documents(id,property_id,uploaded_by,uploaded_by_name,title,filename,mime_type,byte_size,content,content_iv,content_tag,sharing,recipient_account_id,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
           )
           .run(
             id,
@@ -435,7 +501,9 @@ export function createPrivateDataStore(database: DatabaseSync) {
             file.filename,
             input.mimeType,
             file.byteSize,
-            file.content,
+            stored.ciphertext,
+            stored.iv,
+            stored.tag,
             input.sharing,
             recipient,
             now,
@@ -513,12 +581,29 @@ export function createPrivateDataStore(database: DatabaseSync) {
     },
     documentContent(accountId: string, documentId: string) {
       const row = readableDocument(accountId, documentId);
-      const content = database
-        .prepare("SELECT content FROM local_documents WHERE id=?")
-        .get(documentId) as { content: Uint8Array };
+      const stored = database
+        .prepare(
+          "SELECT content,content_iv,content_tag FROM local_documents WHERE id=?",
+        )
+        .get(documentId) as {
+        content: Uint8Array;
+        content_iv: Uint8Array | null;
+        content_tag: Uint8Array | null;
+      };
+      const ciphertext = Buffer.from(stored.content);
+      // Encrypted rows carry an IV and auth tag; legacy rows are cleartext.
+      const content =
+        documentKey && stored.content_iv && stored.content_tag
+          ? decryptContent(
+              ciphertext,
+              documentKey,
+              Buffer.from(stored.content_iv),
+              Buffer.from(stored.content_tag),
+            )
+          : ciphertext;
       return {
         document: documentView(row),
-        content: Buffer.from(content.content),
+        content,
       };
     },
     notifyMaintenance(

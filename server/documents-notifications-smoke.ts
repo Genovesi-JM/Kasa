@@ -32,6 +32,11 @@ const migrationPath = join(directory, "migration.sqlite");
 const capacityPath = join(directory, "capacity.sqlite");
 const origin = "http://127.0.0.1:5174";
 const password = "Local-document-fixture-password-123";
+// Fixed 32-byte test key so the whole suite exercises at-rest encryption.
+const documentKey = Buffer.from(
+  "00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff",
+  "hex",
+);
 const pdf = Buffer.from("%PDF-1.4\n1 0 obj<</Type/Catalog>>endobj\n%%EOF\n");
 const png = Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aANsAAAAASUVORK5CYII=",
@@ -65,6 +70,7 @@ async function start(path = databasePath) {
   service = createAccountRouter({
     databasePath: path,
     allowedOrigins: [origin],
+    documentKey,
   });
   const app = express();
   app.use((_request, response, next) => {
@@ -1260,7 +1266,7 @@ try {
   );
   await stop();
   const migrated = new DatabaseSync(migrationPath);
-  assert.equal(migrated.prepare("PRAGMA user_version").get()?.user_version, 6);
+  assert.equal(migrated.prepare("PRAGMA user_version").get()?.user_version, 7);
   migrated.close();
   await start();
   assert.deepEqual((await content(ownerAfterJoin, owner)).bytes, pdf);
@@ -1271,6 +1277,47 @@ try {
   );
   passed(
     "binary files and read states survive restart; version-two migration preserves existing accounts, sessions, properties and maintenance",
+  );
+
+  // The whole suite above ran with a configured key and round-tripped content
+  // transparently; confirm the bytes are actually encrypted at rest.
+  await stop();
+  const atRest = new DatabaseSync(databasePath);
+  const storedRows = atRest
+    .prepare(
+      "SELECT content, content_iv, content_tag, byte_size FROM local_documents",
+    )
+    .all() as {
+    content: Uint8Array;
+    content_iv: Uint8Array | null;
+    content_tag: Uint8Array | null;
+    byte_size: number;
+  }[];
+  atRest.close();
+  assert.ok(storedRows.length > 0, "at least one document is stored at rest");
+  for (const row of storedRows) {
+    assert.ok(
+      row.content_iv && row.content_iv.length === 12,
+      "each stored document carries a 12-byte GCM IV",
+    );
+    assert.ok(
+      row.content_tag && row.content_tag.length === 16,
+      "each stored document carries a 16-byte GCM auth tag",
+    );
+    assert.equal(
+      row.content.length,
+      row.byte_size,
+      "GCM ciphertext preserves the recorded byte size",
+    );
+    assert.notDeepEqual(
+      Buffer.from(row.content),
+      pdf,
+      "document bytes are not stored in the clear",
+    );
+  }
+  await start();
+  passed(
+    "private documents are encrypted at rest with AES-256-GCM while downloads stay transparent",
   );
   console.log(
     `Private documents and notifications checks passed (${checks} groups).`,

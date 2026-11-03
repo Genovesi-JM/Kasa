@@ -235,7 +235,7 @@ try {
     inspect(
       (database) => database.prepare("PRAGMA user_version").get()?.user_version,
     ),
-    6,
+    7,
   );
   passed(
     "v5 to v6 migration preserves every existing table row, private file bytes, rent/history, alerts, chats and sessions",

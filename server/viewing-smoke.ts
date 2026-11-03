@@ -795,7 +795,7 @@ try {
   assert.equal(migratedCreate.viewing.status, "requested");
   await stop();
   const migrated = new DatabaseSync(migrationPath);
-  assert.equal(migrated.prepare("PRAGMA user_version").get()?.user_version, 6);
+  assert.equal(migrated.prepare("PRAGMA user_version").get()?.user_version, 7);
   for (let index = 0; index < tables.length; index++)
     assert.deepEqual(
       migrated.prepare(`SELECT * FROM ${tables[index]} ORDER BY rowid`).all(),

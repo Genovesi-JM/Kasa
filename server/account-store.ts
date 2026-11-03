@@ -15,6 +15,7 @@ import {
 } from "./workspace-store.ts";
 import {
   createPrivateDataStore,
+  migrateDocumentEncryption,
   migratePrivateDataStore,
 } from "./private-data-store.ts";
 import { createRentStore, migrateRentStore } from "./rent-store.ts";
@@ -78,7 +79,10 @@ function requirePrivatePath(path: string, directory = false) {
 }
 
 /** Local-development adapter. This is not the production identity database. */
-export function createAccountStore(databasePath: string) {
+export function createAccountStore(
+  databasePath: string,
+  options: { documentKey?: Buffer | null } = {},
+) {
   if (!isAbsolute(databasePath) || resolve(databasePath) !== databasePath) {
     throw new Error("Account database path must be absolute and normalized.");
   }
@@ -112,7 +116,7 @@ export function createAccountStore(databasePath: string) {
     const version = database.prepare("PRAGMA user_version").get() as {
       user_version: number;
     };
-    if (version.user_version > 6) {
+    if (version.user_version > 7) {
       throw new Error("Account database was created by a newer application.");
     }
     if (version.user_version === 0) {
@@ -148,6 +152,7 @@ export function createAccountStore(databasePath: string) {
     if (version.user_version < 4) migrateRentStore(database);
     if (version.user_version < 5) migrateMarketplaceStore(database);
     if (version.user_version < 6) migrateViewingStore(database);
+    if (version.user_version < 7) migrateDocumentEncryption(database);
   } catch (error) {
     database.close();
     throw error;
@@ -186,7 +191,10 @@ export function createAccountStore(databasePath: string) {
       .run(tokenHash, accountId, expiresAt, now);
   }
 
-  const privateData = createPrivateDataStore(database);
+  const privateData = createPrivateDataStore(
+    database,
+    options.documentKey ?? null,
+  );
   return {
     workspaces: createWorkspaceStore(database, privateData),
     privateData,

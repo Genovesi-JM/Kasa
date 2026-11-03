@@ -1122,7 +1122,7 @@ try {
   assert.equal(login.payload.account?.id, legacy.id);
   await stop();
   const migrated = new DatabaseSync(migrationPath);
-  assert.equal(migrated.prepare("PRAGMA user_version").get()?.user_version, 6);
+  assert.equal(migrated.prepare("PRAGMA user_version").get()?.user_version, 7);
   assert.equal(
     migrated.prepare("SELECT count(*) AS count FROM accounts").get()?.count,
     1,
