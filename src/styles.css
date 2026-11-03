@@ -2852,6 +2852,23 @@ kbd {
       center / cover no-repeat;
   box-shadow: var(--shadow);
 }
+/* Mirror the horizontal scrim so the darkest side sits under the RTL text. */
+[dir="rtl"] .discovery-intro {
+  background:
+    radial-gradient(
+      circle at 12% 8%,
+      rgba(232, 185, 103, 0.26),
+      transparent 32%
+    ),
+    linear-gradient(
+      260deg,
+      rgba(12, 34, 28, 0.93) 0%,
+      rgba(20, 52, 45, 0.74) 44%,
+      rgba(20, 52, 45, 0.32) 100%
+    ),
+    url("https://images.unsplash.com/photo-1600607687920-4e2a09cf159d?auto=format&fit=crop&w=1600&q=80")
+      center / cover no-repeat;
+}
 .discovery-intro > div:first-child {
   max-width: 680px;
 }
