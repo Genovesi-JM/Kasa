@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="520" height="380" viewBox="0 0 520 380" fill="none" role="img">
+  <defs>
+    <filter id="shadow" x="-35%" y="-35%" width="170%" height="180%"><feDropShadow dx="0" dy="12" stdDeviation="13" flood-color="#153E30" flood-opacity="0.10"/></filter>
+    <linearGradient id="window" x1="0" x2="1" y1="0" y2="1"><stop stop-color="#BCD6CE"/><stop offset="1" stop-color="#6EADA1"/></linearGradient>
+    <linearGradient id="field" x1="0" x2="1" y1="0" y2="1"><stop stop-color="#F2F4EC"/><stop offset="1" stop-color="#E1EEE5"/></linearGradient>
+  </defs>
+  
+    <rect x="12" y="12" width="496" height="356" rx="34" fill="#FAF8F2"/>
+    <circle cx="286" cy="181" r="143" fill="#E7F1EA" />
+    <path d="M49 304Q187 276 263 302T471 307" stroke="#B5CEBF" stroke-width="2.5" stroke-linecap="round"/>
+    <ellipse cx="281" cy="314" rx="156" ry="15" fill="#B9CFBE" opacity="0.40"/>
+    
+ <g filter="url(#shadow)"><rect x="172" y="100" width="203" height="210" rx="9" fill="#FFFDF8"/><path d="M161 105h225" stroke="#20533F" stroke-width="12" stroke-linecap="round"/><rect x="193" y="127" width="61" height="69" rx="4" fill="url(#window)"/><rect x="284" y="127" width="61" height="69" rx="4" fill="url(#window)"/><rect x="193" y="215" width="61" height="70" rx="4" fill="url(#window)"/><rect x="284" y="215" width="61" height="70" rx="4" fill="url(#window)"/><path d="M224 127v69m91-69v69m-91 19v70m91-70v70" stroke="#F1F6F0" stroke-width="4"/></g>
+ <g transform="translate(94 189)" filter="url(#shadow)"><rect width="116" height="96" rx="13" fill="#F4DCC0"/><rect x="15" y="15" width="86" height="66" rx="5" fill="#FFFDF8"/><path d="M30 34h56M30 48h38M30 62h44" stroke="#9CB5A5" stroke-width="5" stroke-linecap="round"/><circle cx="91" cy="73" r="19" fill="#174E3E"/><path d="m81 72 7 7 14-15" stroke="#FFFDF8" stroke-width="4" stroke-linecap="round"/></g>
+ <g transform="translate(386 273) scale(0.75)"><path d="M17 35Q7 21 8 12q16 5 16 23M20 36Q19 12 34 7q6 18-14 29M17 36Q0 26 2 21q15 0 19 15" fill="#83AF8E"/><path d="M20 36v8" stroke="#275E4C" stroke-width="3"/></g>
+
+    
+</svg>

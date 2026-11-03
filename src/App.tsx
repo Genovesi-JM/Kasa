@@ -213,6 +213,7 @@ import {
 } from "./components/PropertyGallery";
 import { HowKasaWorks } from "./components/HowKasaWorks";
 import { KasaIcon } from "./components/KasaIcon";
+import { KasaIllustration } from "./components/KasaIllustration";
 import {
   MortgageCardEstimate,
   MortgageEstimator,
@@ -2267,7 +2268,7 @@ function Discover({
       )}
       {filtered.length === 0 && (
         <div className="empty-state">
-          <Search size={28} />
+          <KasaIllustration name="empty-search" width={260} />
           <h3>{tr("discover.noResults")}</h3>
           <p>{tr("discover.noResultsNote")}</p>
           <ActionButton secondary onClick={resetFilters}>
@@ -2583,7 +2584,7 @@ function Saved({
         </section>
       ) : (
         <div className="empty-state">
-          <Heart size={30} />
+          <KasaIllustration name="empty-favorites" width={250} />
           <h3>
             {copy("No saved homes match", "Nenhum imóvel guardado corresponde")}
           </h3>
@@ -4073,7 +4074,7 @@ function SpacesMarketplace({
       )}
       {visibleVenues.length === 0 && (
         <div className="empty-state">
-          <Search size={28} />
+          <KasaIllustration name="empty-search" width={260} />
           <h3>
             {tr(
               catalogVenues.length ? "space.noResults" : "space.emptyCatalogue",

@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="520" height="380" viewBox="0 0 520 380" fill="none" role="img">
+  <defs>
+    <filter id="shadow" x="-35%" y="-35%" width="170%" height="180%"><feDropShadow dx="0" dy="12" stdDeviation="13" flood-color="#153E30" flood-opacity="0.10"/></filter>
+    <linearGradient id="window" x1="0" x2="1" y1="0" y2="1"><stop stop-color="#BCD6CE"/><stop offset="1" stop-color="#6EADA1"/></linearGradient>
+    <linearGradient id="field" x1="0" x2="1" y1="0" y2="1"><stop stop-color="#F2F4EC"/><stop offset="1" stop-color="#E1EEE5"/></linearGradient>
+  </defs>
+  
+    <rect x="12" y="12" width="496" height="356" rx="34" fill="#FAF8F2"/>
+    <circle cx="286" cy="181" r="143" fill="#EAF1E9" />
+    <path d="M49 304Q187 276 263 302T471 307" stroke="#B5CEBF" stroke-width="2.5" stroke-linecap="round"/>
+    <ellipse cx="281" cy="314" rx="156" ry="15" fill="#B9CFBE" opacity="0.40"/>
+    
+ <g opacity=".82"><path d="m149 211 109-88 113 88v97H149z" fill="#FFFFFF" stroke="#9CBBA7" stroke-width="6"/><rect x="228" y="242" width="55" height="66" fill="#D0E2D7"/></g>
+ <g filter="url(#shadow)"><circle cx="310" cy="167" r="82" fill="#FAF8F2"/><path d="M355 145a33 33 0 0 0-46.5 0L304 150l-4.5-5a33 33 0 0 0-46.5 46.5L304 244l51-52.5a33 33 0 0 0 0-46.5z" stroke="#174E3E" stroke-width="10" stroke-linecap="round" stroke-linejoin="round" fill="#E9C8AB"/></g>
+
+    
+</svg>
