@@ -1,0 +1,171 @@
+.affordability {
+  padding: 0;
+  overflow: hidden;
+}
+.affordability-trigger {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 18px;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--green);
+  cursor: pointer;
+  text-align: start;
+}
+.affordability-trigger-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  flex: 0 0 auto;
+  border-radius: 10px;
+  color: var(--green);
+  background: var(--sage);
+}
+.affordability-trigger > span:nth-child(2) {
+  flex: 1;
+}
+.affordability-chevron {
+  flex: 0 0 auto;
+  color: var(--muted);
+  transition: transform 0.3s ease;
+}
+.affordability-chevron[data-open="true"] {
+  transform: rotate(180deg);
+}
+
+.affordability-body {
+  padding: 2px 18px 18px;
+  border-top: 1px solid var(--line);
+}
+.affordability-lead {
+  margin: 14px 0 16px;
+  color: var(--muted);
+  font-size: 12.5px;
+  line-height: 1.55;
+}
+.affordability-fields {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 14px;
+}
+.affordability-fields label {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.affordability-fields input {
+  min-width: 0;
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  font: inherit;
+  font-size: 15px;
+  color: var(--ink);
+}
+.affordability-fields input:focus-visible {
+  outline: 3px solid #fff;
+  outline-offset: 0;
+  box-shadow: 0 0 0 3px var(--green-2);
+}
+.affordability-fields small {
+  font-weight: 400;
+  font-size: 10.5px;
+  color: var(--muted);
+}
+
+.affordability-result {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-top: 18px;
+  padding: 16px 18px;
+  border-radius: 14px;
+  background:
+    radial-gradient(
+      circle at 92% 10%,
+      rgba(231, 185, 79, 0.14),
+      transparent 40%
+    ),
+    var(--sage);
+}
+.affordability-result .eyebrow {
+  color: #40564e;
+}
+.affordability-result > div {
+  min-width: 0;
+}
+.affordability-result strong {
+  display: block;
+  margin: 6px 0 8px;
+  font-size: clamp(22px, 3.2vw, 30px);
+  color: var(--green);
+  letter-spacing: -0.02em;
+  overflow-wrap: anywhere;
+}
+.affordability-result strong small {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.affordability-bands {
+  flex-wrap: wrap;
+  display: flex;
+  gap: 18px;
+  font-size: 11px;
+  color: #40564e;
+}
+.affordability-bands b {
+  color: var(--ink);
+}
+.affordability-apply {
+  max-width: 100%;
+  white-space: normal;
+  flex: 0 0 auto;
+}
+
+.affordability-empty {
+  margin: 18px 0 0;
+  padding: 16px 18px;
+  border-radius: 14px;
+  background: var(--cream);
+  color: var(--muted);
+  font-size: 12.5px;
+}
+
+.affordability-disclaimer {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  margin: 14px 0 0;
+  color: var(--muted);
+  font-size: 10.5px;
+  line-height: 1.5;
+}
+.affordability-disclaimer svg {
+  flex: 0 0 auto;
+  margin-top: 1px;
+}
+
+@media (max-width: 560px) {
+  .affordability-fields {
+    grid-template-columns: 1fr;
+  }
+  .affordability-apply {
+    width: 100%;
+  }
+}

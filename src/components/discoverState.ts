@@ -139,13 +139,15 @@ function normalizeFilters(
   for (const field of ["verifiedOnly", "showMoreFilters"] as const) {
     if (typeof candidate[field] === "boolean") next[field] = candidate[field];
   }
-  const maxPrices =
-    intent === "Rent"
-      ? ["Any price", "1500", "2000", "2500"]
-      : ["Any price", "500000", "650000", "800000"];
   const minPrices =
     intent === "Rent" ? ["0", "1000", "1500"] : ["0", "300000", "500000"];
-  if (maxPrices.includes(candidate.maxPrice))
+  // Calculator budgets must survive updates, saved searches and history restore.
+  if (
+    candidate.maxPrice === "Any price" ||
+    (typeof candidate.maxPrice === "string" &&
+      /^[1-9]\d{0,15}$/.test(candidate.maxPrice) &&
+      Number.isSafeInteger(Number(candidate.maxPrice)))
+  )
     next.maxPrice = candidate.maxPrice;
   if (minPrices.includes(candidate.minPrice))
     next.minPrice = candidate.minPrice;

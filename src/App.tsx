@@ -214,6 +214,7 @@ import {
   PropertyShareButton,
 } from "./components/PropertyGallery";
 import { HowKasaWorks } from "./components/HowKasaWorks";
+import { AffordabilityCalculator } from "./components/AffordabilityCalculator";
 import {
   MortgageCardEstimate,
   MortgageEstimator,
@@ -1783,7 +1784,7 @@ function Discover({
   setSavedSearchState: React.Dispatch<React.SetStateAction<SavedSearchState>>;
   onManageSavedSearches: () => void;
 }) {
-  const { tr } = useKasaI18n();
+  const { tr, language } = useKasaI18n();
   const [catalogProperties, setCatalogProperties] = useState(properties);
   const setQuery = onQueryChange;
   const intent = initialIntent;
@@ -1977,6 +1978,20 @@ function Discover({
           value={maxPrice}
           onChange={(event) => updateFilter("maxPrice", event.target.value)}
         >
+          {maxPrice !== "Any price" &&
+            !(
+              intent === "Rent"
+                ? ["1500", "2000", "2500"]
+                : ["500000", "650000", "800000"]
+            ).includes(maxPrice) && (
+              <option value={maxPrice}>
+                {new Intl.NumberFormat(language, {
+                  style: "currency",
+                  currency: "EUR",
+                  maximumFractionDigits: 0,
+                }).format(Number(maxPrice))}
+              </option>
+            )}
           {intent === "Rent" ? (
             <>
               <option value="Any price">{tr("discover.anyPrice")}</option>
@@ -2160,6 +2175,18 @@ function Discover({
             </div>
           </div>
         </section>
+      )}
+      {intent === "Rent" && (
+        <AffordabilityCalculator
+          onApplyBudget={(maxRent) =>
+            onFiltersChange((current) => ({
+              ...current,
+              maxPrice: String(maxRent),
+              minPrice:
+                Number(current.minPrice) > maxRent ? "0" : current.minPrice,
+            }))
+          }
+        />
       )}
       <div className="results-line">
         <div>
@@ -5116,6 +5143,14 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
   );
   const [discoverState, setDiscoverState] = useState(() => {
     const state = createInitialDiscoverState();
+    const snapshot = readDiscoverHistory(window.history.state, initialRoute);
+    if (snapshot)
+      return applyDiscoverSearch(
+        state,
+        initialRoute.role,
+        initialRoute.intent,
+        snapshot,
+      );
     return initialRoute.view === "discover" || initialRoute.view === "property"
       ? startDiscoverSearch(
           state,
