@@ -3241,7 +3241,8 @@ kbd {
   color: #53655f;
   font-size: 10px;
 }
-.amenity-grid svg {
+.amenity-grid svg,
+.amenity-grid .kasa-icon {
   color: var(--green-2);
 }
 .location-preview {

@@ -247,6 +247,30 @@ const formatEuro = (value: number) =>
     maximumFractionDigits: 0,
   }).format(value);
 
+// Map an amenity label to a Kasa icon by keyword; falls back to a check mark.
+const AMENITY_ICONS: [RegExp, string][] = [
+  [/pool|piscina/i, "pool"],
+  [/wifi|internet|wi-fi/i, "wifi"],
+  [/air|ac\b|condition|ar.?condicion|climati/i, "ac"],
+  [/garage|garagem|parking|estacion/i, "garage"],
+  [/lift|elevator|elevador/i, "elevator"],
+  [/balcon|terrace|terra[çc]|varanda/i, "balcony"],
+  [/pet|animal/i, "pet"],
+  [/garden|outdoor|jardim|exterior|p[aá]tio/i, "tree"],
+  [/furnish|mobilad|sof[aá]/i, "sofa"],
+  [/floodlight|light|sun|sol/i, "sun"],
+  [/water|heating|aquecim|[áa]gua|droplet/i, "droplet"],
+  [/bill|utilit|conta|despesa/i, "wallet"],
+  [/storage|arruma|arrecad/i, "clipboard"],
+  [/changing|balne|vestiario|vestiário/i, "user"],
+  [/ball|equipa|rental|aluguer/i, "tag"],
+];
+const amenityIcon = (label: string): string => {
+  for (const [pattern, icon] of AMENITY_ICONS)
+    if (pattern.test(label)) return icon;
+  return "check";
+};
+
 type ServiceLaunchMode = AppRoute["service"];
 
 const Messages = lazy(() =>
@@ -1485,7 +1509,7 @@ function UniversalHome({
           onClick={() => go("discover")}
         >
           <span className="universal-area-icon">
-            <Home />
+            <KasaIcon name="house" size={26} />
           </span>
           <span>
             <small>{tr("universalHome.live")}</small>
@@ -1499,7 +1523,7 @@ function UniversalHome({
           onClick={() => openServices("jobs")}
         >
           <span className="universal-area-icon">
-            <BriefcaseBusiness />
+            <KasaIcon name="briefcase" size={26} />
           </span>
           <span>
             <small>{tr("universalHome.earn")}</small>
@@ -1513,7 +1537,7 @@ function UniversalHome({
           onClick={() => openServices("discover")}
         >
           <span className="universal-area-icon">
-            <Wrench />
+            <KasaIcon name="wrench" size={26} />
           </span>
           <span>
             <small>{tr("universalHome.getHelp")}</small>
@@ -1527,7 +1551,7 @@ function UniversalHome({
           onClick={() => go("spaces")}
         >
           <span className="universal-area-icon">
-            <CalendarDays />
+            <KasaIcon name="calendar-check" size={26} />
           </span>
           <span>
             <small>{tr("universalHome.reserve")}</small>
@@ -2430,7 +2454,7 @@ function PropertyDetail({
             <div className="amenity-grid">
               {property.amenities.map((amenity) => (
                 <span key={amenity}>
-                  <Check size={16} /> {amenity}
+                  <KasaIcon name={amenityIcon(amenity)} size={17} /> {amenity}
                 </span>
               ))}
             </div>
