@@ -214,6 +214,7 @@ import {
   PropertyShareButton,
 } from "./components/PropertyGallery";
 import { HowKasaWorks } from "./components/HowKasaWorks";
+import { DiscoverHero } from "./components/DiscoverHero";
 import {
   MortgageCardEstimate,
   MortgageEstimator,
@@ -1937,27 +1938,15 @@ function Discover({
   };
   return (
     <div className="page-stack">
-      <section className="discovery-intro">
-        <div>
-          <span className="eyebrow light">{tr("discover.eyebrow")}</span>
-          <h2 className="display-serif">{tr("discover.title")}</h2>
-          <p>{tr("discover.subtitle")}</p>
-        </div>
-        <div className="intent-switch">
-          <button
-            className={intent === "Rent" ? "active" : ""}
-            onClick={() => chooseIntent("Rent")}
-          >
-            {tr("discover.rent")}
-          </button>
-          <button
-            className={intent === "Buy" ? "active" : ""}
-            onClick={() => chooseIntent("Buy")}
-          >
-            {tr("discover.buy")}
-          </button>
-        </div>
-      </section>
+      <DiscoverHero
+        eyebrow={tr("discover.eyebrow")}
+        title={tr("discover.title")}
+        subtitle={tr("discover.subtitle")}
+        intent={intent}
+        onChooseIntent={chooseIntent}
+        rentLabel={tr("discover.rent")}
+        buyLabel={tr("discover.buy")}
+      />
       <section className="search-panel">
         <div className="search-main">
           <Search size={20} />
