@@ -214,6 +214,8 @@ import {
   PropertyShareButton,
 } from "./components/PropertyGallery";
 import { HowKasaWorks } from "./components/HowKasaWorks";
+import { LegalCenter } from "./components/LegalCenter";
+import { CookieNotice } from "./components/CookieNotice";
 import {
   MortgageCardEstimate,
   MortgageEstimator,
@@ -6411,6 +6413,8 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
         ) : null;
       case "plan":
         return <Plan notify={notify} />;
+      case "legal":
+        return <LegalCenter onBack={() => go("overview")} />;
     }
   };
 
@@ -6443,6 +6447,7 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
   return (
     <>
       {onboarding}
+      <CookieNotice onOpenPolicy={() => go("legal")} />
       <div
         className={`app-shell ${isDevicePreview ? `device-preview-${previewDevice}` : ""}`}
         hidden={showOnboarding}
@@ -6700,6 +6705,14 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
               }}
             >
               <Settings size={18} /> {tr("common.settings")}
+            </button>
+            <button
+              onClick={() => {
+                closeMobileNavigation();
+                go("legal");
+              }}
+            >
+              <FileText size={18} /> {tr("nav.legal")}
             </button>
             <div className="scope-chip">
               <ShieldCheck size={15} /> {tr("nav.nonBrokerage")}

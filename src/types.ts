@@ -27,7 +27,8 @@ export type View =
   | "admin"
   | "diagnostics"
   | "insights"
-  | "plan";
+  | "plan"
+  | "legal";
 
 export interface Property {
   id: number;

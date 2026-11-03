@@ -99,6 +99,7 @@ const en = {
     moderation: "Moderation & flags",
     appWelcome: "App welcome",
     help: "Help & support",
+    legal: "Legal & privacy",
     nonBrokerage: "Non-brokerage platform",
     switchWorkspace: "Shared account · switch workspace",
     oneIdentity: "One Kasa identity",
@@ -728,6 +729,7 @@ const pt = {
     moderation: "Moderação e alertas",
     appWelcome: "Boas-vindas",
     help: "Ajuda e suporte",
+    legal: "Jurídico e privacidade",
     nonBrokerage: "Plataforma sem mediação imobiliária",
     switchWorkspace: "Conta partilhada · mudar área",
     oneIdentity: "Uma identidade Kasa",
@@ -1354,6 +1356,7 @@ const es = merge(en, {
     insights: "Análisis",
     commercial: "Modelo comercial",
     help: "Ayuda y soporte",
+    legal: "Legal y privacidad",
     nonBrokerage: "Plataforma sin intermediación inmobiliaria",
   },
   shell: {
@@ -1604,6 +1607,7 @@ const fr = merge(en, {
     insights: "Analyses",
     commercial: "Modèle commercial",
     help: "Aide et assistance",
+    legal: "Mentions légales",
     nonBrokerage: "Plateforme sans courtage immobilier",
   },
   shell: {
@@ -1855,6 +1859,7 @@ const ar = merge(en, {
     insights: "التحليلات",
     commercial: "النموذج التجاري",
     help: "المساعدة والدعم",
+    legal: "الشؤون القانونية والخصوصية",
     nonBrokerage: "منصة تقنية عقارية بدون وساطة",
   },
   shell: {
@@ -2106,6 +2111,7 @@ const zh = merge(en, {
     insights: "分析",
     commercial: "商业模式",
     help: "帮助与支持",
+    legal: "法律与隐私",
     nonBrokerage: "非经纪房地产科技平台",
   },
   shell: {

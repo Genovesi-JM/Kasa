@@ -49,6 +49,7 @@ const views: Record<View, true> = {
   diagnostics: true,
   insights: true,
   plan: true,
+  legal: true,
 };
 
 const intents: Record<AppRoute["intent"], true> = { Rent: true, Buy: true };
