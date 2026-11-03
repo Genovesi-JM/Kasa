@@ -14,8 +14,6 @@ import {
   ArrowRight,
   BadgeCheck,
   BarChart3,
-  Bath,
-  BedDouble,
   Bell,
   BriefcaseBusiness,
   Building2,
@@ -214,6 +212,7 @@ import {
   PropertyShareButton,
 } from "./components/PropertyGallery";
 import { HowKasaWorks } from "./components/HowKasaWorks";
+import { KasaIcon } from "./components/KasaIcon";
 import {
   MortgageCardEstimate,
   MortgageEstimator,
@@ -1297,11 +1296,12 @@ function PropertyCard({
         </div>
         <div className="property-facts">
           <span>
-            <BedDouble size={16} /> {property.beds}{" "}
+            <KasaIcon name="bed" size={16} /> {property.beds}{" "}
             {tr("discover.bedroomCount")}
           </span>
           <span>
-            <Bath size={16} /> {property.baths} {tr("discover.bathroomCount")}
+            <KasaIcon name="bath" size={16} /> {property.baths}{" "}
+            {tr("discover.bathroomCount")}
           </span>
           <span>{property.sqm} m²</span>
         </div>
@@ -2385,22 +2385,22 @@ function PropertyDetail({
         <main>
           <section className="fact-ribbon">
             <span>
-              <BedDouble />
+              <KasaIcon name="bed" size={23} />
               <strong>{property.beds}</strong>
               <small>{tr("discover.bedrooms")}</small>
             </span>
             <span>
-              <Bath />
+              <KasaIcon name="bath" size={23} />
               <strong>{property.baths}</strong>
               <small>{tr("discover.bathrooms")}</small>
             </span>
             <span>
-              <Home />
+              <KasaIcon name="area" size={23} />
               <strong>{property.sqm}</strong>
               <small>m²</small>
             </span>
             <span>
-              <WalletCards />
+              <KasaIcon name="wallet" size={23} />
               <strong>
                 {property.listingType === "Rent"
                   ? formatEuro(property.deposit)

@@ -3207,7 +3207,8 @@ kbd {
 .fact-ribbon span:first-child {
   border-left: 0;
 }
-.fact-ribbon svg {
+.fact-ribbon svg,
+.fact-ribbon .kasa-icon {
   grid-area: icon;
   color: var(--green-2);
 }
