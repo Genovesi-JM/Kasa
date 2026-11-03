@@ -271,6 +271,26 @@ const amenityIcon = (label: string): string => {
   return "check";
 };
 
+// Maps the mobile dock's lucide icons to Kasa glyphs by identity, so the dock
+// items keep their existing definitions and anything unmapped falls back to
+// the lucide icon.
+const DOCK_KASA_ICON = new globalThis.Map<LucideIcon, string>([
+  [Search, "search"],
+  [MessageCircle, "message-circle"],
+  [Bell, "bell"],
+  [CircleUserRound, "user"],
+  [LayoutDashboard, "grid"],
+  [Building2, "buildings"],
+  [CalendarDays, "calendar-check"],
+  [FileCheck2, "file-check"],
+  [Wrench, "wrench"],
+  [Sparkles, "sparkles"],
+  [BriefcaseBusiness, "briefcase"],
+  [Users, "users"],
+  [ShieldCheck, "shield-check"],
+  [CheckCircle2, "check-circle"],
+]);
+
 type ServiceLaunchMode = AppRoute["service"];
 
 const Messages = lazy(() =>
@@ -7021,6 +7041,7 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
             >
               {mobileDockItems.map((item) => {
                 const Icon = item.icon;
+                const kasaName = DOCK_KASA_ICON.get(item.icon);
                 const active = (item.activeViews ?? [item.id]).includes(view);
                 return (
                   <button
@@ -7029,7 +7050,11 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
                     aria-current={active ? "page" : undefined}
                     onClick={() => navigateMain(item.id)}
                   >
-                    <Icon />
+                    {kasaName ? (
+                      <KasaIcon name={kasaName} size={22} />
+                    ) : (
+                      <Icon />
+                    )}
                     <span>{item.label}</span>
                   </button>
                 );
