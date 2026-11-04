@@ -249,7 +249,7 @@ const withUnknownOptions = readDiscoverHistory(
     ...history,
     filters: {
       ...original.filters,
-      maxPrice: "650000",
+      maxPrice: "not-a-price",
       minPrice: "300000",
       propertyType: "Palace",
       viewMode: "unsupported",
