@@ -19,6 +19,7 @@ import "./space-booking-notification-check";
 import "./space-booking-completion-check";
 import "./space-operator-draft-check";
 import "./discover-state-check";
+import "./affordability-check";
 import "./discover-history-check";
 import "./spaces-discovery-state-check";
 import "./preferences-check";

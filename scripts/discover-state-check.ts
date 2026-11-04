@@ -296,7 +296,7 @@ const invalidOptions = updateDiscoverState(
   (filters) =>
     ({
       ...filters,
-      maxPrice: "650000",
+      maxPrice: "not-a-price",
       minPrice: "300000",
       propertyType: "Palace",
       bedrooms: "100",
@@ -308,7 +308,7 @@ const invalidOptions = updateDiscoverState(
 assert.equal(
   invalidOptions,
   ownerSearch,
-  "Unknown options and Buy prices cannot enter a rental search",
+  "Unknown options and Buy minimum-price presets cannot enter a rental search",
 );
 assert.equal(
   updateDiscoverState(ownerSearch, "tenant", "Rent", (filters) => filters),
