@@ -644,6 +644,11 @@ const en = {
     privacyNote:
       "Your email and phone number are not shown publicly. Conversations start in private Kasa Chat.",
   },
+  banner: {
+    badge: "Demo",
+    message:
+      "Synthetic demo data — submissions and saving are not available in this read-only pilot.",
+  },
   language: { label: "Language" },
 };
 
@@ -1276,6 +1281,11 @@ const pt = {
     privacyNote:
       "O seu email e número de telefone não são mostrados publicamente. As conversas começam no Kasa Chat privado.",
   },
+  banner: {
+    badge: "Demonstração",
+    message:
+      "Dados sintéticos de demonstração — não é possível submeter nem guardar alterações nesta versão apenas de leitura.",
+  },
   language: { label: "Idioma" },
 };
 
@@ -1294,10 +1304,16 @@ const merge = (
   space: { ...base.space, ...patch.space },
   diagnostics: { ...base.diagnostics, ...patch.diagnostics },
   universalHome: { ...base.universalHome, ...patch.universalHome },
+  banner: { ...base.banner, ...patch.banner },
   language: { ...base.language, ...patch.language },
 });
 
 const es = merge(en, {
+  banner: {
+    badge: "Demostración",
+    message:
+      "Datos sintéticos de demostración: no es posible enviar formularios ni guardar cambios en este piloto de solo lectura.",
+  },
   common: {
     search: "Buscar",
     reset: "Restablecer",
@@ -1548,6 +1564,11 @@ const es = merge(en, {
 });
 
 const fr = merge(en, {
+  banner: {
+    badge: "Démo",
+    message:
+      "Données synthétiques de démonstration : les envois de formulaires et l'enregistrement ne sont pas disponibles dans ce pilote en lecture seule.",
+  },
   common: {
     search: "Rechercher",
     reset: "Réinitialiser",
@@ -1798,6 +1819,11 @@ const fr = merge(en, {
 });
 
 const ar = merge(en, {
+  banner: {
+    badge: "تجريبي",
+    message:
+      "بيانات تجريبية مُصنَّعة — لا يمكن إرسال النماذج أو حفظ التغييرات في هذا الإصدار التجريبي للقراءة فقط.",
+  },
   common: {
     search: "بحث",
     reset: "إعادة ضبط",
@@ -2049,6 +2075,10 @@ const ar = merge(en, {
 });
 
 const zh = merge(en, {
+  banner: {
+    badge: "演示",
+    message: "合成演示数据——此只读试用版不支持提交表单或保存更改。",
+  },
   common: {
     search: "搜索",
     reset: "重置",
