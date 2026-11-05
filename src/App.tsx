@@ -33,6 +33,7 @@ import {
   Globe2,
   Heart,
   Home,
+  Info,
   LayoutDashboard,
   LifeBuoy,
   LockKeyhole,
@@ -430,6 +431,19 @@ function LanguageSwitcher({
   );
 }
 
+function DemoStatusBanner() {
+  const { tr } = useKasaI18n();
+  if (!appConfig.demoMode) return null;
+  return (
+    <div className="demo-status-banner" role="status">
+      <Info size={16} aria-hidden="true" />
+      <p>
+        <strong>{tr("banner.badge")}</strong> {tr("banner.message")}
+      </p>
+    </div>
+  );
+}
+
 interface NavItem {
   id: View;
   label: string;
@@ -818,6 +832,7 @@ function OnboardingExperience({
 
   return (
     <main className="onboarding-shell">
+      <DemoStatusBanner />
       <section className="onboarding-story">
         <div className="onboarding-brand-row">
           <div className="onboarding-brand">
@@ -6750,6 +6765,7 @@ function App({ demoTarget }: { demoTarget?: DemoTarget }) {
           />
         )}
         <main className="main-area" id="main-content" tabIndex={-1}>
+          <DemoStatusBanner />
           <header className="topbar">
             <button
               className="menu-button"
